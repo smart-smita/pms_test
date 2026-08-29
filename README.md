@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # HTCO Employee GPS Attendance & Project Task Management System
 
 A modern, responsive, full-stack Web Application built with **React.js + TypeScript (Frontend)**, **Node.js + Express + TypeScript (Backend)**, and **MySQL (Database)**.
@@ -102,3 +103,7 @@ Frontend web portal will be accessible at `http://localhost:5173`.
 6. **Calculate Working Hours**: Server calculates exact duration `(check_out_time - check_in_time)`. Updates task actual hours.
 7. **Hour-Wise Payment**: Payment derived server-side as `hourly_rate * total_working_hours`.
 8. **Real-time Dashboard & Reports**: Reflected immediately in Dashboard cards, task progress meters, and exportable CSV reports.
+=======
+# pms
+Employee GPS Attendance &amp; Project Task Management System
+>>>>>>> d20cfd5a1b308876f2128d1af62909cbb0a214ed
