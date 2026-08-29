@@ -37,20 +37,26 @@ interface ProjectFormProps {
 }
 
 export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuccess }) => {
+  // Safe date parser
+  const getFormattedDate = (d?: string) => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    return d.split('T')[0].split(' ')[0]; // Handles both ISO and SQL date strings
+  };
+
   // Main Form State
   const [projectCode, setProjectCode] = useState(project?.project_code || `PRJ-${new Date().getFullYear()}-${Math.floor(10 + Math.random() * 90)}`);
   const [projectName, setProjectName] = useState(project?.project_name || '');
   const [projectAddress, setProjectAddress] = useState(project?.project_address || '');
   const [radiusMeters, setRadiusMeters] = useState<number>(project?.radius_meters || 500);
-  const [projectDate, setProjectDate] = useState(project?.project_date || new Date().toISOString().split('T')[0]);
+  const [projectDate, setProjectDate] = useState(getFormattedDate(project?.project_date));
   const [clientCode, setClientCode] = useState(project?.client_code || '');
   const [clientName, setClientName] = useState(project?.client_name || '');
   const [note, setNote] = useState(project?.note || '');
   const [status, setStatus] = useState(project?.status || 'active');
 
   // Map / Location State
-  const [latitude, setLatitude] = useState<string>(project?.latitude ? String(project?.latitude) : '18.5204');
-  const [longitude, setLongitude] = useState<string>(project?.longitude ? String(project?.longitude) : '73.8567');
+  const [latitude, setLatitude] = useState<string>(project?.latitude !== undefined && project?.latitude !== null ? String(project.latitude) : '18.5204');
+  const [longitude, setLongitude] = useState<string>(project?.longitude !== undefined && project?.longitude !== null ? String(project.longitude) : '73.8567');
 
   // Disciplines (Tasks) State
   const [disciplines, setDisciplines] = useState<any[]>([]);
@@ -61,6 +67,23 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch existing tasks if editing
+  React.useEffect(() => {
+    if (project?.project_id) {
+      apiRequest<any[]>(`/tasks?project_id=${project.project_id}`).then(res => {
+        if (res.success && res.data) {
+          setDisciplines(res.data.map(t => ({
+            id: t.task_id,
+            task_name: t.task_name,
+            start_date: t.start_date ? t.start_date.split('T')[0] : '',
+            target_date: t.target_date ? t.target_date.split('T')[0] : '',
+            estimated_hours: t.estimated_hours || 0
+          })));
+        }
+      });
+    }
+  }, [project]);
 
   const handleAddDiscipline = () => {
     if (!discName) return;
@@ -77,14 +100,28 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
     setDiscHours('');
   };
 
-  const handleRemoveDiscipline = (id: number) => {
-    setDisciplines(disciplines.filter(d => d.id !== id));
+  const handleRemoveDiscipline = async (id: number) => {
+    // If it's an existing task (id is a small integer, not Date.now())
+    if (project && id < 1000000000000) {
+      if (window.confirm('Are you sure you want to delete this discipline/task from the database?')) {
+        const res = await apiRequest(`/tasks/${id}`, { method: 'DELETE' });
+        if (res.success) {
+          setDisciplines(disciplines.filter(d => d.id !== id));
+        } else {
+          alert(res.message || 'Failed to delete task');
+        }
+      }
+    } else {
+      setDisciplines(disciplines.filter(d => d.id !== id));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+
+    const newDisciplines = project ? disciplines.filter(d => d.id > 1000000000000) : disciplines;
 
     const payload: any = {
       project_name: projectName,
@@ -97,7 +134,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
       project_date: projectDate,
       status,
       note,
-      disciplines: disciplines.length > 0 ? disciplines : undefined
+      disciplines: newDisciplines.length > 0 ? newDisciplines : undefined
     };
 
     if (project) {

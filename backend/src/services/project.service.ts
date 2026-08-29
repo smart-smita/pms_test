@@ -44,6 +44,24 @@ export class ProjectService {
     const project = await this.projectRepo.findById(id);
     if (!project) throw new Error('Project not found');
 
+    // Insert new disciplines (tasks) if provided
+    if (data.disciplines && Array.isArray(data.disciplines) && data.disciplines.length > 0) {
+      const { TaskRepository } = await import('../repositories/task.repository');
+      const taskRepo = new TaskRepository();
+      
+      for (const disc of data.disciplines) {
+        await taskRepo.create({
+          project_id: id,
+          task_name: disc.task_name,
+          start_date: disc.start_date || undefined,
+          target_date: disc.target_date || undefined,
+          estimated_hours: disc.estimated_hours || 0,
+          required_worker_count: 1, // Default
+          status: 'pending'
+        });
+      }
+    }
+
     await this.projectRepo.update(id, data);
     return await this.projectRepo.findById(id);
   }
