@@ -1,0 +1,145 @@
+import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { dbPool } from '../config/db';
+import { ProjectRow } from '../types';
+
+export class ProjectRepository {
+  async findAll(status?: string, search?: string, managerId?: number, employeeId?: number): Promise<ProjectRow[]> {
+    let sql = `
+      SELECT 
+        p.*,
+        COUNT(t.task_id) AS task_count,
+        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_task_count
+      FROM projects p
+      LEFT JOIN tasks t ON p.project_id = t.project_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (managerId) {
+      sql += ` AND p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
+      params.push(managerId);
+    }
+    
+    if (employeeId) {
+      sql += ` AND p.project_id IN (SELECT t2.project_id FROM tasks t2 JOIN task_assignments ta ON t2.task_id = ta.task_id WHERE ta.user_id = ?)`;
+      params.push(employeeId);
+    }
+
+    if (status) {
+      sql += ` AND p.status = ?`;
+      params.push(status);
+    }
+    if (search) {
+      sql += ` AND (p.project_name LIKE ? OR p.project_code LIKE ? OR p.client_name LIKE ?)`;
+      const term = `%${search}%`;
+      params.push(term, term, term);
+    }
+
+    sql += ` GROUP BY p.project_id ORDER BY p.project_id DESC`;
+
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+
+    return rows.map((r: any) => {
+      const taskCount = Number(r.task_count || 0);
+      const completedCount = Number(r.completed_task_count || 0);
+      const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
+      return {
+        ...r,
+        progress_percentage: progress,
+        task_count: taskCount,
+        completed_task_count: completedCount,
+      } as ProjectRow;
+    });
+  }
+
+  async findById(id: number): Promise<ProjectRow | null> {
+    const [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT 
+        p.*,
+        COUNT(t.task_id) AS task_count,
+        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_task_count
+       FROM projects p
+       LEFT JOIN tasks t ON p.project_id = t.project_id
+       WHERE p.project_id = ?
+       GROUP BY p.project_id`,
+      [id]
+    );
+    if (!rows[0]) return null;
+    const r: any = rows[0];
+    const taskCount = Number(r.task_count || 0);
+    const completedCount = Number(r.completed_task_count || 0);
+    const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
+    return {
+      ...r,
+      progress_percentage: progress,
+      task_count: taskCount,
+      completed_task_count: completedCount,
+    } as ProjectRow;
+  }
+
+  async findByCode(code: string): Promise<ProjectRow | null> {
+    const [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT * FROM projects WHERE project_code = ?`,
+      [code]
+    );
+    return (rows[0] as ProjectRow) || null;
+  }
+
+  async create(data: {
+    project_code: string;
+    project_name: string;
+    project_address?: string;
+    client_name?: string;
+    client_code?: string;
+    latitude?: number;
+    longitude?: number;
+    radius_meters?: number;
+    project_date?: string;
+    status: string;
+    note?: string;
+  }): Promise<number> {
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `INSERT INTO projects (project_code, project_name, project_address, client_name, client_code, latitude, longitude, radius_meters, project_date, status, note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.project_code,
+        data.project_name,
+        data.project_address || null,
+        data.client_name || null,
+        data.client_code || null,
+        data.latitude || null,
+        data.longitude || null,
+        data.radius_meters || 500,
+        data.project_date || null,
+        data.status,
+        data.note || null,
+      ]
+    );
+    return result.insertId;
+  }
+
+  async update(id: number, data: Partial<ProjectRow>): Promise<boolean> {
+    const fields: string[] = [];
+    const params: any[] = [];
+
+    if (data.project_name !== undefined) { fields.push('project_name = ?'); params.push(data.project_name); }
+    if (data.project_address !== undefined) { fields.push('project_address = ?'); params.push(data.project_address); }
+    if (data.client_name !== undefined) { fields.push('client_name = ?'); params.push(data.client_name); }
+    if (data.client_code !== undefined) { fields.push('client_code = ?'); params.push(data.client_code); }
+    if (data.latitude !== undefined) { fields.push('latitude = ?'); params.push(data.latitude); }
+    if (data.longitude !== undefined) { fields.push('longitude = ?'); params.push(data.longitude); }
+    if (data.radius_meters !== undefined) { fields.push('radius_meters = ?'); params.push(data.radius_meters); }
+    if (data.project_date !== undefined) { fields.push('project_date = ?'); params.push(data.project_date); }
+    if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
+    if (data.note !== undefined) { fields.push('note = ?'); params.push(data.note); }
+
+    if (fields.length === 0) return false;
+
+    params.push(id);
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE projects SET ${fields.join(', ')} WHERE project_id = ?`,
+      params
+    );
+    return result.affectedRows > 0;
+  }
+}
