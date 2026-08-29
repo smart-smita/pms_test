@@ -105,4 +105,43 @@ export class AuthService {
 
     return { message: 'Password has been reset successfully. You can now log in.' };
   }
+
+  async updateProfile(userId: number, name: string) {
+    if (!name) throw new Error('Name is required');
+    await this.userRepo.update(userId, { name });
+    return await this.userRepo.findById(userId);
+  }
+
+  async updatePassword(userId: number, currentPassword: string, newPassword: string) {
+    const user = await this.userRepo.findById(userId);
+    if (!user) throw new Error('User not found');
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isMatch) {
+      if (user.password_hash !== currentPassword) {
+        throw new Error('Incorrect current password');
+      }
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.userRepo.update(userId, { password_hash: hash });
+  }
+
+  async submitSupportTicket(userId: number, subject: string, message: string) {
+    if (!subject || !message) throw new Error('Subject and message are required');
+    
+    // Create a notification for Admins
+    const [admins]: any = await dbPool.execute(`SELECT employee_id FROM employees WHERE role_id = 1`);
+    const { NotificationService } = await import('./notification.service');
+    const notifService = new NotificationService();
+    
+    for (const admin of admins) {
+      await notifService.createNotification(
+        admin.employee_id,
+        `New Support Ticket: ${subject}`,
+        `Ticket submitted by User ID ${userId}: ${message}`,
+        'warning'
+      );
+    }
+  }
 }

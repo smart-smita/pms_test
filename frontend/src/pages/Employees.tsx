@@ -8,7 +8,7 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
 import { Employee } from '../types';
-import { UserPlus, Edit, Shield } from 'lucide-react';
+import { UserPlus, Edit, Shield, Plus, Activity, Trash2 } from 'lucide-react';
 import { RequirePermission } from '../components/common/RequirePermission';
 
 export const Employees: React.FC = () => {
@@ -64,6 +64,14 @@ export const Employees: React.FC = () => {
     setStatus(emp.status);
     setError(null);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this employee?')) {
+      const res = await apiRequest(`/employees/${id}`, { method: 'DELETE' });
+      if (res.success) fetchEmployees();
+      else alert(res.message || 'Failed to delete employee');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,12 +139,12 @@ export const Employees: React.FC = () => {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Employee Management</h1>
-          <p className="page-subtitle">Manage worker profiles, hourly rates, and system role access</p>
+          <h1 className="page-title">Employees</h1>
+          <p className="page-subtitle">Manage system users, roles, and profiles</p>
         </div>
         <RequirePermission module="employees" action="create">
           <Button variant="primary" onClick={openCreateModal}>
-            <UserPlus size={18} /> Add Employee
+            <Plus size={18} /> Add Employee
           </Button>
         </RequirePermission>
       </div>
@@ -148,14 +156,21 @@ export const Employees: React.FC = () => {
           <DataTable
             columns={columns}
             data={employees}
-            searchPlaceholder="Search employees by name, code, or email..."
+            searchPlaceholder="Search employees..."
             exportFilename="employees_list.csv"
             actions={(row) => (
-              <RequirePermission module="employees" action="update">
-                <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
-                  <Edit size={14} /> Edit
-                </Button>
-              </RequirePermission>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <RequirePermission module="employees" action="update">
+                  <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                    <Edit size={14} /> Edit
+                  </Button>
+                </RequirePermission>
+                <RequirePermission module="employees" action="delete">
+                  <Button variant="secondary" onClick={() => handleDelete(row.employee_id)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    <Trash2 size={14} /> Delete
+                  </Button>
+                </RequirePermission>
+              </div>
             )}
           />
         </div>

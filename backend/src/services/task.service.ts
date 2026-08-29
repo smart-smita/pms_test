@@ -67,6 +67,25 @@ export class TaskService {
     }
 
     await this.taskRepo.assignWorkers(taskId, employeeIds);
+
+    // Trigger Notification for each assigned employee
+    const { NotificationService } = await import('./notification.service');
+    const notificationService = new NotificationService();
+    for (const empId of employeeIds) {
+      await notificationService.createNotification(
+        empId,
+        'New Task Assigned',
+        `You have been assigned to the task: ${task.task_name}.`,
+        'info'
+      );
+    }
+
     return await this.taskRepo.findById(taskId);
+  }
+
+  async deleteTask(id: number, deletedBy: number) {
+    const task = await this.taskRepo.findById(id);
+    if (!task) throw new Error('Task not found');
+    return await this.taskRepo.softDelete(id, deletedBy);
   }
 }

@@ -8,7 +8,8 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
 import { Task, Project, Employee } from '../types';
-import { CheckSquare, Plus, Edit, UserCheck, AlertTriangle, Clock } from 'lucide-react';
+import { CheckSquare, Plus, Edit, UserCheck, AlertTriangle, Clock, Trash2 } from 'lucide-react';
+import { RequirePermission } from '../components/common/RequirePermission';
 
 export const Tasks: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -18,6 +19,7 @@ export const Tasks: React.FC = () => {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Form State
@@ -29,7 +31,7 @@ export const Tasks: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [status, setStatus] = useState<'pending' | 'in-progress' | 'completed' | 'delayed'>('pending');
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<number[]>([]);
+  const [allocationEmployeeId, setAllocationEmployeeId] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -61,7 +63,6 @@ export const Tasks: React.FC = () => {
     setStartDate(new Date().toISOString().split('T')[0]);
     setTargetDate('');
     setStatus('pending');
-    setSelectedEmployeeIds([]);
     setError(null);
     setIsModalOpen(true);
   };
@@ -76,15 +77,15 @@ export const Tasks: React.FC = () => {
     setStartDate(t.start_date || '');
     setTargetDate(t.target_date || '');
     setStatus(t.status);
-    setSelectedEmployeeIds(t.assigned_employees ? t.assigned_employees.map((e) => e.employee_id) : []);
     setError(null);
     setIsModalOpen(true);
   };
 
-  const toggleEmployeeSelection = (empId: number) => {
-    setSelectedEmployeeIds((prev) =>
-      prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId]
-    );
+  const openAllocationModal = (t: Task) => {
+    setEditingTask(t);
+    setAllocationEmployeeId(t.assigned_employees && t.assigned_employees.length > 0 ? t.assigned_employees[0].employee_id : 0);
+    setError(null);
+    setIsAllocationModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,7 +101,6 @@ export const Tasks: React.FC = () => {
       start_date: startDate || undefined,
       target_date: targetDate || undefined,
       status,
-      assigned_employee_ids: selectedEmployeeIds,
     };
 
     if (editingTask) {
@@ -125,6 +125,14 @@ export const Tasks: React.FC = () => {
       } else {
         setError(res.message || 'Failed to create task');
       }
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this task?')) {
+      const res = await apiRequest(`/tasks/${id}`, { method: 'DELETE' });
+      if (res.success) fetchData();
+      else alert(res.message || 'Failed to delete task');
     }
   };
 
@@ -219,9 +227,17 @@ export const Tasks: React.FC = () => {
             searchPlaceholder="Search tasks by name or project..."
             exportFilename="tasks_list.csv"
             actions={(row) => (
-              <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
-                <Edit size={14} /> Edit
-              </Button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                  <Edit size={14} /> Edit
+                </Button>
+                <Button variant="secondary" onClick={() => openAllocationModal(row)} style={{ padding: '0.35rem 0.65rem', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                  <UserCheck size={14} /> Allocate
+                </Button>
+                <Button variant="secondary" onClick={() => handleDelete(row.task_id)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <Trash2 size={14} /> Delete
+                </Button>
+              </div>
             )}
           />
         </div>
@@ -283,48 +299,7 @@ export const Tasks: React.FC = () => {
             ]}
           />
 
-          {/* Worker Assignment Section */}
-          <div className="form-group">
-            <label className="form-label">
-              Assign Workers ({selectedEmployeeIds.length} assigned / {requiredWorkerCount} required)
-            </label>
-            <div
-              style={{
-                maxHeight: '140px',
-                overflowY: 'auto',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.5rem',
-                background: 'rgba(15, 23, 42, 0.6)',
-              }}
-            >
-              {employees.map((emp) => {
-                const isSelected = selectedEmployeeIds.includes(emp.employee_id);
-                return (
-                  <div
-                    key={emp.employee_id}
-                    onClick={() => toggleEmployeeSelection(emp.employee_id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0.4rem 0.6rem',
-                      marginBottom: '0.2rem',
-                      borderRadius: '4px',
-                      background: isSelected ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    <span>
-                      {emp.name} ({emp.employee_code}) - ₹{emp.hourly_rate}/hr
-                    </span>
-                    {isSelected && <UserCheck size={16} color="#818cf8" />}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* Worker Assignment Removed */}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
@@ -335,6 +310,54 @@ export const Tasks: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Task Allocation Modal */}
+      <Modal isOpen={isAllocationModalOpen} onClose={() => setIsAllocationModalOpen(false)} title="Task Allocation Form">
+        {error && (
+          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '0.75rem', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+            {error}
+          </div>
+        )}
+
+        {editingTask && (
+          <form onSubmit={handleAllocationSubmit}>
+            <FormInput label="Project Name" type="text" value={editingTask.project_name || ''} readOnly disabled />
+            <FormInput label="Discipline Name" type="text" value={editingTask.task_name} readOnly disabled />
+
+            <FormSelect
+              label="Employee Name"
+              value={allocationEmployeeId}
+              onChange={(e) => setAllocationEmployeeId(parseInt(e.target.value, 10))}
+              options={[
+                { value: 0, label: '-- Select Employee --' },
+                ...employees.map((emp) => ({ value: emp.employee_id, label: `${emp.name} (${emp.employee_code})` }))
+              ]}
+              required
+            />
+
+            <div className="form-group">
+              <label className="form-label">Task Description</label>
+              <textarea className="form-input" rows={3} value={editingTask.description || ''} readOnly disabled />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <FormInput label="Task Start Date" type="date" value={editingTask.start_date || ''} readOnly disabled />
+              <FormInput label="Task End Date" type="date" value={editingTask.target_date || ''} readOnly disabled />
+            </div>
+
+            <FormInput label="Work HRs." type="number" value={editingTask.estimated_hours} readOnly disabled />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <Button type="button" variant="secondary" onClick={() => setIsAllocationModalOpen(false)}>
+                Close
+              </Button>
+              <Button type="submit" variant="primary">
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

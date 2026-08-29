@@ -18,7 +18,8 @@ export class AttendanceController {
 
     try {
       const record = await this.attendanceService.checkIn(req.user.employee_id, parseResult.data);
-      await AuditService.log(req, 'attendance', 'check-in', 'GPS Check-In recorded', record.log_id);
+      const logId = record ? (record as any).log_id : null;
+      await AuditService.log(req, 'attendance', 'check-in', 'GPS Check-In recorded', logId);
       return sendSuccess(res, 'GPS Check-In recorded successfully', record, 201);
     } catch (error: any) {
       return sendError(res, error.message || 'Check-In failed', [], 400);
@@ -35,7 +36,8 @@ export class AttendanceController {
 
     try {
       const record = await this.attendanceService.checkOut(req.user.employee_id, parseResult.data);
-      await AuditService.log(req, 'attendance', 'check-out', 'GPS Check-Out recorded', record.log_id);
+      const logId = record ? (record as any).log_id : null;
+      await AuditService.log(req, 'attendance', 'check-out', 'GPS Check-Out recorded', logId);
       return sendSuccess(res, 'GPS Check-Out recorded successfully. Working hours updated.', record);
     } catch (error: any) {
       return sendError(res, error.message || 'Check-Out failed', [], 400);

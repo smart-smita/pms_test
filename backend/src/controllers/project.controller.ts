@@ -61,4 +61,19 @@ export class ProjectController {
       return sendError(res, error.message || 'Failed to update project', [], 400);
     }
   };
+
+  delete = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const deletedBy = (req as any).user.id;
+      const success = await this.projectService.deleteProject(id, deletedBy);
+      if (success) {
+        res.json({ success: true, message: 'Project deleted successfully' });
+      } else {
+        res.status(404).json({ success: false, message: 'Project not found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+  };
 }

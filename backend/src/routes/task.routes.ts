@@ -13,5 +13,6 @@ router.get('/:id', requirePermission('tasks', 'view'), controller.getById);
 router.post('/', requirePermission('tasks', 'create'), controller.create);
 router.put('/:id', requirePermission('tasks', 'update'), controller.update);
 router.post('/:id/assign', requirePermission('tasks', 'assign'), controller.assignWorkers);
+router.delete('/:id', requirePermission('tasks', 'delete'), controller.delete);
 
 export default router;

@@ -20,8 +20,8 @@ export class AuthController {
       );
       
       // Inject user for audit log
-      (req as any).user = { id: result.user.id };
-      await AuditService.log(req, 'auth', 'login', `User logged in: ${result.user.employee_code}`, result.user.id);
+      (req as any).user = { id: result.user.employee_id };
+      await AuditService.log(req, 'auth', 'login', `User logged in: ${result.user.employee_code}`, result.user.employee_id);
       
       return sendSuccess(res, 'Login successful', result);
     } catch (error: any) {
@@ -62,5 +62,38 @@ export class AuthController {
 
   logout = async (req: Request, res: Response) => {
     return sendSuccess(res, 'Logged out successfully');
+  };
+
+  updateProfile = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.employee_id || (req as any).user.userId || (req as any).user.id;
+      const { name } = req.body;
+      const result = await this.authService.updateProfile(userId, name);
+      return sendSuccess(res, 'Profile updated successfully', result);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Profile update failed', [], 400);
+    }
+  };
+
+  updatePassword = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.employee_id || (req as any).user.userId || (req as any).user.id;
+      const { currentPassword, newPassword } = req.body;
+      await this.authService.updatePassword(userId, currentPassword, newPassword);
+      return sendSuccess(res, 'Password updated successfully');
+    } catch (error: any) {
+      return sendError(res, error.message || 'Password update failed', [], 400);
+    }
+  };
+
+  submitSupportTicket = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.employee_id || (req as any).user.userId || (req as any).user.id;
+      const { subject, message } = req.body;
+      await this.authService.submitSupportTicket(userId, subject, message);
+      return sendSuccess(res, 'Support ticket submitted successfully');
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to submit ticket', [], 500);
+    }
   };
 }

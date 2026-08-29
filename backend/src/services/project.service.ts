@@ -47,4 +47,10 @@ export class ProjectService {
     await this.projectRepo.update(id, data);
     return await this.projectRepo.findById(id);
   }
+
+  async deleteProject(id: number, deletedBy: number) {
+    const project = await this.projectRepo.findById(id);
+    if (!project) throw new Error('Project not found');
+    return await this.projectRepo.softDelete(id, deletedBy);
+  }
 }

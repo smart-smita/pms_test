@@ -10,6 +10,8 @@ import { Tasks } from './pages/Tasks';
 import { Attendance } from './pages/Attendance';
 import { Payments } from './pages/Payments';
 import { Reports } from './pages/Reports';
+import { Settings } from './pages/Settings';
+import { Support } from './pages/Support';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { RequirePermission } from './components/common/RequirePermission';
 
@@ -56,6 +58,10 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="payments" action="view" fallback={fallback}><Payments /></RequirePermission>;
       case 'reports': 
         return <RequirePermission module="reports" action="view" fallback={fallback}><Reports /></RequirePermission>;
+      case 'settings':
+        return <Settings />;
+      case 'support':
+        return <Support />;
       default: 
         return <Dashboard />;
     }

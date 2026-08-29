@@ -36,6 +36,39 @@ export async function testDbConnection() {
       }
     }
 
+    // Auto-migrate final phase fields (Soft Deletes & Notifications)
+    try {
+      await connection.query(`
+        ALTER TABLE employees ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+      `);
+    } catch (err: any) {}
+    try {
+      await connection.query(`
+        ALTER TABLE projects ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+      `);
+    } catch (err: any) {}
+    try {
+      await connection.query(`
+        ALTER TABLE tasks ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+      `);
+    } catch (err: any) {}
+    try {
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          notification_id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          title VARCHAR(150) NOT NULL,
+          message TEXT NOT NULL,
+          type VARCHAR(50) DEFAULT 'info',
+          is_read TINYINT(1) NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      console.log('✅ Final Phase Auto-migration: Added soft deletes & notifications successfully.');
+    } catch (err: any) {
+      console.error('⚠️ Final Phase Auto-migration failed:', err.message);
+    }
+
     connection.release();
   } catch (error: any) {
     console.error('❌ Failed to connect to MySQL database:', error.message);

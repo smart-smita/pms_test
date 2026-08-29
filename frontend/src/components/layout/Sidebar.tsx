@@ -108,21 +108,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         </div>
         
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <button style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+          <button onClick={() => document.dispatchEvent(new CustomEvent('toggleNotifications'))} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <Bell size={20} color="#cbd5e1" />
               <span>Notifications</span>
             </div>
-            <span style={{ background: '#6366f1', color: '#fff', fontSize: '0.7rem', fontWeight: 700, width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>5</span>
           </button>
           
-          <button style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
-            <Settings size={20} color="#cbd5e1" />
+          <button onClick={() => onNavigate('settings')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'settings' ? '#4f46e5' : 'transparent', color: currentPage === 'settings' ? '#ffffff' : '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+            <Settings size={20} color={currentPage === 'settings' ? '#ffffff' : '#cbd5e1'} />
             <span>Settings</span>
           </button>
 
-          <button style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
-            <HelpCircle size={20} color="#cbd5e1" />
+          <button onClick={() => onNavigate('support')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'support' ? '#4f46e5' : 'transparent', color: currentPage === 'support' ? '#ffffff' : '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+            <HelpCircle size={20} color={currentPage === 'support' ? '#ffffff' : '#cbd5e1'} />
             <span>Help & Support</span>
           </button>
         </nav>
@@ -149,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
             gap: '0.25rem'
           }}>
             <button 
-              onClick={() => { setShowProfileMenu(false); alert('Profile clicked! (Placeholder for profile view)'); }}
+              onClick={() => { setShowProfileMenu(false); onNavigate('settings'); }}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#f8fafc', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}

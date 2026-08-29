@@ -61,4 +61,10 @@ export class EmployeeService {
     await this.userRepo.update(id, updatePayload);
     return await this.userRepo.findById(id);
   }
+
+  async deleteEmployee(id: number, deletedBy: number) {
+    const emp = await this.userRepo.findById(id);
+    if (!emp) throw new Error('Employee not found');
+    return await this.userRepo.softDelete(id, deletedBy);
+  }
 }

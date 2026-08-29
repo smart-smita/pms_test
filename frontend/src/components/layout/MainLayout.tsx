@@ -29,6 +29,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ currentPage, onNavigate,
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           currentPage={currentPage}
+          onNavigate={onNavigate}
         />
         <main className="page-body">{children}</main>
       </div>

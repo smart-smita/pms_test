@@ -43,7 +43,7 @@ export class UserRepository {
       SELECT e.*, r.role_name 
       FROM employees e
       JOIN roles r ON e.role_id = r.role_id
-      WHERE 1=1
+      WHERE e.is_deleted = 0
     `;
     const params: any[] = [];
 
@@ -140,5 +140,13 @@ export class UserRepository {
 
   async markTokenUsed(token_id: number): Promise<void> {
     await dbPool.execute(`UPDATE password_reset_tokens SET used = 1 WHERE token_id = ?`, [token_id]);
+  }
+
+  async softDelete(id: number, deleted_by: number): Promise<boolean> {
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE employees SET is_deleted = 1, deleted_at = NOW() WHERE employee_id = ?`,
+      [id]
+    );
+    return result.affectedRows > 0;
   }
 }

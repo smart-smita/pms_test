@@ -32,7 +32,7 @@ export class EmployeeController {
       );
       return sendSuccess(res, 'Employees retrieved successfully', employees);
     } catch (error: any) {
-      return sendError(res, error.message || 'Failed to fetch employees', [], 500);
+      res.status(500).json({ success: false, message: 'Server error', error: (error as Error).message });
     }
   };
 
@@ -72,6 +72,23 @@ export class EmployeeController {
       return sendSuccess(res, 'Employee updated successfully', updated);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to update employee', [], 400);
+    }
+  };
+
+  delete = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const deletedBy = (req as any).user.id;
+      // Note: We need a userRepo imported or use EmployeeService
+      // I will just use EmployeeService which will call repo
+      const success = await this.employeeService.deleteEmployee(id, deletedBy);
+      if (success) {
+        res.json({ success: true, message: 'Employee deleted successfully' });
+      } else {
+        res.status(404).json({ success: false, message: 'Employee not found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
   };
 }

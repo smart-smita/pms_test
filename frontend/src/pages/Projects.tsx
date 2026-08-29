@@ -8,7 +8,8 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
 import { Project } from '../types';
-import { FolderPlus, Edit, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
+import { RequirePermission } from '../components/common/RequirePermission';
 
 import { ProjectForm } from './ProjectForm';
 export const Projects: React.FC = () => {
@@ -66,42 +67,11 @@ export const Projects: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    const payload: any = {
-      project_name: projectName,
-      client_name: clientName,
-      latitude: latitude ? parseFloat(latitude) : undefined,
-      longitude: longitude ? parseFloat(longitude) : undefined,
-      radius_meters: radiusMeters,
-      status,
-    };
-
-    if (editingProject) {
-      const res = await apiRequest(`/projects/${editingProject.project_id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      if (res.success) {
-        setIsModalOpen(false);
-        fetchProjects();
-      } else {
-        setError(res.message || 'Failed to update project');
-      }
-    } else {
-      payload.project_code = projectCode;
-      const res = await apiRequest('/projects', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (res.success) {
-        setIsModalOpen(false);
-        fetchProjects();
-      } else {
-        setError(res.message || 'Failed to create project');
-      }
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this project?')) {
+      const res = await apiRequest(`/projects/${id}`, { method: 'DELETE' });
+      if (res.success) fetchProjects();
+      else alert(res.message || 'Failed to delete project');
     }
   };
 
@@ -176,7 +146,7 @@ export const Projects: React.FC = () => {
           <p className="page-subtitle">Define client projects, site GPS boundaries, and track real-time task progress</p>
         </div>
         <Button variant="primary" onClick={openCreateModal}>
-          <FolderPlus size={18} /> Add Project
+          <Plus size={18} /> Add Project
         </Button>
       </div>
 
@@ -190,9 +160,18 @@ export const Projects: React.FC = () => {
             searchPlaceholder="Search projects by name, code, or client..."
             exportFilename="projects_list.csv"
             actions={(row) => (
-              <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
-                <Edit size={14} /> Edit
-              </Button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <RequirePermission module="projects" action="update">
+                  <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                    <Edit size={14} /> Edit
+                  </Button>
+                </RequirePermission>
+                <RequirePermission module="projects" action="delete">
+                  <Button variant="secondary" onClick={() => handleDelete(row.project_id)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    <Trash2 size={14} /> Delete
+                  </Button>
+                </RequirePermission>
+              </div>
             )}
           />
         </div>

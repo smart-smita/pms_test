@@ -1,20 +1,47 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, Menu, Sun, Moon, Search, Bell, Maximize, ChevronDown, User as UserIcon } from 'lucide-react';
+import { LogOut, Menu, Sun, Moon, Search, Bell, Maximize, ChevronDown, User as UserIcon, Check } from 'lucide-react';
+import { apiRequest } from '../../services/api';
 
 interface NavbarProps {
   onToggleSidebar: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   currentPage?: string;
+  onNavigate?: (page: string) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark', onToggleTheme, currentPage = 'Dashboard' }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark', onToggleTheme, currentPage = 'Dashboard', onNavigate }) => {
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  
   const profileRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
   
   const pageTitle = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+
+  const fetchNotifications = async () => {
+    const res = await apiRequest<any[]>('/notifications');
+    if (res.success && res.data) {
+      setNotifications(res.data);
+      setUnreadCount(res.data.filter(n => !n.is_read).length);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const markAllAsRead = async () => {
+    await apiRequest('/notifications/mark-all-read', { method: 'PUT' });
+    fetchNotifications();
+    setShowNotifMenu(false);
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -22,10 +49,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setShowProfileMenu(false);
       }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setShowNotifMenu(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [profileRef]);
+  }, [profileRef, notifRef]);
+
+  // Listen for sidebar click
+  useEffect(() => {
+    const handleToggle = () => setShowNotifMenu(prev => !prev);
+    document.addEventListener('toggleNotifications', handleToggle);
+    return () => document.removeEventListener('toggleNotifications', handleToggle);
+  }, []);
 
   return (
     <header className="top-navbar" style={{
@@ -116,26 +153,84 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
           )}
 
           {/* Notifications */}
-          <div style={{ position: 'relative', cursor: 'pointer' }}>
-            <Bell size={18} />
-            <span style={{
-              position: 'absolute',
-              top: '-6px',
-              right: '-6px',
-              background: '#6366f1',
-              color: '#fff',
-              fontSize: '0.6rem',
-              fontWeight: 700,
-              width: '16px',
-              height: '16px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px solid var(--bg-card)'
-            }}>
-              5
-            </span>
+          <div style={{ position: 'relative', cursor: 'pointer' }} ref={notifRef}>
+            <div onClick={() => setShowNotifMenu(!showNotifMenu)}>
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-6px',
+                  right: '-6px',
+                  background: '#ef4444',
+                  color: '#fff',
+                  fontSize: '0.6rem',
+                  fontWeight: 700,
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '2px solid var(--bg-card)'
+                }}>
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+
+            {/* Notification Dropdown Menu */}
+            {showNotifMenu && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 15px)',
+                right: '-10px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                width: '320px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                zIndex: 50,
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Notifications</span>
+                  {unreadCount > 0 && (
+                    <button onClick={markAllAsRead} style={{ background: 'transparent', border: 'none', color: '#6366f1', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Check size={14} /> Mark all read
+                    </button>
+                  )}
+                </div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                    No notifications
+                  </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div key={n.notification_id} style={{
+                      padding: '1rem',
+                      borderBottom: '1px solid var(--border-color)',
+                      background: n.is_read ? 'transparent' : 'rgba(99, 102, 241, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem'
+                    }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: n.is_read ? 'var(--text-primary)' : '#6366f1' }}>
+                        {n.title}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                        {n.message}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
+                        {new Date(n.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Fullscreen */}
@@ -213,7 +308,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
                 zIndex: 50
               }}>
                 <button 
-                  onClick={() => { setShowProfileMenu(false); alert('My Profile View'); }}
+                  onClick={() => { setShowProfileMenu(false); if (onNavigate) onNavigate('settings'); }}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', borderRadius: '8px', border: 'none', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <UserIcon size={16} /> My Profile

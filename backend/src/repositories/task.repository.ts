@@ -11,10 +11,10 @@ export class TaskRepository {
         COALESCE(SUM(al.total_working_hours), 0) AS actual_hours,
         COUNT(DISTINCT ta.employee_id) AS assigned_worker_count
       FROM tasks t
-      JOIN projects p ON t.project_id = p.project_id
+      JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id
       LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
-      WHERE 1=1
+      WHERE t.is_deleted = 0
     `;
     const params: any[] = [];
 
@@ -156,5 +156,13 @@ export class TaskRepository {
       const values = employeeIds.map((empId) => `(${taskId}, ${empId})`).join(', ');
       await dbPool.execute(`INSERT INTO task_assignments (task_id, employee_id) VALUES ${values}`);
     }
+  }
+
+  async softDelete(id: number, deleted_by: number): Promise<boolean> {
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE tasks SET is_deleted = 1, deleted_at = NOW() WHERE task_id = ?`,
+      [id]
+    );
+    return result.affectedRows > 0;
   }
 }

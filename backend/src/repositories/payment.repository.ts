@@ -14,6 +14,7 @@ export class PaymentRepository {
         COUNT(DISTINCT al.attendance_date) AS days_worked
       FROM employees e
       LEFT JOIN attendance_logs al ON e.employee_id = al.employee_id AND al.status = 'completed'
+      WHERE e.is_deleted = 0
     `;
     const params: any[] = [];
 
@@ -36,7 +37,7 @@ export class PaymentRepository {
         ROUND(COALESCE(SUM(al.total_working_hours), 0), 2) AS total_hours,
         ROUND(COALESCE(SUM(al.total_working_hours * e.hourly_rate), 0), 2) AS total_payment
       FROM attendance_logs al
-      JOIN employees e ON al.employee_id = e.employee_id
+      JOIN employees e ON al.employee_id = e.employee_id AND e.is_deleted = 0
       WHERE al.status = 'completed'
     `;
     const params: any[] = [];
@@ -62,9 +63,10 @@ export class PaymentRepository {
         ROUND(COALESCE(SUM(al.total_working_hours), 0), 2) AS total_hours,
         ROUND(COALESCE(SUM(al.total_working_hours * e.hourly_rate), 0), 2) AS total_cost
       FROM projects p
-      LEFT JOIN tasks t ON p.project_id = t.project_id
+      LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.status = 'completed'
-      LEFT JOIN employees e ON al.employee_id = e.employee_id
+      LEFT JOIN employees e ON al.employee_id = e.employee_id AND e.is_deleted = 0
+      WHERE p.is_deleted = 0
       GROUP BY p.project_id
       ORDER BY total_cost DESC
     `;
@@ -82,9 +84,10 @@ export class PaymentRepository {
         ROUND(COALESCE(SUM(al.total_working_hours), 0), 2) AS actual_hours,
         ROUND(COALESCE(SUM(al.total_working_hours * e.hourly_rate), 0), 2) AS total_cost
       FROM tasks t
-      JOIN projects p ON t.project_id = p.project_id
+      JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.status = 'completed'
-      LEFT JOIN employees e ON al.employee_id = e.employee_id
+      LEFT JOIN employees e ON al.employee_id = e.employee_id AND e.is_deleted = 0
+      WHERE t.is_deleted = 0
       GROUP BY t.task_id
       ORDER BY total_cost DESC
     `;

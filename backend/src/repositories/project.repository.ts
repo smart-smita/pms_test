@@ -10,8 +10,8 @@ export class ProjectRepository {
         COUNT(t.task_id) AS task_count,
         SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_task_count
       FROM projects p
-      LEFT JOIN tasks t ON p.project_id = t.project_id
-      WHERE 1=1
+      LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
+      WHERE p.is_deleted = 0
     `;
     const params: any[] = [];
 
@@ -59,8 +59,8 @@ export class ProjectRepository {
         COUNT(t.task_id) AS task_count,
         SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_task_count
        FROM projects p
-       LEFT JOIN tasks t ON p.project_id = t.project_id
-       WHERE p.project_id = ?
+       LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
+       WHERE p.project_id = ? AND p.is_deleted = 0
        GROUP BY p.project_id`,
       [id]
     );
@@ -79,7 +79,7 @@ export class ProjectRepository {
 
   async findByCode(code: string): Promise<ProjectRow | null> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT * FROM projects WHERE project_code = ?`,
+      `SELECT * FROM projects WHERE project_code = ? AND is_deleted = 0`,
       [code]
     );
     return (rows[0] as ProjectRow) || null;
@@ -139,6 +139,14 @@ export class ProjectRepository {
     const [result] = await dbPool.execute<ResultSetHeader>(
       `UPDATE projects SET ${fields.join(', ')} WHERE project_id = ?`,
       params
+    );
+    return result.affectedRows > 0;
+  }
+
+  async softDelete(id: number, deleted_by: number): Promise<boolean> {
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE projects SET is_deleted = 1, deleted_at = NOW() WHERE project_id = ?`,
+      [id]
     );
     return result.affectedRows > 0;
   }

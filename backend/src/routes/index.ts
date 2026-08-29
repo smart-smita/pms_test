@@ -7,6 +7,7 @@ import attendanceRoutes from './attendance.routes';
 import paymentRoutes from './payment.routes';
 import dashboardRoutes from './dashboard.routes';
 import reportRoutes from './report.routes';
+import notificationRoutes from './notification.routes';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/attendance', attendanceRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

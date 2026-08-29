@@ -22,9 +22,9 @@ export class ReportRepository {
         al.total_working_hours,
         al.status
       FROM attendance_logs al
-      JOIN employees e ON al.employee_id = e.employee_id
-      LEFT JOIN tasks t ON al.task_id = t.task_id
-      LEFT JOIN projects p ON t.project_id = p.project_id
+      JOIN employees e ON al.employee_id = e.employee_id AND e.is_deleted = 0
+      LEFT JOIN tasks t ON al.task_id = t.task_id AND t.is_deleted = 0
+      LEFT JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -64,8 +64,9 @@ export class ReportRepository {
         COALESCE(SUM(t.estimated_hours), 0) AS total_estimated_hours,
         COALESCE(SUM(al.total_working_hours), 0) AS total_actual_hours
       FROM projects p
-      LEFT JOIN tasks t ON p.project_id = t.project_id
+      LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.status = 'completed'
+      WHERE p.is_deleted = 0
       GROUP BY p.project_id
       ORDER BY p.project_id DESC
     `;
@@ -96,10 +97,10 @@ export class ReportRepository {
         t.target_date,
         t.status AS task_status
       FROM tasks t
-      JOIN projects p ON t.project_id = p.project_id
+      JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
       LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.status = 'completed'
-      WHERE 1=1
+      WHERE t.is_deleted = 0
     `;
     const params: any[] = [];
 

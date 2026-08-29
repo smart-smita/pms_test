@@ -12,5 +12,6 @@ router.get('/', requirePermission('projects', 'view'), controller.getAll);
 router.get('/:id', requirePermission('projects', 'view'), controller.getById);
 router.post('/', requirePermission('projects', 'create'), controller.create);
 router.put('/:id', requirePermission('projects', 'update'), controller.update);
+router.delete('/:id', requirePermission('projects', 'delete'), controller.delete);
 
 export default router;
