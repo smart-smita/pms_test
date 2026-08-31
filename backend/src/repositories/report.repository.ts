@@ -48,8 +48,8 @@ export class ReportRepository {
     return rows;
   }
 
-  async getProjectReport(): Promise<any[]> {
-    const sql = `
+  async getProjectReport(employeeId?: number): Promise<any[]> {
+    let sql = `
       SELECT 
         p.project_id,
         p.project_code,
@@ -67,10 +67,16 @@ export class ReportRepository {
       LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.status = 'completed'
       WHERE p.is_deleted = 0
-      GROUP BY p.project_id
-      ORDER BY p.project_id DESC
     `;
-    const [rows] = await dbPool.execute<RowDataPacket[]>(sql);
+    const params: any[] = [];
+
+    if (employeeId) {
+      sql += ` AND p.project_id IN (SELECT t2.project_id FROM tasks t2 JOIN task_assignments ta ON t2.task_id = ta.task_id WHERE ta.employee_id = ?)`;
+      params.push(employeeId);
+    }
+
+    sql += ` GROUP BY p.project_id ORDER BY p.project_id DESC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
 
     return rows.map((r: any) => {
       const total = Number(r.total_tasks || 0);
@@ -83,7 +89,7 @@ export class ReportRepository {
     });
   }
 
-  async getTaskReport(filters: { project_id?: number; status?: string }): Promise<any[]> {
+  async getTaskReport(filters: { project_id?: number; status?: string; employee_id?: number }): Promise<any[]> {
     let sql = `
       SELECT 
         t.task_id,
@@ -104,6 +110,10 @@ export class ReportRepository {
     `;
     const params: any[] = [];
 
+    if (filters.employee_id) {
+      sql += ` AND t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)`;
+      params.push(filters.employee_id);
+    }
     if (filters.project_id) {
       sql += ` AND t.project_id = ?`;
       params.push(filters.project_id);

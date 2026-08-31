@@ -12,6 +12,7 @@ router.get('/', requirePermission('tasks', 'view'), controller.getAll);
 router.get('/:id', requirePermission('tasks', 'view'), controller.getById);
 router.post('/', requirePermission('tasks', 'create'), controller.create);
 router.put('/:id', requirePermission('tasks', 'update'), controller.update);
+router.patch('/:id/status', requirePermission('tasks', 'update'), controller.updateStatus);
 router.post('/:id/assign', requirePermission('tasks', 'assign'), controller.assignWorkers);
 router.delete('/:id', requirePermission('tasks', 'delete'), controller.delete);
 

@@ -97,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
           <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
             {pageTitle}
           </h2>
-          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Welcome back, {user?.name || 'User'} 👋
           </span>
         </div>

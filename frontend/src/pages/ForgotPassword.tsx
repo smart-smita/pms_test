@@ -3,6 +3,7 @@ import { FormInput } from '../components/forms/FormInput';
 import { Button } from '../components/common/Button';
 import { apiRequest } from '../services/api';
 import { ArrowLeft, Send } from 'lucide-react';
+import { showSuccess, showError } from '../utils/toast';
 
 interface ForgotPasswordProps {
   onBackToLogin: () => void;
@@ -24,10 +25,13 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
     });
     setIsLoading(false);
     if (res.success) {
+      showSuccess(res.message || 'Token requested successfully.');
       setMessage(res.message);
       if (res.data?.resetToken) {
         setResetToken(res.data.resetToken);
       }
+    } else {
+      showError(res.message || 'Failed to request token.');
     }
   };
 
@@ -86,7 +90,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           <FormInput
             label="Email Address"
             type="email"

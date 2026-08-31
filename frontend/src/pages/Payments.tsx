@@ -6,7 +6,12 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
 import { DollarSign, Calendar, Users, FolderKanban, CheckSquare } from 'lucide-react';
 
+import { useAuth } from '../context/AuthContext';
+
 export const Payments: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role_name === 'Admin';
+
   const [activeTab, setActiveTab] = useState<'employee' | 'daily' | 'project' | 'task'>('employee');
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,11 +37,11 @@ export const Payments: React.FC = () => {
   }, [activeTab]);
 
   const employeeColumns: Column<any>[] = [
-    { header: 'Code', accessor: 'employee_code' },
-    { header: 'Employee Name', accessor: 'employee_name' },
-    { header: 'Hourly Rate', accessor: (r) => `₹${Number(r.hourly_rate).toFixed(2)}/hr` },
-    { header: 'Days Worked', accessor: 'days_worked' },
-    { header: 'Total Working Hours', accessor: (r) => `${Number(r.total_hours).toFixed(2)} hrs` },
+    { header: 'Code', accessor: 'employee_code', sortKey: 'employee_code' },
+    ...(isAdmin ? [{ header: 'Employee Name', accessor: 'employee_name', sortKey: 'employee_name' }] : []),
+    { header: 'Hourly Rate', accessor: (r) => `₹${Number(r.hourly_rate).toFixed(2)}/hr`, csvAccessor: (r) => Number(r.hourly_rate).toFixed(2), sortKey: 'hourly_rate' },
+    { header: 'Days Worked', accessor: 'days_worked', sortKey: 'days_worked' },
+    { header: 'Total Working Hours', accessor: (r) => `${Number(r.total_hours).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.total_hours).toFixed(2), sortKey: 'total_hours' },
     {
       header: 'Server Calculated Payment',
       accessor: (r) => (
@@ -44,13 +49,15 @@ export const Payments: React.FC = () => {
           ₹{Number(r.total_payment).toFixed(2)}
         </span>
       ),
+      csvAccessor: (r) => Number(r.total_payment).toFixed(2),
+      sortKey: 'total_payment'
     },
   ];
 
   const dailyColumns: Column<any>[] = [
-    { header: 'Date', accessor: 'attendance_date' },
-    { header: 'Total Active Workers', accessor: 'total_workers' },
-    { header: 'Total Hours Logged', accessor: (r) => `${Number(r.total_hours).toFixed(2)} hrs` },
+    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
+    { header: 'Total Active Workers', accessor: 'total_workers', sortKey: 'total_workers' },
+    { header: 'Total Hours Logged', accessor: (r) => `${Number(r.total_hours).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.total_hours).toFixed(2), sortKey: 'total_hours' },
     {
       header: 'Total Daily Payout',
       accessor: (r) => (
@@ -58,14 +65,16 @@ export const Payments: React.FC = () => {
           ₹{Number(r.total_payment).toFixed(2)}
         </span>
       ),
+      csvAccessor: (r) => Number(r.total_payment).toFixed(2),
+      sortKey: 'total_payment'
     },
   ];
 
   const projectColumns: Column<any>[] = [
-    { header: 'Project Code', accessor: 'project_code' },
-    { header: 'Project Name', accessor: 'project_name' },
-    { header: 'Worker Count', accessor: 'worker_count' },
-    { header: 'Total Hours Logged', accessor: (r) => `${Number(r.total_hours).toFixed(2)} hrs` },
+    { header: 'Project Code', accessor: 'project_code', sortKey: 'project_code' },
+    { header: 'Project Name', accessor: 'project_name', sortKey: 'project_name' },
+    { header: 'Worker Count', accessor: 'worker_count', sortKey: 'worker_count' },
+    { header: 'Total Hours Logged', accessor: (r) => `${Number(r.total_hours).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.total_hours).toFixed(2), sortKey: 'total_hours' },
     {
       header: 'Project Labor Cost',
       accessor: (r) => (
@@ -73,14 +82,16 @@ export const Payments: React.FC = () => {
           ₹{Number(r.total_cost).toFixed(2)}
         </span>
       ),
+      csvAccessor: (r) => Number(r.total_cost).toFixed(2),
+      sortKey: 'total_cost'
     },
   ];
 
   const taskColumns: Column<any>[] = [
-    { header: 'Task Name', accessor: 'task_name' },
-    { header: 'Project', accessor: 'project_name' },
-    { header: 'Planned Est. Hours', accessor: (r) => `${Number(r.estimated_hours).toFixed(2)} hrs` },
-    { header: 'Actual Logged Hours', accessor: (r) => `${Number(r.actual_hours).toFixed(2)} hrs` },
+    { header: 'Task Name', accessor: 'task_name', sortKey: 'task_name' },
+    { header: 'Project', accessor: 'project_name', sortKey: 'project_name' },
+    { header: 'Planned Est. Hours', accessor: (r) => `${Number(r.estimated_hours).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.estimated_hours).toFixed(2), sortKey: 'estimated_hours' },
+    { header: 'Actual Logged Hours', accessor: (r) => `${Number(r.actual_hours).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.actual_hours).toFixed(2), sortKey: 'actual_hours' },
     {
       header: 'Task Total Cost',
       accessor: (r) => (
@@ -88,6 +99,8 @@ export const Payments: React.FC = () => {
           ₹{Number(r.total_cost).toFixed(2)}
         </span>
       ),
+      csvAccessor: (r) => Number(r.total_cost).toFixed(2),
+      sortKey: 'total_cost'
     },
   ];
 
@@ -139,18 +152,15 @@ export const Payments: React.FC = () => {
         </Button>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : (
         <div className="glass-card">
           <DataTable
-            columns={renderActiveColumns()}
+            columns={renderActiveColumns() || []}
             data={data}
             searchPlaceholder={`Search ${activeTab} payment records...`}
-            exportFilename={`${activeTab}_payment_report.csv`}
+            exportFilename={`${activeTab}_payment_report`}
+            isLoading={isLoading}
           />
         </div>
-      )}
     </div>
   );
 };

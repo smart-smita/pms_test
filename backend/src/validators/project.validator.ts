@@ -12,11 +12,14 @@ export const createProjectSchema = z.object({
   project_date: z.string().optional(),
   status: z.enum(['active', 'inactive', 'completed', 'cancelled']).default('active'),
   note: z.string().optional(),
-  disciplines: z.array(z.object({
-    task_name: z.string(),
+  wbs_allocations: z.array(z.object({
+    id: z.number().optional(),
+    wbs_id: z.number().optional(),
+    wbs_name: z.string().optional(),
     start_date: z.string().optional(),
-    target_date: z.string().optional(),
-    estimated_hours: z.number().default(0)
+    end_date: z.string().optional(),
+    total_hours: z.number().default(0),
+    note: z.string().optional()
   })).optional(),
 });
 
@@ -31,4 +34,19 @@ export const updateProjectSchema = z.object({
   project_date: z.string().optional(),
   status: z.enum(['active', 'inactive', 'completed', 'cancelled']).optional(),
   note: z.string().optional(),
+  wbs_allocations: z.array(z.object({
+    id: z.number().optional(),
+    wbs_id: z.number().optional(),
+    wbs_name: z.string().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(),
+    total_hours: z.number().default(0),
+    note: z.string().optional()
+  })).optional(),
+});
+
+export const updateProjectStatusSchema = z.object({
+  status: z.enum(['active', 'inactive', 'completed', 'cancelled'], {
+    errorMap: () => ({ message: 'Invalid status value. Must be active, inactive, completed, or cancelled.' })
+  })
 });

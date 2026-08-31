@@ -8,9 +8,15 @@ export class PaymentController {
   getEmployeePayments = async (req: Request, res: Response) => {
     try {
       const { start_date, end_date } = req.query;
+      const user = (req as any).user;
+      let employeeId = undefined;
+      if (user && user.role_name === 'Employee') {
+        employeeId = user.employee_id || user.id;
+      }
       const data = await this.paymentService.getEmployeePayments(
         start_date as string,
-        end_date as string
+        end_date as string,
+        employeeId
       );
       return sendSuccess(res, 'Employee payments retrieved successfully', data);
     } catch (error: any) {

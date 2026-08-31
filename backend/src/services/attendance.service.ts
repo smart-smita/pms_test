@@ -14,31 +14,41 @@ export class AttendanceService {
   private taskRepo = new TaskRepository();
 
   async checkIn(employeeId: number, data: { task_id?: number; latitude: number; longitude: number; address?: string }) {
-    // 1. Check for existing open check-in
+    // 1. Check for existing open check-in session
     const openCheckIn = await this.attendanceRepo.findOpenCheckInByEmployee(employeeId);
     if (openCheckIn) {
       throw new Error(
-        `Active Check-In already exists for this employee (ID: ${openCheckIn.attendance_id}). Please Check-Out first.`
+        `Active check-in session already exists for this employee (ID: ${openCheckIn.attendance_id}). Please Check-Out first.`
       );
     }
 
-    // 2. If task_id provided, verify task & optionally check GPS radius
+    let inDistanceMeters: number | undefined;
+    let projectRadiusMeters: number = 500;
+    let inStatus: 'inside' | 'outside' = 'inside';
+    let status: 'open' | 'outside_area' = 'open';
+
+    // 2. Fetch task and project location coordinates
     if (data.task_id) {
       const task = await this.taskRepo.findById(data.task_id);
       if (task) {
         const project = await this.projectRepo.findById(task.project_id);
-        if (project && project.latitude && project.longitude) {
-          const dist = calculateDistanceMeters(
-            data.latitude,
-            data.longitude,
-            Number(project.latitude),
-            Number(project.longitude)
-          );
-          const maxRadius = project.radius_meters || 500;
-          if (dist > maxRadius) {
-            console.warn(
-              `Check-in warning: Employee is ${Math.round(dist)}m away from project center (Allowed radius: ${maxRadius}m)`
-            );
+        if (project && project.latitude != null && project.longitude != null) {
+          projectRadiusMeters = project.radius_meters || 500;
+          inDistanceMeters = Math.round(
+            calculateDistanceMeters(
+              data.latitude,
+              data.longitude,
+              Number(project.latitude),
+              Number(project.longitude)
+            ) * 100
+          ) / 100;
+
+          if (inDistanceMeters > projectRadiusMeters) {
+            inStatus = 'outside';
+            status = 'outside_area';
+          } else {
+            inStatus = 'inside';
+            status = 'open';
           }
         }
       }
@@ -56,6 +66,10 @@ export class AttendanceService {
       in_latitude: data.latitude,
       in_longitude: data.longitude,
       in_address: data.address || `GPS: ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`,
+      in_distance_meters: inDistanceMeters,
+      project_radius_meters: projectRadiusMeters,
+      in_status: inStatus,
+      status: status,
     });
 
     return await this.attendanceRepo.findById(attendanceId);
@@ -70,7 +84,29 @@ export class AttendanceService {
     }
 
     if (record.status !== 'open') {
-      throw new Error(`Attendance record is already closed with status '${record.status}'`);
+      throw new Error(`Attendance record is not active (current status: '${record.status}')`);
+    }
+
+    let outDistanceMeters: number | undefined;
+    let outStatus: 'inside' | 'outside' = 'inside';
+
+    if (record.task_id) {
+      const task = await this.taskRepo.findById(record.task_id);
+      if (task) {
+        const project = await this.projectRepo.findById(task.project_id);
+        if (project && project.latitude != null && project.longitude != null) {
+          const maxRadius = project.radius_meters || 500;
+          outDistanceMeters = Math.round(
+            calculateDistanceMeters(
+              data.latitude,
+              data.longitude,
+              Number(project.latitude),
+              Number(project.longitude)
+            ) * 100
+          ) / 100;
+          outStatus = outDistanceMeters <= maxRadius ? 'inside' : 'outside';
+        }
+      }
     }
 
     const now = new Date();
@@ -88,6 +124,8 @@ export class AttendanceService {
       out_latitude: data.latitude,
       out_longitude: data.longitude,
       out_address: data.address || `GPS: ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`,
+      out_distance_meters: outDistanceMeters,
+      out_status: outStatus,
       total_working_hours: totalWorkingHours,
       status: 'completed',
     });

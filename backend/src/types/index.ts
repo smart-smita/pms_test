@@ -61,6 +61,8 @@ export interface ProjectRow {
 export interface TaskRow {
   task_id: number;
   project_id: number;
+  wbs_id?: number;
+  wbs_name?: string;
   project_name?: string;
   task_name: string;
   description?: string;
@@ -70,7 +72,9 @@ export interface TaskRow {
   estimated_hours: number;
   actual_hours?: number;
   start_date?: string;
+  start_time?: string;
   target_date?: string;
+  target_time?: string;
   status: 'pending' | 'in-progress' | 'completed' | 'delayed';
   productivity_status?: 'on-time' | 'delayed' | 'extra-hours-logged' | 'exceeding-estimate' | 'completed';
   created_at: Date;
@@ -96,9 +100,39 @@ export interface AttendanceRow {
   out_latitude?: number;
   out_longitude?: number;
   out_address?: string;
+  in_distance_meters?: number;
+  out_distance_meters?: number;
+  project_radius_meters?: number;
+  in_status?: 'inside' | 'outside';
+  out_status?: 'inside' | 'outside';
   total_working_hours: number;
   calculated_payment?: number;
-  status: 'open' | 'completed' | 'missing_checkout';
+  status: 'open' | 'completed' | 'outside_area' | 'missing_checkout';
   created_at: Date;
   updated_at: Date;
+}
+
+export interface WorkBreakdownStructureRow {
+  id: number;
+  wbs_code: string;
+  wbs_name: string;
+  description?: string;
+  status: number;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface ProjectWBSRow {
+  id: number;
+  project_id: number;
+  wbs_id: number;
+  wbs_code?: string;
+  wbs_name?: string;
+  start_date?: string;
+  end_date?: string;
+  total_hours?: number;
+  note?: string;
+  status: number;
+  created_at?: Date;
+  updated_at?: Date;
 }

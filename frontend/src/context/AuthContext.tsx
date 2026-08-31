@@ -32,6 +32,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     setIsLoading(false);
+
+    // Global session expiry listener
+    const handleAuthExpired = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setUser(null);
+      setToken(null);
+      setError(customEvent.detail?.message || 'Your session has expired. Please log in again.');
+    };
+    
+    window.addEventListener('auth-expired', handleAuthExpired);
+    
+    return () => {
+      window.removeEventListener('auth-expired', handleAuthExpired);
+    };
   }, []);
 
   const login = async (code: string, pass: string): Promise<boolean> => {
@@ -65,11 +79,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const hasPermission = (module: string, action: string): boolean => {
-    if (!user || !user.permissions) return false;
-    // Super Admin bypass
+    if (!user) return false;
+    // Admin / Super Admin has full permission
     if (user.role_name === 'Admin') return true;
     
-    return user.permissions.includes(`${module}_${action}`);
+    // Restrict Edit, Delete, and Status modification actions strictly to Admin / SuperAdmin
+    if (action === 'update' || action === 'delete' || action === 'status') {
+      return false;
+    }
+
+    // View actions: All employees get view access to their personal modules
+    if (action === 'view') {
+      if (['attendance', 'tasks', 'payments', 'reports', 'settings', 'support', 'profile', 'dashboard'].includes(module)) {
+        return true;
+      }
+      if (module === 'projects' && user.role_name === 'Manager') return true;
+      if (module === 'employees' && user.role_name === 'Manager') return true;
+      return false;
+    }
+    
+    return user.permissions ? user.permissions.includes(`${module}_${action}`) : false;
   };
 
   return (

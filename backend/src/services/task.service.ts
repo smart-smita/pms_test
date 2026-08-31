@@ -22,9 +22,7 @@ export class TaskService {
     const assignedEmployeeIds = data.assigned_employee_ids || [];
     delete data.assigned_employee_ids;
 
-    if (assignedEmployeeIds.length > (data.required_worker_count || 0)) {
-      throw new Error(`Cannot assign ${assignedEmployeeIds.length} workers. Task requires only ${data.required_worker_count || 0}.`);
-    }
+    data.status = data.status || 'pending';
 
     const taskId = await this.taskRepo.create(data);
 
@@ -41,13 +39,6 @@ export class TaskService {
 
     const assignedEmployeeIds = data.assigned_employee_ids;
     delete data.assigned_employee_ids;
-
-    if (assignedEmployeeIds !== undefined) {
-      const requiredCount = data.required_worker_count !== undefined ? data.required_worker_count : task.required_worker_count;
-      if (assignedEmployeeIds.length > requiredCount) {
-        throw new Error(`Cannot assign ${assignedEmployeeIds.length} workers. Task requires only ${requiredCount}.`);
-      }
-    }
 
     await this.taskRepo.update(id, data);
 
@@ -81,6 +72,13 @@ export class TaskService {
     }
 
     return await this.taskRepo.findById(taskId);
+  }
+
+  async updateTaskStatus(id: number, status: string) {
+    const task = await this.taskRepo.findById(id);
+    if (!task) throw new Error('Task not found');
+    await this.taskRepo.updateStatus(id, status);
+    return await this.taskRepo.findById(id);
   }
 
   async deleteTask(id: number, deletedBy: number) {

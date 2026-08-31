@@ -8,7 +8,7 @@ import paymentRoutes from './payment.routes';
 import dashboardRoutes from './dashboard.routes';
 import reportRoutes from './report.routes';
 import notificationRoutes from './notification.routes';
-
+import wbsRoutes from './wbs.routes';
 const router = Router();
 
 router.use('/auth', authRoutes);
@@ -20,5 +20,5 @@ router.use('/payments', paymentRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
-
+router.use('/wbs', wbsRoutes);
 export default router;

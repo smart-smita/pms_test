@@ -10,23 +10,23 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onClose }) => {
-  const { hasPermission, logout } = useAuth();
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const { user, hasPermission } = useAuth();
+  const isEmployee = user?.role_name === 'Employee';
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, isAllowed: true }, // Everyone sees Dashboard
-    { id: 'employees', label: 'Employees', icon: Users, isAllowed: hasPermission('employees', 'view') },
-    { id: 'projects', label: 'Projects', icon: FolderKanban, isAllowed: hasPermission('projects', 'view') },
-    { id: 'tasks', label: 'Task Management', icon: CheckSquare, isAllowed: hasPermission('tasks', 'view') },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, isAllowed: true },
+    { id: 'employees', label: 'Employees', icon: Users, isAllowed: !isEmployee && hasPermission('employees', 'view') },
+    { id: 'projects', label: 'Projects', icon: FolderKanban, isAllowed: !isEmployee && hasPermission('projects', 'view') },
+    { id: 'tasks', label: isEmployee ? 'My Tasks' : 'Task Management', icon: CheckSquare, isAllowed: hasPermission('tasks', 'view') },
     { id: 'attendance', label: 'GPS Attendance', icon: MapPin, isAllowed: hasPermission('attendance', 'view') },
-    { id: 'payments', label: 'Hour Payments', icon: IndianRupee, isAllowed: hasPermission('payments', 'view') },
-    { id: 'reports', label: 'Reports', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
+    { id: 'payments', label: isEmployee ? 'My Working Hours' : 'Hour Payments', icon: IndianRupee, isAllowed: hasPermission('payments', 'view') },
+    { id: 'reports', label: isEmployee ? 'My Reports' : 'Reports', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
   ];
 
   const filteredMenu = menuItems.filter((item) => item.isAllowed);
 
   return (
-    <aside className={`sidebar ${isOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-card)', borderRight: '1px solid var(--border-color)', width: '280px', transition: 'transform 0.3s' }}>
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-card)', borderRight: '1px solid var(--border-color)', width: '260px', transition: 'transform 0.3s' }}>
       {/* Brand Logo */}
       <div
         style={{
@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>HTCO ERP</div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
               GPS & Workforce
             </div>
           </div>
@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 1rem' }}>
         
         {/* Main Menu */}
-        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', padding: '1rem 0.5rem 0.5rem 0.5rem' }}>
+        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '1rem 0.5rem 0.5rem 0.5rem', fontWeight: 600 }}>
           MAIN MENU
         </div>
         
@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                   borderRadius: '12px',
                   border: 'none',
                   background: isActive ? '#4f46e5' : 'transparent',
-                  color: isActive ? '#ffffff' : '#cbd5e1',
+                  color: isActive ? '#ffffff' : 'var(--text-secondary)',
                   fontWeight: 500,
                   fontSize: '0.95rem',
                   cursor: 'pointer',
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Icon size={20} color={isActive ? '#ffffff' : '#cbd5e1'} />
+                <Icon size={20} color={isActive ? '#ffffff' : 'currentColor'} />
                 <span>{item.label}</span>
               </button>
             );
@@ -103,71 +103,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         <div style={{ height: '1px', background: 'rgba(150,150,150,0.1)', margin: '1.5rem 0.5rem' }}></div>
 
         {/* Other Menu */}
-        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', padding: '0 0.5rem 0.5rem 0.5rem' }}>
+        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '0 0.5rem 0.5rem 0.5rem', fontWeight: 600 }}>
           OTHER
         </div>
         
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <button onClick={() => document.dispatchEvent(new CustomEvent('toggleNotifications'))} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+          <button onClick={() => document.dispatchEvent(new CustomEvent('toggleNotifications'))} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <Bell size={20} color="#cbd5e1" />
+              <Bell size={20} />
               <span>Notifications</span>
             </div>
           </button>
           
-          <button onClick={() => onNavigate('settings')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'settings' ? '#4f46e5' : 'transparent', color: currentPage === 'settings' ? '#ffffff' : '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
-            <Settings size={20} color={currentPage === 'settings' ? '#ffffff' : '#cbd5e1'} />
+          <button onClick={() => onNavigate('settings')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'settings' ? '#4f46e5' : 'transparent', color: currentPage === 'settings' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+            <Settings size={20} color={currentPage === 'settings' ? '#ffffff' : 'currentColor'} />
             <span>Settings</span>
           </button>
 
-          <button onClick={() => onNavigate('support')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'support' ? '#4f46e5' : 'transparent', color: currentPage === 'support' ? '#ffffff' : '#cbd5e1', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
-            <HelpCircle size={20} color={currentPage === 'support' ? '#ffffff' : '#cbd5e1'} />
+          <button onClick={() => onNavigate('support')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'support' ? '#4f46e5' : 'transparent', color: currentPage === 'support' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+            <HelpCircle size={20} color={currentPage === 'support' ? '#ffffff' : 'currentColor'} />
             <span>Help & Support</span>
           </button>
         </nav>
       </div>
 
-      {/* System Footer / Profile Trigger */}
-      <div style={{ padding: '1.5rem 1rem', position: 'relative' }}>
-        
-        {/* Profile Popover */}
-        {showProfileMenu && (
-          <div style={{
-            position: 'absolute',
-            bottom: 'calc(100% - 1rem)',
-            left: '1rem',
-            right: '1rem',
-            background: '#0f172a',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            borderRadius: '16px',
-            padding: '0.5rem',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-            zIndex: 50,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem'
-          }}>
-            <button 
-              onClick={() => { setShowProfileMenu(false); onNavigate('settings'); }}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#f8fafc', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <User size={18} /> My Profile
-            </button>
-            <button 
-              onClick={() => { setShowProfileMenu(false); logout(); }}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1rem', borderRadius: '12px', border: 'none', background: 'transparent', color: '#ef4444', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <LogOut size={18} /> Logout
-            </button>
-          </div>
-        )}
-
+      {/* System Footer */}
+      <div style={{ padding: '1.5rem 1rem' }}>
         <div 
-          onClick={() => setShowProfileMenu(!showProfileMenu)}
           style={{ 
             background: 'rgba(255, 255, 255, 0.03)', 
             border: '1px solid rgba(255, 255, 255, 0.05)', 
@@ -176,18 +138,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
             display: 'flex', 
             alignItems: 'center', 
             gap: '1rem',
-            cursor: 'pointer',
-            transition: 'background 0.2s',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'}
         >
           <div style={{ width: '40px', height: '40px', background: '#f8fafc', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Rocket size={20} color="#0f172a" />
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>HTCO Construction</div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Building the future</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Building the future</div>
           </div>
         </div>
       </div>

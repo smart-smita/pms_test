@@ -23,10 +23,15 @@ export async function apiRequest<T = any>(
 
     const json = await res.json();
 
-    if (!res.ok && res.status === 401) {
-      // Clear token on 401 auth failure
+    if (!res.ok && (res.status === 401 || res.status === 403)) {
+      // Clear token on auth failure
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
+      
+      // Dispatch global event for the app to handle logout state & UI
+      window.dispatchEvent(new CustomEvent('auth-expired', { 
+        detail: { message: res.status === 403 ? 'You do not have permission.' : 'Your session has expired. Please log in again.' } 
+      }));
     }
 
     return json;
@@ -37,4 +42,20 @@ export async function apiRequest<T = any>(
       errors: [error],
     };
   }
+}
+
+/**
+ * Parses Zod error array from the backend into a simple key-value map for form fields.
+ */
+export function parseApiErrors(errors?: any[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (!errors || !Array.isArray(errors)) return map;
+
+  errors.forEach((err) => {
+    if (err.path && err.path.length > 0 && err.message) {
+      map[err.path[0]] = err.message;
+    }
+  });
+
+  return map;
 }

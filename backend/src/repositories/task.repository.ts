@@ -3,15 +3,38 @@ import { dbPool } from '../config/db';
 import { TaskRow } from '../types';
 
 export class TaskRepository {
+  constructor() {
+    this.ensureTaskTimeColumns().catch(console.error);
+  }
+
+  private async ensureTaskTimeColumns() {
+    try {
+      await dbPool.execute('ALTER TABLE tasks ADD COLUMN start_time TIME NULL AFTER start_date');
+    } catch (e: any) {
+      // Ignore if exists
+    }
+    try {
+      await dbPool.execute('ALTER TABLE tasks ADD COLUMN target_time TIME NULL AFTER target_date');
+    } catch (e: any) {
+      // Ignore if exists
+    }
+  }
+
   async findAll(projectId?: number, employeeId?: number, status?: string, managerId?: number): Promise<TaskRow[]> {
     let sql = `
       SELECT 
         t.*,
         p.project_name,
+        p.latitude AS project_latitude,
+        p.longitude AS project_longitude,
+        p.radius_meters AS project_radius_meters,
+        w.wbs_name,
         COALESCE(SUM(al.total_working_hours), 0) AS actual_hours,
         COUNT(DISTINCT ta.employee_id) AS assigned_worker_count
       FROM tasks t
       JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
+      LEFT JOIN project_wbs pw ON t.wbs_id = pw.id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id
       LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
       WHERE t.is_deleted = 0
@@ -101,25 +124,31 @@ export class TaskRepository {
 
   async create(data: {
     project_id: number;
+    wbs_id?: number;
     task_name: string;
     description?: string;
     required_worker_count: number;
     estimated_hours: number;
     start_date?: string;
+    start_time?: string;
     target_date?: string;
+    target_time?: string;
     status: string;
   }): Promise<number> {
     const [result] = await dbPool.execute<ResultSetHeader>(
-      `INSERT INTO tasks (project_id, task_name, description, required_worker_count, estimated_hours, start_date, target_date, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (project_id, wbs_id, task_name, description, required_worker_count, estimated_hours, start_date, start_time, target_date, target_time, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.project_id,
+        data.wbs_id || null,
         data.task_name,
         data.description || null,
         data.required_worker_count,
         data.estimated_hours,
         data.start_date || null,
+        data.start_time || null,
         data.target_date || null,
+        data.target_time || null,
         data.status,
       ]
     );
@@ -130,12 +159,15 @@ export class TaskRepository {
     const fields: string[] = [];
     const params: any[] = [];
 
+    if (data.wbs_id !== undefined) { fields.push('wbs_id = ?'); params.push(data.wbs_id || null); }
     if (data.task_name !== undefined) { fields.push('task_name = ?'); params.push(data.task_name); }
     if (data.description !== undefined) { fields.push('description = ?'); params.push(data.description); }
     if (data.required_worker_count !== undefined) { fields.push('required_worker_count = ?'); params.push(data.required_worker_count); }
     if (data.estimated_hours !== undefined) { fields.push('estimated_hours = ?'); params.push(data.estimated_hours); }
     if (data.start_date !== undefined) { fields.push('start_date = ?'); params.push(data.start_date); }
+    if (data.start_time !== undefined) { fields.push('start_time = ?'); params.push(data.start_time); }
     if (data.target_date !== undefined) { fields.push('target_date = ?'); params.push(data.target_date); }
+    if (data.target_time !== undefined) { fields.push('target_time = ?'); params.push(data.target_time); }
     if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
 
     if (fields.length === 0) return false;
@@ -162,6 +194,14 @@ export class TaskRepository {
     const [result] = await dbPool.execute<ResultSetHeader>(
       `UPDATE tasks SET is_deleted = 1, deleted_at = NOW() WHERE task_id = ?`,
       [id]
+    );
+    return result.affectedRows > 0;
+  }
+
+  async updateStatus(id: number, status: string): Promise<boolean> {
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE tasks SET status = ? WHERE task_id = ?`,
+      [status, id]
     );
     return result.affectedRows > 0;
   }

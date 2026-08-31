@@ -3,8 +3,8 @@ import { PaymentRepository } from '../repositories/payment.repository';
 export class PaymentService {
   private paymentRepo = new PaymentRepository();
 
-  async getEmployeePayments(startDate?: string, endDate?: string) {
-    return await this.paymentRepo.getEmployeePaymentSummary(startDate, endDate);
+  async getEmployeePayments(startDate?: string, endDate?: string, employeeId?: number) {
+    return await this.paymentRepo.getEmployeePaymentSummary(startDate, endDate, employeeId);
   }
 
   async getDailyPayments(startDate?: string, endDate?: string) {

@@ -164,6 +164,28 @@ export async function migrate() {
     await grantPermission(employeeRoleId, employeePerms);
 
     console.log('Seeded role_permissions! ACL Migration COMPLETE.');
+
+    // 9. Migrate attendance_logs table schema for GPS distance & radius tracking
+    const alterQueries = [
+      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS in_distance_meters DECIMAL(10,2) DEFAULT NULL`,
+      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS out_distance_meters DECIMAL(10,2) DEFAULT NULL`,
+      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS project_radius_meters INT DEFAULT 500`,
+      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS in_status ENUM('inside', 'outside') DEFAULT 'inside'`,
+      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS out_status ENUM('inside', 'outside') DEFAULT 'inside'`,
+      `ALTER TABLE attendance_logs MODIFY COLUMN status ENUM('open', 'completed', 'outside_area', 'missing_checkout') NOT NULL DEFAULT 'open'`,
+    ];
+
+    for (const query of alterQueries) {
+      try {
+        await dbPool.query(query);
+      } catch (err: any) {
+        // Fallback for MySQL versions without IF NOT EXISTS in ALTER TABLE
+        if (!err.message?.includes('Duplicate column name')) {
+          console.warn('Attendance schema alter note:', err.message);
+        }
+      }
+    }
+    console.log('Migrated attendance_logs GPS schema extensions.');
   } catch (error) {
     console.error('Migration failed:', error);
   }

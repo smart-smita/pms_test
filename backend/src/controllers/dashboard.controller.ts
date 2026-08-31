@@ -8,16 +8,22 @@ export class DashboardController {
   getMetrics = async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      let managerId = undefined;
-      let employeeId = undefined;
 
-      if (user) {
-        if (user.role_name === 'Manager') managerId = user.id;
-        if (user.role_name === 'Employee') employeeId = user.id;
+      const loggedInEmployeeId = user?.employee_id || user?.id || user?.userId;
+
+      if (user && user.role_name === 'Employee') {
+        const metrics = await this.dashboardService.getEmployeeDashboardMetrics(loggedInEmployeeId);
+        return sendSuccess(res, 'Employee dashboard metrics retrieved successfully', metrics);
       }
 
-      const metrics = await this.dashboardService.getExecutiveDashboardMetrics(managerId, employeeId);
-      return sendSuccess(res, 'Dashboard metrics retrieved successfully', metrics);
+      let managerId = undefined;
+
+      if (user && user.role_name === 'Manager') {
+        managerId = loggedInEmployeeId;
+      }
+
+      const metrics = await this.dashboardService.getExecutiveDashboardMetrics(managerId);
+      return sendSuccess(res, 'Executive dashboard metrics retrieved successfully', metrics);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to fetch dashboard metrics', [], 500);
     }

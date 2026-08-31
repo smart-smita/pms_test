@@ -44,6 +44,8 @@ export interface Project {
 export interface Task {
   task_id: number;
   project_id: number;
+  wbs_id?: number;
+  wbs_name?: string;
   project_name?: string;
   task_name: string;
   description?: string;
@@ -53,8 +55,10 @@ export interface Task {
   estimated_hours: number;
   actual_hours?: number;
   start_date?: string;
+  start_time?: string;
   target_date?: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'delayed';
+  target_time?: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'delayed' | 'on-hold' | 'cancelled';
   productivity_status?: 'on-time' | 'delayed' | 'extra-hours-logged' | 'exceeding-estimate' | 'completed';
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
 }
@@ -76,9 +80,37 @@ export interface AttendanceLog {
   out_latitude?: number;
   out_longitude?: number;
   out_address?: string;
+  in_distance_meters?: number;
+  out_distance_meters?: number;
+  project_radius_meters?: number;
+  in_status?: 'inside' | 'outside';
+  out_status?: 'inside' | 'outside';
   total_working_hours: number;
   calculated_payment?: number;
-  status: 'open' | 'completed' | 'missing_checkout';
+  status: 'open' | 'completed' | 'outside_area' | 'missing_checkout';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkBreakdownStructure {
+  id: number;
+  wbs_code: string;
+  wbs_name: string;
+  description?: string;
+  status: number;
+}
+
+export interface ProjectWBS {
+  id: number;
+  project_id: number;
+  wbs_id: number;
+  wbs_code?: string;
+  wbs_name?: string;
+  start_date?: string;
+  end_date?: string;
+  total_hours?: number;
+  note?: string;
+  status: number;
 }
 
 export interface DashboardMetrics {

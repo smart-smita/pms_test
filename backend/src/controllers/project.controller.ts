@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { ProjectService } from '../services/project.service';
-import { createProjectSchema, updateProjectSchema } from '../validators/project.validator';
+import { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } from '../validators/project.validator';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 
 export class ProjectController {
@@ -59,6 +59,21 @@ export class ProjectController {
       return sendSuccess(res, 'Project updated successfully', updated);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to update project', [], 400);
+    }
+  };
+
+  updateStatus = async (req: Request, res: Response) => {
+    const parseResult = updateProjectStatusSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendError(res, 'Validation failed', parseResult.error.errors, 400);
+    }
+
+    try {
+      const id = parseInt(req.params.id, 10);
+      const updated = await this.projectService.updateProject(id, { status: parseResult.data.status });
+      return sendSuccess(res, 'Project status updated successfully', updated);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to update project status', [], 400);
     }
   };
 

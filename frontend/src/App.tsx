@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ToastContainer } from './components/common/Toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './pages/Login';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -6,6 +7,7 @@ import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Employees } from './pages/Employees';
 import { Projects } from './pages/Projects';
+import { ProjectForm } from './pages/ProjectForm';
 import { Tasks } from './pages/Tasks';
 import { Attendance } from './pages/Attendance';
 import { Payments } from './pages/Payments';
@@ -17,7 +19,13 @@ import { RequirePermission } from './components/common/RequirePermission';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
-  const [currentPage, setCurrentPage] = useState<string>('dashboard');
+  const [currentPage, setCurrentPage] = useState<string>(() => {
+    return sessionStorage.getItem('saved_page') || 'dashboard';
+  });
+
+  React.useEffect(() => {
+    sessionStorage.setItem('saved_page', currentPage);
+  }, [currentPage]);
   const [authView, setAuthView] = useState<'login' | 'forgot-password'>('login');
 
   if (isLoading) {
@@ -49,10 +57,12 @@ const AppContent: React.FC = () => {
       case 'employees': 
         return <RequirePermission module="employees" action="view" fallback={fallback}><Employees /></RequirePermission>;
       case 'projects': 
-        return <RequirePermission module="projects" action="view" fallback={fallback}><Projects /></RequirePermission>;
+        return <RequirePermission module="projects" action="view" fallback={fallback}><Projects onNavigate={(page) => setCurrentPage(page)} /></RequirePermission>;
+      case 'projects/create':
+        return <RequirePermission module="projects" action="create" fallback={fallback}><ProjectForm onBack={() => setCurrentPage('projects')} /></RequirePermission>;
       case 'tasks': 
         return <RequirePermission module="tasks" action="view" fallback={fallback}><Tasks /></RequirePermission>;
-      case 'attendance': 
+      case 'attendance':
         return <RequirePermission module="attendance" action="view" fallback={fallback}><Attendance /></RequirePermission>;
       case 'payments': 
         return <RequirePermission module="payments" action="view" fallback={fallback}><Payments /></RequirePermission>;
@@ -67,9 +77,25 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const renderContent = () => {
+    const fallback = (
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+        <h2>Access Denied</h2>
+        <p>You do not have permission to view this page.</p>
+      </div>
+    );
+
+    if (currentPage.startsWith('projects/edit/')) {
+      const id = parseInt(currentPage.split('/').pop() || '0', 10);
+      return <RequirePermission module="projects" action="update" fallback={fallback}><ProjectForm projectId={id} onBack={() => setCurrentPage('projects')} /></RequirePermission>;
+    }
+    
+    return renderPage();
+  };
+
   return (
     <MainLayout currentPage={currentPage} onNavigate={(page) => setCurrentPage(page)}>
-      {renderPage()}
+      {renderContent()}
     </MainLayout>
   );
 };
@@ -77,6 +103,7 @@ const AppContent: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <AuthProvider>
+      <ToastContainer />
       <AppContent />
     </AuthProvider>
   );

@@ -14,8 +14,10 @@ interface FormSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> 
 export const FormSelect: React.FC<FormSelectProps> = ({ label, options, error, className = '', ...props }) => {
   return (
     <div className="form-group">
-      <label className="form-label">{label}</label>
-      <select className={`form-select ${className}`} {...props}>
+      <label className="form-label">
+        {label} {props.required && <span style={{ color: '#ef4444' }}>*</span>}
+      </label>
+      <select className={`form-select ${error ? 'invalid-input' : ''} ${className}`} {...props}>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

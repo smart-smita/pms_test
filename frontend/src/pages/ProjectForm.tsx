@@ -6,8 +6,11 @@ import { ArrowLeft, MapPin, Plus, Trash2, Save } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { apiRequest } from '../services/api';
+import { apiRequest, parseApiErrors } from '../services/api';
 import { Project } from '../types';
+import { showSuccess, showError } from '../utils/toast';
+import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 // Fix for default Leaflet icon missing in React
 const defaultIcon = L.icon({
@@ -31,97 +34,160 @@ function LocationMarker({ position, setPosition }: { position: {lat: number, lng
 }
 
 interface ProjectFormProps {
-  project?: Project | null;
+  projectId?: number;
   onBack: () => void;
-  onSuccess: () => void;
 }
 
-export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuccess }) => {
+export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) => {
   // Safe date parser
   const getFormattedDate = (d?: string) => {
     if (!d) return new Date().toISOString().split('T')[0];
     return d.split('T')[0].split(' ')[0]; // Handles both ISO and SQL date strings
   };
 
+  const [isLoadingProject, setIsLoadingProject] = useState(!!projectId);
+  const [project, setProject] = useState<Project | null>(null);
+
   // Main Form State
-  const [projectCode, setProjectCode] = useState(project?.project_code || `PRJ-${new Date().getFullYear()}-${Math.floor(10 + Math.random() * 90)}`);
-  const [projectName, setProjectName] = useState(project?.project_name || '');
-  const [projectAddress, setProjectAddress] = useState(project?.project_address || '');
-  const [radiusMeters, setRadiusMeters] = useState<number>(project?.radius_meters || 500);
-  const [projectDate, setProjectDate] = useState(getFormattedDate(project?.project_date));
-  const [clientCode, setClientCode] = useState(project?.client_code || '');
-  const [clientName, setClientName] = useState(project?.client_name || '');
-  const [note, setNote] = useState(project?.note || '');
-  const [status, setStatus] = useState(project?.status || 'active');
+  const [projectCode, setProjectCode] = useState(`PRJ-${new Date().getFullYear()}-${Math.floor(10 + Math.random() * 90)}`);
+  const [projectName, setProjectName] = useState('');
+  const [projectAddress, setProjectAddress] = useState('');
+  const [radiusMeters, setRadiusMeters] = useState<number>(500);
+  const [projectDate, setProjectDate] = useState(getFormattedDate());
+  const [clientCode, setClientCode] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [note, setNote] = useState('');
+  const [status, setStatus] = useState('active');
 
   // Map / Location State
-  const [latitude, setLatitude] = useState<string>(project?.latitude !== undefined && project?.latitude !== null ? String(project.latitude) : '18.5204');
-  const [longitude, setLongitude] = useState<string>(project?.longitude !== undefined && project?.longitude !== null ? String(project.longitude) : '73.8567');
+  const [latitude, setLatitude] = useState<string>('18.5204');
+  const [longitude, setLongitude] = useState<string>('73.8567');
 
-  // Disciplines (Tasks) State
-  const [disciplines, setDisciplines] = useState<any[]>([]);
-  const [discName, setDiscName] = useState('');
-  const [discStart, setDiscStart] = useState('');
-  const [discEnd, setDiscEnd] = useState('');
-  const [discHours, setDiscHours] = useState('');
+  // WBS Allocations State
+  const [wbsAllocations, setWbsAllocations] = useState<any[]>([]);
+  const [wbsName, setWbsName] = useState('');
+  const [wbsStart, setWbsStart] = useState('');
+  const [wbsEnd, setWbsEnd] = useState('');
+  const [wbsHours, setWbsHours] = useState('');
+  const [masterWbsList, setMasterWbsList] = useState<any[]>([]);
 
-  const [error, setError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [wbsErrors, setWbsErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch existing tasks if editing
+  // WBS Delete State
+  const [isWbsDeleteModalOpen, setIsWbsDeleteModalOpen] = useState(false);
+  const [deletingWbsIndex, setDeletingWbsIndex] = useState<number | null>(null);
+
+  // Fetch existing project data, WBS allocations and master list
   React.useEffect(() => {
-    if (project?.project_id) {
-      apiRequest<any[]>(`/tasks?project_id=${project.project_id}`).then(res => {
+    apiRequest<any[]>('/wbs').then(res => {
+      if (res.success && res.data) {
+        setMasterWbsList(res.data);
+      }
+    });
+
+    if (projectId) {
+      setIsLoadingProject(true);
+      // Fetch project details
+      apiRequest<Project>(`/projects/${projectId}`).then(res => {
         if (res.success && res.data) {
-          setDisciplines(res.data.map(t => ({
-            id: t.task_id,
-            task_name: t.task_name,
-            start_date: t.start_date ? t.start_date.split('T')[0] : '',
-            target_date: t.target_date ? t.target_date.split('T')[0] : '',
-            estimated_hours: t.estimated_hours || 0
-          })));
+          const p = res.data;
+          setProject(p);
+          setProjectCode(p.project_code);
+          setProjectName(p.project_name);
+          setProjectAddress(p.project_address || '');
+          setRadiusMeters(p.radius_meters || 500);
+          setProjectDate(getFormattedDate(p.project_date));
+          setClientCode(p.client_code || '');
+          setClientName(p.client_name || '');
+          setNote(p.note || '');
+          setStatus(p.status || 'active');
+          if (p.latitude) setLatitude(String(p.latitude));
+          if (p.longitude) setLongitude(String(p.longitude));
         }
       });
-    }
-  }, [project]);
 
-  const handleAddDiscipline = () => {
-    if (!discName) return;
-    setDisciplines([...disciplines, {
+      // Fetch WBS allocations
+      apiRequest<any[]>(`/projects/${projectId}/wbs`).then(res => {
+        if (res.success && res.data) {
+          setWbsAllocations(res.data.map(w => ({
+            id: w.id,
+            wbs_id: w.wbs_id,
+            wbs_code: w.wbs_code,
+            wbs_name: w.wbs_name,
+            start_date: w.start_date ? w.start_date.split('T')[0] : '',
+            end_date: w.end_date ? w.end_date.split('T')[0] : '',
+            total_hours: w.total_hours || 0
+          })));
+        }
+        setIsLoadingProject(false);
+      });
+    }
+  }, [projectId]);
+
+  const handleAddWbs = () => {
+    let hasWbsErrors = false;
+    const newWbsErrors: Record<string, string> = {};
+    if (!wbsName) { newWbsErrors.wbsName = 'WBS Name is required.'; hasWbsErrors = true; }
+    if (!wbsStart) { newWbsErrors.wbsStart = 'Start Date is required.'; hasWbsErrors = true; }
+    if (!wbsEnd) { newWbsErrors.wbsEnd = 'End Date is required.'; hasWbsErrors = true; }
+    if (wbsStart && wbsEnd && wbsEnd < wbsStart) { newWbsErrors.wbsEnd = 'End Date cannot be before Start Date.'; hasWbsErrors = true; }
+    if (!wbsHours) { newWbsErrors.wbsHours = 'Total Hours is required.'; hasWbsErrors = true; }
+    else if (parseFloat(wbsHours) <= 0) { newWbsErrors.wbsHours = 'Total Hours must be greater than 0.'; hasWbsErrors = true; }
+
+    if (hasWbsErrors) {
+      setWbsErrors(newWbsErrors);
+      return;
+    }
+
+    // Find if it matches a master WBS (to get wbs_id)
+    const master = masterWbsList.find(m => m.wbs_name.toLowerCase() === wbsName.toLowerCase() || m.wbs_code === wbsName);
+    const wbsId = master ? master.id : undefined;
+    const finalName = master ? master.wbs_name : wbsName;
+    const finalCode = master ? master.wbs_code : '-';
+
+    setWbsAllocations([...wbsAllocations, {
       id: Date.now(),
-      task_name: discName,
-      start_date: discStart,
-      target_date: discEnd,
-      estimated_hours: parseFloat(discHours) || 0
+      wbs_id: wbsId,
+      wbs_name: finalName,
+      wbs_code: finalCode,
+      start_date: wbsStart,
+      end_date: wbsEnd,
+      total_hours: parseFloat(wbsHours) || 0
     }]);
-    setDiscName('');
-    setDiscStart('');
-    setDiscEnd('');
-    setDiscHours('');
+    setWbsName('');
+    setWbsStart('');
+    setWbsEnd('');
+    setWbsHours('');
+    setWbsErrors({});
+    showSuccess('WBS added successfully.');
   };
 
-  const handleRemoveDiscipline = async (id: number) => {
-    // If it's an existing task (id is a small integer, not Date.now())
-    if (project && id < 1000000000000) {
-      if (window.confirm('Are you sure you want to delete this discipline/task from the database?')) {
-        const res = await apiRequest(`/tasks/${id}`, { method: 'DELETE' });
-        if (res.success) {
-          setDisciplines(disciplines.filter(d => d.id !== id));
-        } else {
-          alert(res.message || 'Failed to delete task');
-        }
-      }
+  const handleRemoveWbs = (id: number) => {
+    // If it's an existing allocation (id is a small integer, not Date.now())
+    if (projectId && id < 1000000000000) {
+      setDeletingWbsIndex(id);
+      setIsWbsDeleteModalOpen(true);
     } else {
-      setDisciplines(disciplines.filter(d => d.id !== id));
+      setWbsAllocations(wbsAllocations.filter((d: any) => d.id !== id));
+      showSuccess('WBS removed successfully.');
+    }
+  };
+
+  const confirmDeleteWbs = () => {
+    if (deletingWbsIndex !== null) {
+      setWbsAllocations(wbsAllocations.filter((d: any) => d.id !== deletingWbsIndex));
+      setIsWbsDeleteModalOpen(false);
+      setDeletingWbsIndex(null);
+      showSuccess('WBS allocation removed. Save project to apply changes.');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setFormErrors({});
     setIsSubmitting(true);
-
-    const newDisciplines = project ? disciplines.filter(d => d.id > 1000000000000) : disciplines;
 
     const payload: any = {
       project_name: projectName,
@@ -134,66 +200,83 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
       project_date: projectDate,
       status,
       note,
-      disciplines: newDisciplines.length > 0 ? newDisciplines : undefined
+      wbs_allocations: wbsAllocations.length > 0 ? wbsAllocations.map((w: any) => ({ ...w, total_hours: parseFloat(w.total_hours) || 0 })) : undefined
     };
 
-    if (project) {
-      const res = await apiRequest(`/projects/${project.project_id}`, {
+    if (projectId) {
+      const res = await apiRequest(`/projects/${projectId}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
-      if (res.success) onSuccess();
-      else setError(res.message || 'Failed to update project');
+      if (res.success) {
+        showSuccess('Project updated successfully.');
+        onBack();
+      } else {
+        if (res.errors && res.errors.length > 0) {
+          setFormErrors(parseApiErrors(res.errors));
+        }
+        showError(res.message || 'Failed to update project.');
+      }
     } else {
       payload.project_code = projectCode;
       const res = await apiRequest('/projects', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      if (res.success) onSuccess();
-      else setError(res.message || 'Failed to create project');
+      if (res.success) {
+        showSuccess('Project created successfully.');
+        onBack();
+      } else {
+        if (res.errors && res.errors.length > 0) {
+          setFormErrors(parseApiErrors(res.errors));
+        }
+        showError(res.message || 'Failed to create project.');
+      }
     }
     setIsSubmitting(false);
   };
 
+  if (isLoadingProject) {
+    return (
+      <div style={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
     <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
-      <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem', borderRadius: '50%' }} className="hover-bg">
-          <ArrowLeft size={24} />
-        </button>
+      <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div>
-          <h1 className="page-title">{project ? 'Edit Project' : 'Master / Add Project'}</h1>
+          <h1 className="page-title">{projectId ? 'Master / Edit Project' : 'Master / Add Project'}</h1>
           <p className="page-subtitle">Configure project details, location boundaries, and task disciplines</p>
         </div>
+        <button onClick={onBack} style={{ background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 1rem', borderRadius: '8px', gap: '0.5rem', border: '1px solid var(--border-color)' }} className="hover-bg">
+          <ArrowLeft size={18} /> Back
+        </button>
       </div>
 
-      {error && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+      <form noValidate onSubmit={handleSubmit} className="grid-auto" style={{ alignItems: 'start' }}>
         
         {/* LEFT COLUMN: Project Form */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.5rem' }}>Project Form</h3>
           
-          <FormInput label="Project Code" type="text" value={projectCode} onChange={e => setProjectCode(e.target.value)} required disabled={!!project} />
-          <FormInput label="Project Name" type="text" value={projectName} onChange={e => setProjectName(e.target.value)} required />
+          <FormInput label="Project Code" type="text" value={projectCode} onChange={e => { setProjectCode(e.target.value); setFormErrors(prev => ({...prev, project_code: ''})); }} required disabled={!!project} error={formErrors.project_code} />
+          <FormInput label="Project Name" type="text" value={projectName} onChange={e => { setProjectName(e.target.value); setFormErrors(prev => ({...prev, project_name: ''})); }} required error={formErrors.project_name} />
           
           <div className="form-group">
-            <label className="form-label">Project Address</label>
-            <textarea className="form-input" rows={3} value={projectAddress} onChange={e => setProjectAddress(e.target.value)} placeholder="Full site address..." />
+            <label className="form-label">Project Address <span style={{ color: '#ef4444' }}>*</span></label>
+            <textarea className={`form-input ${formErrors.project_address ? 'invalid-input' : ''}`} rows={3} value={projectAddress} onChange={e => { setProjectAddress(e.target.value); setFormErrors(prev => ({...prev, project_address: ''})); }} placeholder="Full site address..." />
+            {formErrors.project_address && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{formErrors.project_address}</span>}
           </div>
 
-          <FormInput label="Project Radius (meters)" type="number" value={radiusMeters} onChange={e => setRadiusMeters(parseInt(e.target.value) || 500)} required />
-          <FormInput label="Project Date" type="date" value={projectDate} onChange={e => setProjectDate(e.target.value)} />
+          <FormInput label="Project Radius (meters)" type="number" value={radiusMeters} onChange={e => { setRadiusMeters(parseInt(e.target.value) || 500); setFormErrors(prev => ({...prev, radius_meters: ''})); }} required error={formErrors.radius_meters} />
+          <FormInput label="Project Date" type="date" value={projectDate} onChange={e => { setProjectDate(e.target.value); setFormErrors(prev => ({...prev, project_date: ''})); }} required error={formErrors.project_date} />
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <FormInput label="Client Code" type="text" value={clientCode} onChange={e => setClientCode(e.target.value)} />
-            <FormInput label="Client Name" type="text" value={clientName} onChange={e => setClientName(e.target.value)} />
+          <div className="grid-2-col">
+            <FormInput label="Client Code" type="text" value={clientCode} onChange={e => { setClientCode(e.target.value); setFormErrors(prev => ({...prev, client_code: ''})); }} required error={formErrors.client_code} />
+            <FormInput label="Client Name" type="text" value={clientName} onChange={e => { setClientName(e.target.value); setFormErrors(prev => ({...prev, client_name: ''})); }} required error={formErrors.client_name} />
           </div>
 
           <div className="form-group">
@@ -250,28 +333,42 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
                </MapContainer>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-              <FormInput label="Latitude" type="number" step="any" value={latitude} onChange={e => setLatitude(e.target.value)} />
-              <FormInput label="Longitude" type="number" step="any" value={longitude} onChange={e => setLongitude(e.target.value)} />
+            <div className="grid-2-col" style={{ marginTop: '1rem' }}>
+              <FormInput label="Latitude" type="number" step="any" value={latitude} onChange={e => { setLatitude(e.target.value); setFormErrors(prev => ({...prev, latitude: ''})); }} required error={formErrors.latitude} />
+              <FormInput label="Longitude" type="number" step="any" value={longitude} onChange={e => { setLongitude(e.target.value); setFormErrors(prev => ({...prev, longitude: ''})); }} required error={formErrors.longitude} />
             </div>
           </div>
 
-          {/* Allocate Disciplines */}
+          {/* Work Breakdown Structure (WBS) */}
           <div className="glass-card">
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>Allocate Disciplines</h3>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>Work Breakdown Structure (WBS)</h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div className="grid-2-col" style={{ marginBottom: '1rem' }}>
               <div style={{ gridColumn: '1 / -1' }}>
-                <FormInput label="Discipline Name" type="text" value={discName} onChange={e => setDiscName(e.target.value)} placeholder="e.g. Electrical Installation" />
+                <label className="form-label">WBS Name / Code <span style={{ color: '#ef4444' }}>*</span></label>
+                <input 
+                  type="text" 
+                  className={`form-input ${wbsErrors.wbsName ? 'invalid-input' : ''}`}
+                  list="wbs-master-list"
+                  value={wbsName} 
+                  onChange={e => { setWbsName(e.target.value); setWbsErrors(prev => ({...prev, wbsName: ''})); }} 
+                  placeholder="e.g. Electrical Installation or WBS-01" 
+                />
+                {wbsErrors.wbsName && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{wbsErrors.wbsName}</span>}
+                <datalist id="wbs-master-list">
+                  {masterWbsList.map(w => (
+                    <option key={w.id} value={w.wbs_name}>{w.wbs_code}</option>
+                  ))}
+                </datalist>
               </div>
-              <FormInput label="Start Date" type="date" value={discStart} onChange={e => setDiscStart(e.target.value)} />
-              <FormInput label="End Date" type="date" value={discEnd} onChange={e => setDiscEnd(e.target.value)} />
-              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+              <FormInput label="Start Date" type="date" value={wbsStart} onChange={e => { setWbsStart(e.target.value); setWbsErrors(prev => ({...prev, wbsStart: '', wbsEnd: ''})); }} required error={wbsErrors.wbsStart} />
+              <FormInput label="End Date" type="date" value={wbsEnd} onChange={e => { setWbsEnd(e.target.value); setWbsErrors(prev => ({...prev, wbsEnd: ''})); }} required error={wbsErrors.wbsEnd} />
+              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
-                  <FormInput label="Total Hours" type="number" value={discHours} onChange={e => setDiscHours(e.target.value)} />
+                  <FormInput label="Total Hours" type="number" value={wbsHours} onChange={e => { setWbsHours(e.target.value); setWbsErrors(prev => ({...prev, wbsHours: ''})); }} required error={wbsErrors.wbsHours} />
                 </div>
-                <Button type="button" variant="primary" onClick={handleAddDiscipline} style={{ height: '42px', padding: '0 1.5rem' }}>
-                  <Plus size={18} /> Add
+                <Button type="button" variant="primary" onClick={handleAddWbs} style={{ height: '42px', padding: '0 1.5rem', marginTop: '1.6rem' }}>
+                  <Plus size={18} /> Add WBS
                 </Button>
               </div>
             </div>
@@ -281,7 +378,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
                 <thead>
                   <tr>
                     <th>No.</th>
-                    <th>Discipline Name</th>
+                    <th>WBS Code</th>
+                    <th>WBS Name</th>
                     <th>Start Date</th>
                     <th>End Date</th>
                     <th>Hrs.</th>
@@ -289,20 +387,21 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, onBack, onSuc
                   </tr>
                 </thead>
                 <tbody>
-                  {disciplines.length === 0 ? (
+                  {wbsAllocations.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>No disciplines allocated yet</td>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>No WBS allocated yet</td>
                     </tr>
                   ) : (
-                    disciplines.map((d, index) => (
-                      <tr key={d.id}>
+                    wbsAllocations.map((w, index) => (
+                      <tr key={w.id}>
                         <td>{index + 1}</td>
-                        <td>{d.task_name}</td>
-                        <td>{d.start_date || '-'}</td>
-                        <td>{d.target_date || '-'}</td>
-                        <td>{d.estimated_hours}</td>
+                        <td>{w.wbs_code || '-'}</td>
+                        <td>{w.wbs_name}</td>
+                        <td>{w.start_date || '-'}</td>
+                        <td>{w.end_date || '-'}</td>
+                        <td>{w.total_hours}</td>
                         <td>
-                          <button type="button" onClick={() => handleRemoveDiscipline(d.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                          <button type="button" onClick={() => handleRemoveWbs(w.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
                             <Trash2 size={16} />
                           </button>
                         </td>

@@ -8,25 +8,32 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
 import { Project } from '../types';
-import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, RefreshCw } from 'lucide-react';
 import { RequirePermission } from '../components/common/RequirePermission';
 
-import { ProjectForm } from './ProjectForm';
-export const Projects: React.FC = () => {
+import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
+import { showSuccess, showError } from '../utils/toast';
+import { useAuth } from '../context/AuthContext';
+
+export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onNavigate }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role_name === 'Admin';
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
 
-  // Form State
-  const [projectCode, setProjectCode] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [latitude, setLatitude] = useState<string>('');
-  const [longitude, setLongitude] = useState<string>('');
-  const [radiusMeters, setRadiusMeters] = useState<number>(500);
-  const [status, setStatus] = useState<'active' | 'inactive' | 'completed' | 'cancelled'>('active');
-  const [error, setError] = useState<string | null>(null);
+  // Status Modal State
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusUpdatingProject, setStatusUpdatingProject] = useState<Project | null>(null);
+  const [newStatus, setNewStatus] = useState<'active' | 'inactive' | 'completed' | 'cancelled'>('active');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Delete Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState<{ id: number, name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProjects = async () => {
     setIsLoading(true);
@@ -42,43 +49,69 @@ export const Projects: React.FC = () => {
   }, []);
 
   const openCreateModal = () => {
-    setEditingProject(null);
-    setProjectCode(`PRJ-2026-${Math.floor(10 + Math.random() * 90)}`);
-    setProjectName('');
-    setClientName('');
-    setLatitude('');
-    setLongitude('');
-    setRadiusMeters(500);
-    setStatus('active');
-    setError(null);
-    setIsModalOpen(true);
+    onNavigate('projects/create');
   };
 
   const openEditModal = (prj: Project) => {
-    setEditingProject(prj);
-    setProjectCode(prj.project_code);
-    setProjectName(prj.project_name);
-    setClientName(prj.client_name || '');
-    setLatitude(prj.latitude !== undefined && prj.latitude !== null ? String(prj.latitude) : '');
-    setLongitude(prj.longitude !== undefined && prj.longitude !== null ? String(prj.longitude) : '');
-    setRadiusMeters(prj.radius_meters || 500);
-    setStatus(prj.status);
-    setError(null);
-    setIsModalOpen(true);
+    onNavigate(`projects/edit/${prj.project_id}`);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this project?')) {
-      const res = await apiRequest(`/projects/${id}`, { method: 'DELETE' });
-      if (res.success) fetchProjects();
-      else alert(res.message || 'Failed to delete project');
+  const handleDelete = (id: number, name: string) => {
+    setDeletingProject({ id, name });
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingProject) return;
+    setIsDeleting(true);
+    const res = await apiRequest(`/projects/${deletingProject.id}`, { method: 'DELETE' });
+    setIsDeleting(false);
+    if (res.success) {
+      showSuccess('Project deleted successfully.');
+      setIsDeleteModalOpen(false);
+      fetchProjects();
+    } else {
+      showError(res.message || 'Failed to delete project.');
+    }
+  };
+
+  const openStatusModal = (prj: Project) => {
+    setStatusUpdatingProject(prj);
+    setNewStatus(prj.status);
+    setIsStatusModalOpen(true);
+  };
+
+  const handleUpdateStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!statusUpdatingProject) return;
+    
+    setIsUpdatingStatus(true);
+    const res = await apiRequest(`/projects/${statusUpdatingProject.project_id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    
+    setIsUpdatingStatus(false);
+    
+    if (res.success) {
+      showSuccess('Project status updated successfully.');
+      setIsStatusModalOpen(false);
+      
+      // Update just the affected row to avoid full reload
+      setProjects(prev => prev.map(p => 
+        p.project_id === statusUpdatingProject.project_id 
+          ? { ...p, status: newStatus } 
+          : p
+      ));
+    } else {
+      showError(res.message || 'Unable to update project status.');
     }
   };
 
   const columns: Column<Project>[] = [
-    { header: 'Code', accessor: 'project_code' },
-    { header: 'Project Name', accessor: 'project_name' },
-    { header: 'Client Name', accessor: (r) => r.client_name || '-' },
+    { header: 'Code', accessor: 'project_code', sortKey: 'project_code' },
+    { header: 'Project Name', accessor: 'project_name', sortKey: 'project_name' },
+    { header: 'Client Name', accessor: (r) => r.client_name || '-', sortKey: 'client_name' },
     {
       header: 'GPS Location',
       accessor: (r) =>
@@ -90,6 +123,8 @@ export const Projects: React.FC = () => {
         ) : (
           <span style={{ color: '#64748b', fontSize: '0.8rem' }}>No GPS set</span>
         ),
+      csvAccessor: (r) => r.latitude && r.longitude ? `${r.latitude}, ${r.longitude} (${r.radius_meters}m)` : 'No GPS set',
+      sortKey: 'latitude'
     },
     {
       header: 'Progress',
@@ -104,6 +139,8 @@ export const Projects: React.FC = () => {
           </div>
         </div>
       ),
+      csvAccessor: (r) => `${r.progress_percentage}% (${r.completed_task_count}/${r.task_count} tasks)`,
+      sortKey: 'progress_percentage'
     },
     {
       header: 'Status',
@@ -122,21 +159,10 @@ export const Projects: React.FC = () => {
           {r.status}
         </Badge>
       ),
+      csvAccessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1),
+      sortKey: 'status'
     },
   ];
-
-  if (isModalOpen) {
-    return (
-      <ProjectForm 
-        project={editingProject} 
-        onBack={() => setIsModalOpen(false)} 
-        onSuccess={() => {
-          setIsModalOpen(false);
-          fetchProjects();
-        }} 
-      />
-    );
-  }
 
   return (
     <div>
@@ -150,32 +176,76 @@ export const Projects: React.FC = () => {
         </Button>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : (
         <div className="glass-card">
           <DataTable
             columns={columns}
             data={projects}
             searchPlaceholder="Search projects by name, code, or client..."
-            exportFilename="projects_list.csv"
-            actions={(row) => (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <RequirePermission module="projects" action="update">
-                  <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
-                    <Edit size={14} /> Edit
-                  </Button>
-                </RequirePermission>
-                <RequirePermission module="projects" action="delete">
-                  <Button variant="secondary" onClick={() => handleDelete(row.project_id)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                    <Trash2 size={14} /> Delete
-                  </Button>
-                </RequirePermission>
+            exportFilename="projects"
+            isLoading={isLoading}
+            actions={isAdmin ? (row) => (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                  <Edit size={14} /> Edit
+                </Button>
+                <Button variant="secondary" onClick={() => openStatusModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                  <RefreshCw size={14} /> Status
+                </Button>
+                <Button variant="secondary" onClick={() => handleDelete(row.project_id, row.project_name)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <Trash2 size={14} /> Delete
+                </Button>
               </div>
-            )}
+            ) : undefined}
           />
         </div>
-      )}
+
+      {/* Project Status Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title="Change Project Status"
+      >
+        {statusUpdatingProject && (
+          <form onSubmit={handleUpdateStatus}>
+            <div style={{ marginBottom: '1.5rem', background: 'rgba(99, 102, 241, 0.1)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+              <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Project</div>
+              <div style={{ fontWeight: 600 }}>{statusUpdatingProject.project_name}</div>
+              <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>Current Status</div>
+              <div><Badge variant={statusUpdatingProject.status === 'active' ? 'success' : statusUpdatingProject.status === 'completed' ? 'info' : statusUpdatingProject.status === 'cancelled' ? 'danger' : 'warning'}>{statusUpdatingProject.status}</Badge></div>
+            </div>
+
+            <FormSelect
+              label="Select New Status"
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value as any)}
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'cancelled', label: 'Cancelled' },
+              ]}
+              required
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <Button type="button" variant="secondary" onClick={() => setIsStatusModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={isUpdatingStatus || newStatus === statusUpdatingProject.status}>
+                {isUpdatingStatus ? 'Updating...' : 'Update Status'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        recordName={deletingProject?.name || 'this project'}
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

@@ -72,7 +72,7 @@ export const Login: React.FC<LoginProps> = ({ onForgotPassword }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           <FormInput
             label="Employee Code"
             type="text"

@@ -2,7 +2,7 @@ import { RowDataPacket } from 'mysql2';
 import { dbPool } from '../config/db';
 
 export class PaymentRepository {
-  async getEmployeePaymentSummary(startDate?: string, endDate?: string): Promise<any[]> {
+  async getEmployeePaymentSummary(startDate?: string, endDate?: string, employeeId?: number): Promise<any[]> {
     let sql = `
       SELECT 
         e.employee_id,
@@ -17,6 +17,11 @@ export class PaymentRepository {
       WHERE e.is_deleted = 0
     `;
     const params: any[] = [];
+
+    if (employeeId) {
+      sql += ` AND e.employee_id = ?`;
+      params.push(employeeId);
+    }
 
     if (startDate && endDate) {
       sql += ` AND al.attendance_date BETWEEN ? AND ?`;

@@ -37,4 +37,5 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
+// Trigger hot reload for migration execution
 export default app;

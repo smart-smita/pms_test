@@ -46,11 +46,15 @@ export class AttendanceRepository {
     in_latitude?: number;
     in_longitude?: number;
     in_address?: string;
+    in_distance_meters?: number;
+    project_radius_meters?: number;
+    in_status?: 'inside' | 'outside';
+    status?: 'open' | 'outside_area';
   }): Promise<number> {
     const [result] = await dbPool.execute<ResultSetHeader>(
       `INSERT INTO attendance_logs 
-       (employee_id, task_id, attendance_date, check_in_time, in_latitude, in_longitude, in_address, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`,
+       (employee_id, task_id, attendance_date, check_in_time, in_latitude, in_longitude, in_address, in_distance_meters, project_radius_meters, in_status, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.employee_id,
         data.task_id || null,
@@ -59,6 +63,10 @@ export class AttendanceRepository {
         data.in_latitude || null,
         data.in_longitude || null,
         data.in_address || null,
+        data.in_distance_meters || null,
+        data.project_radius_meters || 500,
+        data.in_status || 'inside',
+        data.status || 'open',
       ]
     );
     return result.insertId;
@@ -70,18 +78,22 @@ export class AttendanceRepository {
     out_latitude?: number;
     out_longitude?: number;
     out_address?: string;
+    out_distance_meters?: number;
+    out_status?: 'inside' | 'outside';
     total_working_hours: number;
-    status: 'completed' | 'missing_checkout';
+    status: 'completed' | 'missing_checkout' | 'outside_area';
   }): Promise<boolean> {
     const [result] = await dbPool.execute<ResultSetHeader>(
       `UPDATE attendance_logs 
-       SET check_out_time = ?, out_latitude = ?, out_longitude = ?, out_address = ?, total_working_hours = ?, status = ?
+       SET check_out_time = ?, out_latitude = ?, out_longitude = ?, out_address = ?, out_distance_meters = ?, out_status = ?, total_working_hours = ?, status = ?
        WHERE attendance_id = ?`,
       [
         data.check_out_time,
         data.out_latitude || null,
         data.out_longitude || null,
         data.out_address || null,
+        data.out_distance_meters || null,
+        data.out_status || 'inside',
         data.total_working_hours,
         data.status,
         data.attendance_id,

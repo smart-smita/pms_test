@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { TaskService } from '../services/task.service';
-import { createTaskSchema, updateTaskSchema, assignWorkersSchema } from '../validators/task.validator';
+import { createTaskSchema, updateTaskSchema, assignWorkersSchema, updateTaskStatusSchema } from '../validators/task.validator';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../types';
 
@@ -19,7 +19,7 @@ export class TaskController {
           managerId = req.user.employee_id;
         }
         if (req.user.role_name === 'Employee' || assigned_to_me === 'true') {
-          empId = req.user.employee_id; // Scopes tasks to the currently logged in employee
+          empId = req.user.employee_id || (req.user as any).id || (req.user as any).userId; // Scopes tasks to the currently logged in employee
         }
       }
 
@@ -81,6 +81,21 @@ export class TaskController {
       return sendSuccess(res, 'Workers assigned successfully', updated);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to assign workers', [], 400);
+    }
+  };
+
+  updateStatus = async (req: Request, res: Response) => {
+    const parseResult = updateTaskStatusSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendError(res, 'Validation failed', parseResult.error.errors, 400);
+    }
+
+    try {
+      const id = parseInt(req.params.id, 10);
+      const updated = await this.taskService.updateTaskStatus(id, parseResult.data.status);
+      return sendSuccess(res, 'Task status updated successfully', updated);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to update task status', [], 400);
     }
   };
 

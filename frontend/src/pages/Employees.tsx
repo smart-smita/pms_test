@@ -6,12 +6,18 @@ import { Badge } from '../components/common/Badge';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { apiRequest } from '../services/api';
+import { apiRequest, parseApiErrors } from '../services/api';
 import { Employee } from '../types';
-import { UserPlus, Edit, Shield, Plus, Activity, Trash2 } from 'lucide-react';
+import { showSuccess, showError } from '../utils/toast';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { RequirePermission } from '../components/common/RequirePermission';
+import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
+import { useAuth } from '../context/AuthContext';
 
 export const Employees: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role_name === 'Admin';
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,7 +31,13 @@ export const Employees: React.FC = () => {
   const [roleId, setRoleId] = useState<number>(3); // 1=Admin, 2=Manager, 3=Employee
   const [hourlyRate, setHourlyRate] = useState<number>(25.0);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
-  const [error, setError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Delete Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingEmp, setDeletingEmp] = useState<{ id: number, name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchEmployees = async () => {
     setIsLoading(true);
@@ -49,7 +61,7 @@ export const Employees: React.FC = () => {
     setRoleId(3);
     setHourlyRate(25.0);
     setStatus('active');
-    setError(null);
+    setFormErrors({});
     setIsModalOpen(true);
   };
 
@@ -62,21 +74,33 @@ export const Employees: React.FC = () => {
     setRoleId(emp.role_id);
     setHourlyRate(Number(emp.hourly_rate));
     setStatus(emp.status);
-    setError(null);
+    setFormErrors({});
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this employee?')) {
-      const res = await apiRequest(`/employees/${id}`, { method: 'DELETE' });
-      if (res.success) fetchEmployees();
-      else alert(res.message || 'Failed to delete employee');
+  const handleDelete = (id: number, name: string) => {
+    setDeletingEmp({ id, name });
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingEmp) return;
+    setIsDeleting(true);
+    const res = await apiRequest(`/employees/${deletingEmp.id}`, { method: 'DELETE' });
+    setIsDeleting(false);
+    if (res.success) {
+      showSuccess('Employee deleted successfully.');
+      setIsDeleteModalOpen(false);
+      fetchEmployees();
+    } else {
+      showError(res.message || 'Failed to delete employee.');
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setFormErrors({});
+    setIsSubmitting(true);
 
     if (editingEmp) {
       const payload: any = { name, email, role_id: roleId, hourly_rate: hourlyRate, status };
@@ -86,10 +110,12 @@ export const Employees: React.FC = () => {
         body: JSON.stringify(payload),
       });
       if (res.success) {
+        showSuccess('Employee updated successfully.');
         setIsModalOpen(false);
         fetchEmployees();
       } else {
-        setError(res.message || 'Failed to update employee');
+        if (res.errors) setFormErrors(parseApiErrors(res.errors));
+        showError(res.message || 'Failed to update employee.');
       }
     } else {
       const res = await apiRequest('/employees', {
@@ -105,18 +131,21 @@ export const Employees: React.FC = () => {
         }),
       });
       if (res.success) {
+        showSuccess('Employee created successfully.');
         setIsModalOpen(false);
         fetchEmployees();
       } else {
-        setError(res.message || 'Failed to create employee');
+        if (res.errors) setFormErrors(parseApiErrors(res.errors));
+        showError(res.message || 'Failed to create employee.');
       }
     }
+    setIsSubmitting(false);
   };
 
   const columns: Column<Employee>[] = [
-    { header: 'Code', accessor: 'employee_code' },
-    { header: 'Name', accessor: 'name' },
-    { header: 'Email', accessor: 'email' },
+    { header: 'Code', accessor: 'employee_code', sortKey: 'employee_code' },
+    { header: 'Name', accessor: 'name', sortKey: 'name' },
+    { header: 'Email', accessor: 'email', sortKey: 'email' },
     {
       header: 'Role',
       accessor: (r) => (
@@ -124,14 +153,20 @@ export const Employees: React.FC = () => {
           {r.role_name}
         </Badge>
       ),
+      csvAccessor: 'role_name',
+      sortKey: 'role_name'
     },
     {
       header: 'Hourly Rate',
       accessor: (r) => `₹${Number(r.hourly_rate).toFixed(2)}/hr`,
+      csvAccessor: (r) => Number(r.hourly_rate).toFixed(2),
+      sortKey: 'hourly_rate'
     },
     {
       header: 'Status',
       accessor: (r) => <Badge variant={r.status === 'active' ? 'success' : 'danger'}>{r.status}</Badge>,
+      csvAccessor: (r) => r.status === 'active' ? 'Active' : 'Inactive',
+      sortKey: 'status'
     },
   ];
 
@@ -149,64 +184,53 @@ export const Employees: React.FC = () => {
         </RequirePermission>
       </div>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : (
         <div className="glass-card">
           <DataTable
             columns={columns}
             data={employees}
             searchPlaceholder="Search employees..."
-            exportFilename="employees_list.csv"
-            actions={(row) => (
+            exportFilename="employees"
+            isLoading={isLoading}
+            actions={isAdmin ? (row) => (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <RequirePermission module="employees" action="update">
-                  <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
-                    <Edit size={14} /> Edit
-                  </Button>
-                </RequirePermission>
-                <RequirePermission module="employees" action="delete">
-                  <Button variant="secondary" onClick={() => handleDelete(row.employee_id)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                    <Trash2 size={14} /> Delete
-                  </Button>
-                </RequirePermission>
+                <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                  <Edit size={14} /> Edit
+                </Button>
+                <Button variant="secondary" onClick={() => handleDelete(row.employee_id, row.name)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <Trash2 size={14} /> Delete
+                </Button>
               </div>
-            )}
+            ) : undefined}
           />
         </div>
-      )}
 
       {/* Add / Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingEmp ? 'Edit Employee' : 'Add New Employee'}>
-        {error && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '0.75rem', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.85rem' }}>
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
+        <form noValidate onSubmit={handleSubmit}>
           {!editingEmp && (
             <FormInput
               label="Employee Code (Unique)"
               type="text"
               value={employeeCode}
-              onChange={(e) => setEmployeeCode(e.target.value)}
+              onChange={(e) => { setEmployeeCode(e.target.value); setFormErrors(prev => ({...prev, employee_code: ''})); }}
               required
+              error={formErrors.employee_code}
             />
           )}
 
-          <FormInput label="Full Name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-          <FormInput label="Email Address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <FormInput label="Full Name" type="text" value={name} onChange={(e) => { setName(e.target.value); setFormErrors(prev => ({...prev, name: ''})); }} required error={formErrors.name} />
+          <FormInput label="Email Address" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setFormErrors(prev => ({...prev, email: ''})); }} required error={formErrors.email} />
 
           <FormInput
             label={editingEmp ? 'New Password (leave blank to keep current)' : 'Password'}
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); setFormErrors(prev => ({...prev, password: ''})); }}
             required={!editingEmp}
+            error={formErrors.password}
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="grid-2-col">
             <FormSelect
               label="Role"
               value={roleId}
@@ -216,6 +240,7 @@ export const Employees: React.FC = () => {
                 { value: 2, label: 'Manager' },
                 { value: 3, label: 'Employee' },
               ]}
+              error={formErrors.role_id}
             />
 
             <FormInput
@@ -223,8 +248,9 @@ export const Employees: React.FC = () => {
               type="number"
               step="0.50"
               value={hourlyRate}
-              onChange={(e) => setHourlyRate(parseFloat(e.target.value))}
+              onChange={(e) => { setHourlyRate(parseFloat(e.target.value)); setFormErrors(prev => ({...prev, hourly_rate: ''})); }}
               required
+              error={formErrors.hourly_rate}
             />
           </div>
 
@@ -236,18 +262,27 @@ export const Employees: React.FC = () => {
               { value: 'active', label: 'Active' },
               { value: 'inactive', label: 'Inactive' },
             ]}
+            error={formErrors.status}
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              {editingEmp ? 'Save Changes' : 'Create Employee'}
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : (editingEmp ? 'Save Changes' : 'Create Employee')}
             </Button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        recordName={deletingEmp?.name || 'this employee'}
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

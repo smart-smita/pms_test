@@ -2,21 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { DataTable, Column } from '../components/common/DataTable';
 import { apiRequest } from '../services/api';
 import { DashboardMetrics } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { 
   Users, UserCheck, MapPin, Clock, FolderKanban, 
-  IndianRupee, UserPlus, FolderPlus, FilePlus, Receipt 
+  IndianRupee, UserPlus, FolderPlus, FilePlus, Receipt, CheckSquare 
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 
 export const Dashboard: React.FC = () => {
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const { user } = useAuth();
+  const isEmployee = user?.role_name === 'Employee';
+
+  const [metrics, setMetrics] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchMetrics = async () => {
     setIsLoading(true);
-    const res = await apiRequest<DashboardMetrics>('/dashboard/metrics');
+    setMetrics(null); // Clear previous cached state
+    const res = await apiRequest<any>('/dashboard/metrics');
     if (res.success && res.data) {
       setMetrics(res.data);
     }
@@ -25,7 +31,7 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchMetrics();
-  }, []);
+  }, [user?.employee_id, user?.role_name]);
 
   if (isLoading) return <LoadingSpinner />;
   if (!metrics) return <div style={{ color: 'var(--text-primary)', padding: '2rem' }}>Failed to load dashboard metrics.</div>;
@@ -33,25 +39,191 @@ export const Dashboard: React.FC = () => {
   const PIE_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
   const ATTENDANCE_COLORS = ['#10b981', '#ef4444', '#f59e0b'];
 
-  const taskData = [
-    { name: 'Completed', value: metrics.tasks.completed },
-    { name: 'In Progress', value: metrics.tasks.in_progress },
-    { name: 'Pending', value: metrics.tasks.pending },
-    { name: 'Delayed', value: metrics.tasks.delayed },
-  ];
+  const taskData = metrics?.tasks ? [
+    { name: 'Completed', value: metrics.tasks.completed || 0 },
+    { name: 'In Progress', value: metrics.tasks.in_progress || 0 },
+    { name: 'Pending', value: metrics.tasks.pending || 0 },
+    { name: 'Delayed', value: metrics.tasks.delayed || 0 },
+  ] : [];
 
-  const attendanceData = [
-    { name: 'Present', value: metrics.employees.present_today },
-    { name: 'Absent', value: metrics.employees.absent_today },
+  const attendanceData = metrics?.employees ? [
+    { name: 'Present', value: metrics.employees.present_today || 0 },
+    { name: 'Absent', value: metrics.employees.absent_today || 0 },
     { name: 'On Leave', value: metrics.employees.on_leave || 0 },
-  ];
+  ] : [];
+
+  if (isEmployee) {
+    const empMetrics = metrics as any;
+    const taskDist = [
+      { name: 'Completed', value: empMetrics.my_tasks?.completed || 0 },
+      { name: 'In Progress', value: empMetrics.my_tasks?.in_progress || 0 },
+      { name: 'Pending', value: empMetrics.my_tasks?.pending || 0 },
+      { name: 'Delayed', value: empMetrics.my_tasks?.delayed || 0 },
+    ];
+
+    const columns: Column<any>[] = [
+      { header: 'Task Name', accessor: 'task_name', sortKey: 'task_name' },
+      { header: 'Project Name', accessor: (r) => r.project_name || 'General Site', sortKey: 'project_name' },
+      { header: 'WBS / Discipline', accessor: (r) => r.wbs_name || 'General', sortKey: 'wbs_name' },
+      {
+        header: 'Task Status',
+        accessor: (r) => (
+          <Badge variant={r.task_status === 'completed' ? 'success' : r.task_status === 'in-progress' ? 'info' : 'warning'}>
+            {r.task_status}
+          </Badge>
+        ),
+        sortKey: 'task_status'
+      },
+      { header: 'Start Date & Time', accessor: (r) => r.start_date ? `${r.start_date} ${r.start_time || ''}` : '-', sortKey: 'start_date' },
+      { header: 'End Date & Time', accessor: (r) => r.end_date ? `${r.end_date} ${r.end_time || ''}` : '-', sortKey: 'end_date' },
+      { header: 'Worker Count', accessor: (r) => r.required_worker_count || 1, sortKey: 'required_worker_count' },
+      { header: 'Working Hours', accessor: (r) => `${r.logged_hours || 0} hrs`, sortKey: 'logged_hours' },
+      {
+        header: 'Attendance Status',
+        accessor: (r) => (
+          <Badge variant={r.latest_attendance_status === 'completed' ? 'success' : r.latest_attendance_status === 'open' ? 'info' : 'secondary'}>
+            {r.latest_attendance_status || 'Not Checked-In'}
+          </Badge>
+        ),
+        sortKey: 'latest_attendance_status'
+      },
+    ];
+
+    return (
+      <div>
+        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+          <div>
+            <h1 className="page-title">Employee Dashboard</h1>
+            <p className="page-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+              <span>Welcome back, <strong>{user?.name}</strong> 👋</span>
+              <span>•</span>
+              <span>Employee ID: <strong>{user?.employee_code || `EMP${user?.employee_id}`}</strong></span>
+              <span>•</span>
+              <Badge variant="info">Role: Employee / Staff</Badge>
+            </p>
+          </div>
+          <div style={{ background: 'rgba(150,150,150,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+            📅 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+        </div>
+
+        {/* Top Cards for Employee */}
+        <div className="grid-top-metrics">
+          <div className="metric-card-sm">
+            <div className="metric-header">
+              <div className="metric-icon-sm" style={{ background: 'rgba(79, 70, 229, 0.2)', color: '#818cf8' }}>
+                <CheckSquare size={18} />
+              </div>
+              <div className="metric-title-sm">My Assigned Tasks</div>
+            </div>
+            <div className="metric-value-lg">{empMetrics.my_tasks?.total || 0}</div>
+            <div className="metric-trend" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+              Pending: {empMetrics.my_tasks?.pending || 0} | Done: {empMetrics.my_tasks?.completed || 0}
+            </div>
+          </div>
+
+          <div className="metric-card-sm">
+            <div className="metric-header">
+              <div className="metric-icon-sm" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399' }}>
+                <UserCheck size={18} />
+              </div>
+              <div className="metric-title-sm">My Attendance</div>
+            </div>
+            <div className="metric-value-lg" style={{ fontSize: '1.2rem', color: empMetrics.my_attendance?.is_checked_in ? '#10b981' : 'var(--text-primary)' }}>
+              {empMetrics.my_attendance?.today_status || 'Not Checked-In'}
+            </div>
+            <div className="metric-trend up">
+              Present Days: {empMetrics.my_attendance?.present_days || 0}
+            </div>
+          </div>
+
+          <div className="metric-card-sm">
+            <div className="metric-header">
+              <div className="metric-icon-sm" style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' }}>
+                <Clock size={18} />
+              </div>
+              <div className="metric-title-sm">My Working Hours</div>
+            </div>
+            <div className="metric-value-lg">{empMetrics.my_attendance?.hours_today || 0} hrs</div>
+            <div className="metric-trend" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+              Week: {empMetrics.my_attendance?.hours_week || 0}h | Month: {empMetrics.my_attendance?.hours_month || 0}h
+            </div>
+          </div>
+
+          <div className="metric-card-sm">
+            <div className="metric-header">
+              <div className="metric-icon-sm" style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#22d3ee' }}>
+                <FolderKanban size={18} />
+              </div>
+              <div className="metric-title-sm">My Assigned Projects</div>
+            </div>
+            <div className="metric-value-lg">{empMetrics.my_projects?.total || 0}</div>
+            <div className="metric-trend" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+              Connected via assigned tasks
+            </div>
+          </div>
+        </div>
+
+        {/* Employee Charts Grid */}
+        <div className="grid-main-content" style={{ marginTop: '1.5rem' }}>
+          <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>My Working Hours (7-Day Trend)</h3>
+            <div style={{ flex: 1, minHeight: '220px', width: '100%', paddingTop: '1rem' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={empMetrics.charts?.hours_history || []}>
+                  <defs>
+                    <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'var(--border-color)', borderRadius: '8px', color: '#f8fafc' }} />
+                  <Area type="monotone" dataKey="hours" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorHours)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>My Task Status Distribution</h3>
+            <div style={{ flex: 1, minHeight: '220px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={taskDist} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={4} dataKey="value">
+                    {taskDist.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'var(--border-color)', borderRadius: '8px', color: '#f8fafc' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* My Activity / My Details Table */}
+        <div className="glass-card" style={{ marginTop: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>My Activity & Assigned Details</h3>
+          <DataTable
+            columns={columns}
+            data={empMetrics.my_activity_details || []}
+            searchPlaceholder="Search my assigned tasks or projects..."
+            exportFilename="my_assigned_tasks"
+            isLoading={false}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
         <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Welcome back, System Administrator 👋</p>
+          <h1 className="page-title">Executive Dashboard</h1>
+          <p className="page-subtitle">Welcome back, {user?.name || 'Administrator'} 👋</p>
         </div>
         <div style={{ background: 'rgba(150,150,150,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
           📅 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -326,7 +498,7 @@ export const Dashboard: React.FC = () => {
         {/* Quick Actions */}
         <div className="glass-card">
           <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>Quick Actions</h3>
-          <div className="quick-actions-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="quick-actions-grid grid-3-col">
             <div className="quick-action-btn">
               <div style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#8b5cf6', padding: '0.75rem', borderRadius: '12px' }}>
                 <UserPlus size={20} />
