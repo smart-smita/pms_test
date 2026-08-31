@@ -158,22 +158,7 @@ export const Attendance: React.FC = () => {
     }
   };
 
-  const handleOpenCheckOutModal = (log: AttendanceLog) => {
-    setSelectedLogForCheckOut(log);
-    getGPSLocation();
-    setIsCheckOutModalOpen(true);
-  };
 
-  const handleConfirmCheckOut = async () => {
-    if (!selectedLogForCheckOut) return;
-    if (!latitude || !longitude) {
-      showError('Please acquire GPS location before checking out');
-      return;
-    }
-    await submitCheckOut(selectedLogForCheckOut.attendance_id, latitude, longitude);
-    setIsCheckOutModalOpen(false);
-    setSelectedLogForCheckOut(null);
-  };
 
   const submitCheckOut = async (attendanceId: number, lat: number, lng: number) => {
     setIsLoading(true);

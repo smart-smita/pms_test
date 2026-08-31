@@ -81,7 +81,7 @@ export const Dashboard: React.FC = () => {
       {
         header: 'Attendance Status',
         accessor: (r) => (
-          <Badge variant={r.latest_attendance_status === 'completed' ? 'success' : r.latest_attendance_status === 'open' ? 'info' : 'secondary'}>
+          <Badge variant={r.latest_attendance_status === 'completed' ? 'success' : r.latest_attendance_status === 'open' ? 'info' : 'info'}>
             {r.latest_attendance_status || 'Not Checked-In'}
           </Badge>
         ),
@@ -381,7 +381,7 @@ export const Dashboard: React.FC = () => {
             <span style={{ color: '#8b5cf6', fontSize: '0.75rem', cursor: 'pointer' }}>View All</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflowY: 'auto' }}>
-            {metrics.live_attendance?.map((log, idx) => (
+            {metrics.live_attendance?.map((log: any, idx: number) => (
               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem' }}>
@@ -426,7 +426,7 @@ export const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {metrics.recent_tasks?.map((t, idx) => (
+              {metrics.recent_tasks?.map((t: any, idx: number) => (
                 <tr key={idx}>
                   <td style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{t.task_name}</td>
                   <td style={{ color: '#94a3b8' }}>{t.project_name}</td>
