@@ -10,8 +10,8 @@ export class ProjectService {
     return await this.projectRepo.findAll(status, search, managerId, employeeId);
   }
 
-  async getProjectById(id: number) {
-    const project = await this.projectRepo.findById(id);
+  async getProjectById(id: number, managerId?: number, employeeId?: number) {
+    const project = await this.projectRepo.findById(id, managerId, employeeId);
     if (!project) throw new Error('Project not found');
     return project;
   }
@@ -171,6 +171,13 @@ export class ProjectService {
   async deleteProject(id: number, deletedBy: number) {
     const project = await this.projectRepo.findById(id);
     if (!project) throw new Error('Project not found');
+
+    const [taskCount] = await import('../config/db').then(m => m.dbPool.query<any[]>(`SELECT COUNT(*) as count FROM tasks WHERE project_id = ? AND is_deleted = 0`, [id]));
+    if (taskCount[0].count > 0) throw new Error('Cannot delete project: Contains active tasks.');
+
+    const [wbsCount] = await import('../config/db').then(m => m.dbPool.query<any[]>(`SELECT COUNT(*) as count FROM project_wbs WHERE project_id = ? AND deleted_at IS NULL`, [id]));
+    if (wbsCount[0].count > 0) throw new Error('Cannot delete project: Has active discipline allocations.');
+
     return await this.projectRepo.softDelete(id, deletedBy);
   }
 }

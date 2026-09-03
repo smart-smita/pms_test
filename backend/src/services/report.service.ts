@@ -5,16 +5,48 @@ export class ReportService {
   private reportRepo = new ReportRepository();
   private paymentRepo = new PaymentRepository();
 
-  async getAttendanceReport(filters: any) {
-    return await this.reportRepo.getAttendanceReport(filters);
+  async getEmployeeDetailsReport(filters: any) {
+    return await this.reportRepo.getEmployeeDetailsReport(filters);
   }
 
-  async getProjectReport(employeeId?: number) {
-    return await this.reportRepo.getProjectReport(employeeId);
+  async getDisciplineDetailsReport() {
+    return await this.reportRepo.getDisciplineDetailsReport();
   }
 
-  async getTaskReport(filters: any) {
-    return await this.reportRepo.getTaskReport(filters);
+  async getEmployeeAttendanceReport1(filters: any) {
+    return await this.reportRepo.getEmployeeAttendanceReport1(filters);
+  }
+
+  async getEmployeeAttendanceReport2(filters: any) {
+    return await this.reportRepo.getEmployeeAttendanceReport2(filters);
+  }
+
+  async getEmployeeAttendanceReport3(filters: any) {
+    return await this.reportRepo.getEmployeeAttendanceReport3(filters);
+  }
+
+  async getLabourDetailsReport(filters: any) {
+    return await this.reportRepo.getLabourDetailsReport(filters);
+  }
+
+  async getLabourAttendanceReport1(filters: any) {
+    return await this.reportRepo.getLabourAttendanceReport1(filters);
+  }
+
+  async getLabourAttendanceReport2(filters: any) {
+    return await this.reportRepo.getLabourAttendanceReport2(filters);
+  }
+
+  async getLabourAttendanceReport3(filters: any) {
+    return await this.reportRepo.getLabourAttendanceReport3(filters);
+  }
+
+  async getLabourCostPaymentReport(filters: any) {
+    return await this.reportRepo.getLabourCostPaymentReport(filters);
+  }
+
+  async getProjectWorkReport(projectId?: number) {
+    return await this.reportRepo.getProjectWorkReport(projectId);
   }
 
   async getPaymentReport(type: 'employee' | 'daily' | 'project' | 'task', startDate?: string, endDate?: string, employeeId?: number) {

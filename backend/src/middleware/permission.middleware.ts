@@ -11,7 +11,7 @@ export function requirePermission(moduleName: string, action: string) {
       }
 
       // Super Admin / Admin bypass
-      if (req.user.role_name === 'Admin') {
+      if (req.user.role_name === 'Admin' || req.user.role_name === 'Super Admin') {
         return next();
       }
 

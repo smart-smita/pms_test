@@ -1,4 +1,4 @@
-export type RoleName = 'Admin' | 'Manager' | 'Employee';
+export type RoleName = 'Super Admin' | 'Admin' | 'Manager' | 'Employee';
 
 export interface User {
   employee_id: number;
@@ -18,6 +18,14 @@ export interface Employee {
   email: string;
   role_id: number;
   role_name: RoleName;
+  reporting_to_id?: number | null;
+  reporting_to_name?: string | null;
+  reports_to_id?: number | null;
+  manager_name?: string | null;
+  assigned_project_id?: number | null;
+  assigned_project_name?: string | null;
+  assigned_wbs_id?: number | null;
+  assigned_wbs_name?: string | null;
   hourly_rate: number;
   status: 'active' | 'inactive';
   created_at?: string;
@@ -61,6 +69,7 @@ export interface Task {
   status: 'pending' | 'in-progress' | 'completed' | 'delayed' | 'on-hold' | 'cancelled';
   productivity_status?: 'on-time' | 'delayed' | 'extra-hours-logged' | 'exceeding-estimate' | 'completed';
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
+  assigned_labours?: { labour_id: number; name: string; labour_type: string }[];
 }
 
 export interface AttendanceLog {
@@ -100,6 +109,8 @@ export interface WorkBreakdownStructure {
   status: number;
 }
 
+export type MasterWBS = WorkBreakdownStructure;
+
 export interface ProjectWBS {
   id: number;
   project_id: number;
@@ -109,8 +120,11 @@ export interface ProjectWBS {
   start_date?: string;
   end_date?: string;
   total_hours?: number;
+  actual_start_date?: string;
+  actual_end_date?: string;
+  actual_hours?: number;
   note?: string;
-  status: number;
+  status: number | string;
 }
 
 export interface DashboardMetrics {
@@ -154,4 +168,19 @@ export interface DashboardMetrics {
     check_in_time: string;
     project_name: string;
   }[];
+}
+
+export interface ProjectWorkRow {
+  project_id: number;
+  project_name: string;
+  project_wbs_id: number | null;
+  wbs_name: string | null;
+  wbs_code: string | null;
+  task_id: number;
+  task_name: string;
+  task_status: string;
+  estimated_hours: number;
+  actual_hours: number;
+  required_worker_count: number;
+  assigned_employee_name: string | null;
 }

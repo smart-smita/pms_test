@@ -9,9 +9,21 @@ const controller = new ReportController();
 router.use(authenticateJwt);
 router.use(requirePermission('reports', 'view'));
 
-router.get('/attendance', controller.getAttendanceReport);
-router.get('/project', controller.getProjectReport);
-router.get('/task', controller.getTaskReport);
-router.get('/payment', controller.getPaymentReport);
+// Employee Reports
+router.get('/employee-details', controller.getEmployeeDetailsReport);
+router.get('/discipline-details', controller.getDisciplineDetailsReport);
+router.get('/employee-attendance-1', controller.getEmployeeAttendanceReport1);
+router.get('/employee-attendance-2', controller.getEmployeeAttendanceReport2);
+router.get('/employee-attendance-3', controller.getEmployeeAttendanceReport3);
+
+// Labour Reports
+router.get('/labour-details', controller.getLabourDetailsReport);
+router.get('/labour-attendance-1', controller.getLabourAttendanceReport1);
+router.get('/labour-attendance-2', controller.getLabourAttendanceReport2);
+router.get('/labour-attendance-3', controller.getLabourAttendanceReport3);
+router.get('/labour-cost-payment', controller.getLabourCostPaymentReport);
+
+// Project Work Tree Report
+router.get('/project-work', controller.getProjectWorkReport);
 
 export default router;

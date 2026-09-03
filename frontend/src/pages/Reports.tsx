@@ -1,36 +1,83 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Button } from '../components/common/Button';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
-import { FileBarChart, MapPin, FolderKanban, CheckSquare, DollarSign, Download, Filter } from 'lucide-react';
+import { 
+  Users, FolderKanban, Clock, Calendar, Calculator, FileText, ChevronRight, Filter, HardHat, ShieldCheck
+} from 'lucide-react';
 import { Badge } from '../components/common/Badge';
-
 import { useAuth } from '../context/AuthContext';
+
+type TabType = 'employee' | 'labour';
+type ReportType = 
+  | 'emp-details' | 'emp-discipline' | 'emp-attendance-1' | 'emp-attendance-2' | 'emp-attendance-3' | 'emp-cost'
+  | 'lab-details' | 'lab-discipline' | 'lab-attendance-1' | 'lab-attendance-2' | 'lab-attendance-3' | 'lab-cost';
 
 export const Reports: React.FC = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role_name === 'Admin';
+  const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
-  const [reportCategory, setReportCategory] = useState<'attendance' | 'project' | 'task' | 'payment'>('attendance');
+  const [activeTab, setActiveTab] = useState<TabType>('employee');
+  const [activeReport, setActiveReport] = useState<ReportType>('emp-details');
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showAadhaar, setShowAadhaar] = useState(false);
 
   // Filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [paymentType, setPaymentType] = useState('employee');
+  const [projectId, setProjectId] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const [labourId, setLabourId] = useState('');
+
+  // Dropdown options
+  const [projects, setProjects] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [labours, setLabours] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      const pRes = await apiRequest<any[]>('/projects');
+      if (pRes.success && pRes.data) setProjects(pRes.data);
+      
+      if (isAdmin) {
+        const eRes = await apiRequest<any[]>('/employees');
+        if (eRes.success && eRes.data) setEmployees(eRes.data);
+        const lRes = await apiRequest<any[]>('/labours');
+        if (lRes.success && lRes.data) setLabours(lRes.data);
+      }
+    };
+    loadOptions();
+  }, [isAdmin]);
 
   const fetchReportData = async () => {
     setIsLoading(true);
-    let endpoint = `/reports/${reportCategory}`;
+    let endpoint = '';
     const params = new URLSearchParams();
 
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
-    if (reportCategory === 'payment') params.append('type', paymentType);
+    if (projectId) params.append('project_id', projectId);
+    if (employeeId) params.append('employee_id', employeeId);
+    if (labourId) params.append('labour_id', labourId);
+
+    switch (activeReport) {
+      case 'emp-details': endpoint = '/reports/employee-details'; break;
+      case 'emp-discipline': endpoint = '/reports/discipline-details'; break;
+      case 'emp-attendance-1': endpoint = '/reports/employee-attendance-1'; break;
+      case 'emp-attendance-2': endpoint = '/reports/employee-attendance-2'; break;
+      case 'emp-attendance-3': endpoint = '/reports/employee-attendance-3'; break;
+      case 'emp-cost': endpoint = '/reports/cost-payment'; break;
+
+      case 'lab-details': endpoint = '/reports/labour-details'; break;
+      case 'lab-discipline': endpoint = '/reports/discipline-details'; break;
+      case 'lab-attendance-1': endpoint = '/reports/labour-attendance-1'; break;
+      case 'lab-attendance-2': endpoint = '/reports/labour-attendance-2'; break;
+      case 'lab-attendance-3': endpoint = '/reports/labour-attendance-3'; break;
+      case 'lab-cost': endpoint = '/reports/labour-cost-payment'; break;
+    }
 
     if (params.toString()) {
       endpoint += `?${params.toString()}`;
@@ -47,178 +94,302 @@ export const Reports: React.FC = () => {
 
   useEffect(() => {
     fetchReportData();
-  }, [reportCategory, paymentType]);
+  }, [activeReport]);
 
   const handleApplyFilter = (e: React.FormEvent) => {
     e.preventDefault();
     fetchReportData();
   };
 
-  // 1. Attendance Columns
-  const attendanceColumns: Column<any>[] = [
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    if (tab === 'employee') setActiveReport('emp-details');
+    if (tab === 'labour') setActiveReport('lab-details');
+    setData([]);
+  };
+
+  // --- COLUMN DEFINITIONS ---
+  const empDetailsCols: Column<any>[] = [
+    { header: 'Employee Code', accessor: 'employee_code', sortKey: 'employee_code' },
+    { header: 'Employee Name', accessor: 'employee_name', sortKey: 'employee_name' },
+    { header: 'Email ID', accessor: 'email', sortKey: 'email' },
+    { header: 'Role', accessor: 'role_name', sortKey: 'role_name' },
+    { header: 'Reporting Manager', accessor: (r) => r.manager_name || 'Direct Admin', sortKey: 'manager_name' },
+    { header: 'Assigned Project', accessor: (r) => r.assigned_project_name || '-', sortKey: 'assigned_project_name' },
+    { header: 'Discipline', accessor: (r) => r.assigned_wbs_name || '-', sortKey: 'assigned_wbs_name' },
+    { header: 'Hourly Rate', accessor: (r) => `₹${Number(r.hourly_rate || 0).toFixed(2)}`, sortKey: 'hourly_rate' },
+    { header: 'Status', accessor: (r) => <Badge variant={r.status === 'active' ? 'success' : 'danger'}>{r.status}</Badge>, sortKey: 'status' },
+  ];
+
+  const discDetailsCols: Column<any>[] = [
+    { header: 'Discipline Code', accessor: 'wbs_code', sortKey: 'wbs_code' },
+    { header: 'Discipline Name', accessor: 'wbs_name', sortKey: 'wbs_name' },
+    { header: 'Description', accessor: (r) => r.description || '-' },
+    { header: 'Allocated Projects', accessor: (r) => r.allocated_projects_count || 0, sortKey: 'allocated_projects_count' },
+    { header: 'Planned Hours', accessor: (r) => `${Number(r.total_planned_hours || 0).toFixed(1)} hrs`, sortKey: 'total_planned_hours' },
+    { header: 'Status', accessor: (r) => <Badge variant={r.status === 1 ? 'success' : 'danger'}>{r.status === 1 ? 'Active' : 'Inactive'}</Badge>, sortKey: 'status' },
+  ];
+
+  const empAtt1Cols: Column<any>[] = [
     { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
-    ...(isAdmin ? [{ header: 'Employee', accessor: (r: any) => `${r.employee_name} (${r.employee_code})`, csvAccessor: (r: any) => `${r.employee_name} (${r.employee_code})`, sortKey: 'employee_name' }] : []),
-    { header: 'Project / Task', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Duty', csvAccessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Duty', sortKey: (r) => r.task_name || '' },
-    { header: 'Check In', accessor: (r) => new Date(r.check_in_time).toLocaleTimeString(), csvAccessor: (r) => new Date(r.check_in_time).toLocaleTimeString(), sortKey: 'check_in_time' },
-    { header: 'Check Out', accessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-', csvAccessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-', sortKey: 'check_out_time' },
-    { header: 'GPS Address', accessor: (r) => r.in_address || 'GPS Logged', csvAccessor: (r) => r.in_address || 'GPS Logged', sortKey: 'in_address' },
-    { header: 'Working Hours', accessor: (r) => `${Number(r.total_working_hours).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.total_working_hours).toFixed(2), sortKey: 'total_working_hours' },
-    {
-      header: 'Status',
-      accessor: (r) => (
-        <Badge variant={r.status === 'completed' ? 'success' : r.status === 'open' ? 'info' : 'danger'}>
-          {r.status}
-        </Badge>
-      ),
-      csvAccessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1),
-      sortKey: 'status'
-    },
+    { header: 'Employee Code', accessor: 'employee_code', sortKey: 'employee_code' },
+    { header: 'Employee Name', accessor: 'employee_name', sortKey: 'employee_name' },
+    { header: 'Project / Task', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Site Work', sortKey: 'task_name' },
+    { header: 'Check In Time', accessor: (r) => r.in_time || '-', sortKey: 'in_time' },
+    { header: 'Check Out Time', accessor: (r) => r.out_time || '-', sortKey: 'out_time' },
+    { header: 'Total Working Hours', accessor: (r) => `${Number(r.total_working_hours || 0).toFixed(2)} hrs`, sortKey: 'total_working_hours' },
+    { header: 'Check In Address', accessor: (r) => r.in_address || '-', sortKey: 'in_address' },
+    { header: 'Check Out Address', accessor: (r) => r.out_address || '-', sortKey: 'out_address' },
   ];
 
-  // 2. Project Columns
-  const projectColumns: Column<any>[] = [
-    { header: 'Code', accessor: 'project_code', sortKey: 'project_code' },
-    { header: 'Project Name', accessor: 'project_name', sortKey: 'project_name' },
-    { header: 'Client', accessor: (r) => r.client_name || '-', csvAccessor: (r) => r.client_name || '-', sortKey: 'client_name' },
-    { header: 'Total Tasks', accessor: 'total_tasks', sortKey: 'total_tasks' },
-    { header: 'Pending', accessor: 'pending_tasks', sortKey: 'pending_tasks' },
-    { header: 'In Progress', accessor: 'in_progress_tasks', sortKey: 'in_progress_tasks' },
-    { header: 'Completed', accessor: 'completed_tasks', sortKey: 'completed_tasks' },
-    { header: 'Delayed', accessor: 'delayed_tasks', sortKey: 'delayed_tasks' },
-    { header: 'Est. Hours', accessor: (r) => `${Number(r.total_estimated_hours).toFixed(2)}h`, csvAccessor: (r) => Number(r.total_estimated_hours).toFixed(2), sortKey: 'total_estimated_hours' },
-    { header: 'Actual Hours', accessor: (r) => `${Number(r.total_actual_hours).toFixed(2)}h`, csvAccessor: (r) => Number(r.total_actual_hours).toFixed(2), sortKey: 'total_actual_hours' },
-    {
-      header: 'Progress %',
-      accessor: (r) => <span style={{ fontWeight: 800, color: '#6366f1' }}>{r.progress_percentage}%</span>,
-      csvAccessor: (r) => `${r.progress_percentage}%`,
-      sortKey: 'progress_percentage'
-    },
+  const empAtt2Cols: Column<any>[] = [
+    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
+    { header: 'Employee Code', accessor: 'employee_code', sortKey: 'employee_code' },
+    { header: 'Employee Name', accessor: 'employee_name', sortKey: 'employee_name' },
+    { header: 'Check In Time', accessor: (r) => r.in_time || '-', sortKey: 'in_time' },
+    { header: 'Check Out Time', accessor: (r) => r.out_time || '-', sortKey: 'out_time' },
+    { header: 'Working Hours', accessor: (r) => `${Number(r.total_working_hours || 0).toFixed(2)} hrs`, sortKey: 'total_working_hours' },
   ];
 
-  // 3. Task Columns
-  const taskColumns: Column<any>[] = [
-    { header: 'Task Name', accessor: 'task_name', sortKey: 'task_name' },
-    { header: 'Project', accessor: 'project_name', sortKey: 'project_name' },
-    { header: 'Workers (Assigned / Req)', accessor: (r) => `${r.assigned_worker_count} / ${r.required_worker_count}`, csvAccessor: (r) => `${r.assigned_worker_count} / ${r.required_worker_count}`, sortKey: 'assigned_worker_count' },
-    { header: 'Estimated Hours', accessor: (r) => `${Number(r.estimated_hours).toFixed(2)}h`, csvAccessor: (r) => Number(r.estimated_hours).toFixed(2), sortKey: 'estimated_hours' },
-    { header: 'Actual Logged Hours', accessor: (r) => `${Number(r.actual_hours).toFixed(2)}h`, csvAccessor: (r) => Number(r.actual_hours).toFixed(2), sortKey: 'actual_hours' },
-    { header: 'Start Date', accessor: (r) => r.start_date || '-', csvAccessor: (r) => r.start_date || '-', sortKey: 'start_date' },
-    { header: 'Target Date', accessor: (r) => r.target_date || '-', csvAccessor: (r) => r.target_date || '-', sortKey: 'target_date' },
-    {
-      header: 'Status',
-      accessor: (r) => (
-        <Badge variant={r.task_status === 'completed' ? 'success' : r.task_status === 'in-progress' ? 'info' : 'warning'}>
-          {r.task_status}
-        </Badge>
-      ),
-      csvAccessor: (r) => r.task_status.charAt(0).toUpperCase() + r.task_status.slice(1),
-      sortKey: 'task_status'
-    },
+  const empAtt3Cols: Column<any>[] = [
+    { header: 'Employee Code', accessor: 'employee_code', sortKey: 'employee_code' },
+    { header: 'Employee Name', accessor: 'employee_name', sortKey: 'employee_name' },
+    { header: 'Days Present', accessor: 'days_present', sortKey: 'days_present' },
+    { header: 'Total Working Hours', accessor: (r) => `${Number(r.total_working_hours || 0).toFixed(2)} hrs`, sortKey: 'total_working_hours' },
+    { header: 'Avg Hours / Day', accessor: (r) => `${Number(r.avg_hours_per_day || 0).toFixed(2)} hrs`, sortKey: 'avg_hours_per_day' },
   ];
 
-  // 4. Payment Columns
-  const paymentColumns: Column<any>[] = [
-    { header: 'Identifier / Name', accessor: (r) => r.employee_name || r.project_name || r.task_name || r.attendance_date, csvAccessor: (r) => r.employee_name || r.project_name || r.task_name || r.attendance_date, sortKey: (r) => r.employee_name || r.project_name || r.task_name || r.attendance_date },
-    { header: 'Hours Logged', accessor: (r) => `${Number(r.total_hours || r.actual_hours || 0).toFixed(2)} hrs`, csvAccessor: (r) => Number(r.total_hours || r.actual_hours || 0).toFixed(2), sortKey: (r) => Number(r.total_hours || r.actual_hours || 0) },
-    {
-      header: 'Total Cost / Payout',
-      accessor: (r) => (
-        <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1rem' }}>
-          ₹{Number(r.total_payment || r.total_cost || 0).toFixed(2)}
-        </span>
-      ),
-      csvAccessor: (r) => Number(r.total_payment || r.total_cost || 0).toFixed(2),
-      sortKey: (r) => Number(r.total_payment || r.total_cost || 0)
+  const labDetailsCols: Column<any>[] = [
+    { header: 'Labour Name', accessor: 'labour_name', sortKey: 'labour_name' },
+    { header: 'Type', accessor: (r) => <Badge variant={r.labour_type === 'contractor' ? 'info' : 'success'}>{r.labour_type}</Badge>, sortKey: 'labour_type' },
+    { header: 'Contact Number', accessor: (r) => r.contact_number || '-', sortKey: 'contact_number' },
+    { 
+      header: 'Aadhaar ID', 
+      accessor: (r) => showAadhaar ? (r.aadhar_id || '-') : (r.aadhar_id ? `XXXX-XXXX-${r.aadhar_id.slice(-4)}` : '-'),
+      sortKey: 'aadhar_id' 
     },
+    { header: 'Contractor Name', accessor: (r) => r.contractor_name || 'Direct Entry', sortKey: 'contractor_name' },
+    { header: 'Created Date', accessor: 'created_date', sortKey: 'created_date' },
   ];
 
-  const getReportColumns = () => {
-    switch (reportCategory) {
-      case 'attendance': return attendanceColumns;
-      case 'project': return projectColumns;
-      case 'task': return taskColumns;
-      case 'payment': return paymentColumns;
+  const labAtt1Cols: Column<any>[] = [
+    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
+    { header: 'Labour Name', accessor: 'labour_name', sortKey: 'labour_name' },
+    { header: 'Project / Discipline', accessor: (r) => `${r.project_name || '-'} / ${r.wbs_name || '-'}`, sortKey: 'project_name' },
+    { header: 'Task Name', accessor: (r) => r.task_name || '-', sortKey: 'task_name' },
+    { header: 'In Time', accessor: (r) => r.in_time || '-', sortKey: 'in_time' },
+    { header: 'Out Time', accessor: (r) => r.out_time || '-', sortKey: 'out_time' },
+    { header: 'In Address', accessor: (r) => r.in_address || '-', sortKey: 'in_address' },
+    { header: 'Out Address', accessor: (r) => r.out_address || '-', sortKey: 'out_address' },
+    { header: 'Worker Count', accessor: 'worker_count', sortKey: 'worker_count' },
+  ];
+
+  const labAtt2Cols: Column<any>[] = [
+    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
+    { header: 'Labour Name', accessor: 'labour_name', sortKey: 'labour_name' },
+    { header: 'In Time', accessor: (r) => r.in_time || '-', sortKey: 'in_time' },
+    { header: 'Out Time', accessor: (r) => r.out_time || '-', sortKey: 'out_time' },
+    { header: 'Worker Count', accessor: 'worker_count', sortKey: 'worker_count' },
+  ];
+
+  const labAtt3Cols: Column<any>[] = [
+    { header: 'Labour Name', accessor: 'labour_name', sortKey: 'labour_name' },
+    { header: 'Labour Type', accessor: 'labour_type', sortKey: 'labour_type' },
+    { header: 'Days Worked', accessor: 'days_worked', sortKey: 'days_worked' },
+    { header: 'Total Worker Shifts', accessor: 'total_worker_shifts', sortKey: 'total_worker_shifts' },
+    { header: 'Total Payment (₹)', accessor: (r) => `₹${Number(r.total_payment || 0).toFixed(2)}`, sortKey: 'total_payment' },
+  ];
+
+  const labCostCols: Column<any>[] = [
+    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
+    { header: 'Labour Name', accessor: 'labour_name', sortKey: 'labour_name' },
+    { header: 'Contractor', accessor: (r) => r.contractor_name || 'Direct', sortKey: 'contractor_name' },
+    { header: 'Project / Task', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : r.project_name || '-', sortKey: 'project_name' },
+    { header: 'In / Out Time', accessor: (r) => `${r.in_time || '-'} / ${r.out_time || '-'}`, sortKey: 'in_time' },
+    { header: 'Worker Count', accessor: 'worker_count', sortKey: 'worker_count' },
+    { header: 'Flat Daily Pay', accessor: (r) => `₹${Number(r.daily_pay_amount || 0).toFixed(2)}`, sortKey: 'daily_pay_amount' },
+    { header: 'Calculated Payment', accessor: (r) => `₹${Number(r.calculated_payment || 0).toFixed(2)}`, sortKey: 'calculated_payment' },
+    { header: 'Total Payment', accessor: (r) => <strong style={{ color: '#10b981' }}>₹{Number(r.total_payment || 0).toFixed(2)}</strong>, sortKey: 'total_payment' },
+    { header: 'Status', accessor: (r) => <Badge variant="success">{r.payment_status || 'Processed'}</Badge>, sortKey: 'payment_status' },
+  ];
+
+  const getColumns = () => {
+    switch (activeReport) {
+      case 'emp-details': return empDetailsCols;
+      case 'emp-discipline': return discDetailsCols;
+      case 'emp-attendance-1': return empAtt1Cols;
+      case 'emp-attendance-2': return empAtt2Cols;
+      case 'emp-attendance-3': return empAtt3Cols;
+      case 'emp-cost': return empAtt1Cols;
+
+      case 'lab-details': return labDetailsCols;
+      case 'lab-discipline': return discDetailsCols;
+      case 'lab-attendance-1': return labAtt1Cols;
+      case 'lab-attendance-2': return labAtt2Cols;
+      case 'lab-attendance-3': return labAtt3Cols;
+      case 'lab-cost': return labCostCols;
+      default: return [];
     }
   };
 
   return (
-    <div>
+    <div style={{ paddingBottom: '3rem' }}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">{!isAdmin ? 'My Reports' : 'Analytics & Custom Reports'}</h1>
-          <p className="page-subtitle">{!isAdmin ? 'View and export your personal attendance and task reports' : 'Generate, filter, and export detailed analytical reports for operational management'}</p>
+          <h1 className="page-title">Analytics & Custom Reports</h1>
+          <p className="page-subtitle">Generate, view, filter and export operational reports for employees and labours.</p>
         </div>
       </div>
 
-      {/* Category Selection */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <Button
-          variant={reportCategory === 'attendance' ? 'primary' : 'secondary'}
-          onClick={() => setReportCategory('attendance')}
+      {/* Tabs */}
+      <div className="report-tabs-header" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+        <button 
+          style={{
+            padding: '0.6rem 1.25rem',
+            borderRadius: '8px',
+            border: 'none',
+            background: activeTab === 'employee' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
+            color: activeTab === 'employee' ? '#fff' : 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+          onClick={() => handleTabChange('employee')}
         >
-          <MapPin size={16} /> Attendance Reports
-        </Button>
-        <Button
-          variant={reportCategory === 'project' ? 'primary' : 'secondary'}
-          onClick={() => setReportCategory('project')}
+          <Users size={18} /> Employee Reports
+        </button>
+        <button 
+          style={{
+            padding: '0.6rem 1.25rem',
+            borderRadius: '8px',
+            border: 'none',
+            background: activeTab === 'labour' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
+            color: activeTab === 'labour' ? '#fff' : 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+          onClick={() => handleTabChange('labour')}
         >
-          <FolderKanban size={16} /> Project Reports
-        </Button>
-        <Button
-          variant={reportCategory === 'task' ? 'primary' : 'secondary'}
-          onClick={() => setReportCategory('task')}
-        >
-          <CheckSquare size={16} /> Task Reports
-        </Button>
-        <Button
-          variant={reportCategory === 'payment' ? 'primary' : 'secondary'}
-          onClick={() => setReportCategory('payment')}
-        >
-          <DollarSign size={16} /> Payment Reports
-        </Button>
+          <HardHat size={18} /> Labour / Contractor Reports
+        </button>
+      </div>
+
+      {/* Report Cards Grid */}
+      <div className="report-module-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        {activeTab === 'employee' ? (
+          <>
+            <ReportCard title="Employee Details" desc="Complete list of employees with roles, status, and reporting hierarchy." icon={<Users size={20} />} active={activeReport === 'emp-details'} onClick={() => setActiveReport('emp-details')} />
+            <ReportCard title="Discipline Details" desc="List of all WBS disciplines and allocated projects." icon={<FolderKanban size={20} />} active={activeReport === 'emp-discipline'} onClick={() => setActiveReport('emp-discipline')} />
+            <ReportCard title="Attendance Report 1 (Hrs & Address)" desc="Detailed day-wise Check-In/Out times and GPS site addresses." icon={<Calendar size={20} />} active={activeReport === 'emp-attendance-1'} onClick={() => setActiveReport('emp-attendance-1')} />
+            <ReportCard title="Attendance Report 2 (In/Out & Hours)" desc="Simple day-wise In/Out times and working hours." icon={<Clock size={20} />} active={activeReport === 'emp-attendance-2'} onClick={() => setActiveReport('emp-attendance-2')} />
+            <ReportCard title="Attendance Report 3 (Summary)" desc="Employee-wise attendance days present, total hours, and daily average." icon={<FileText size={20} />} active={activeReport === 'emp-attendance-3'} onClick={() => setActiveReport('emp-attendance-3')} />
+          </>
+        ) : (
+          <>
+            <ReportCard title="Labour Details" desc="List of contractors and direct workers with contact & Aadhaar verification." icon={<Users size={20} />} active={activeReport === 'lab-details'} onClick={() => setActiveReport('lab-details')} />
+            <ReportCard title="Discipline Details" desc="Discipline allocations and sub-task status." icon={<FolderKanban size={20} />} active={activeReport === 'lab-discipline'} onClick={() => setActiveReport('lab-discipline')} />
+            <ReportCard title="Labour Attendance Report 1 (Hrs & Address)" desc="Day-wise worker Check-In/Out times and site location address." icon={<Calendar size={20} />} active={activeReport === 'lab-attendance-1'} onClick={() => setActiveReport('lab-attendance-1')} />
+            <ReportCard title="Labour Attendance Report 2 (In/Out & Hours)" desc="Day-wise In/Out times and shift worker counts." icon={<Clock size={20} />} active={activeReport === 'lab-attendance-2'} onClick={() => setActiveReport('lab-attendance-2')} />
+            <ReportCard title="Labour Attendance Report 3 (Summary)" desc="Worker days worked, total shifts, and payout summary." icon={<FileText size={20} />} active={activeReport === 'lab-attendance-3'} onClick={() => setActiveReport('lab-attendance-3')} />
+            <ReportCard title="Labour Cost / Payment Report" desc="Attendance-wise flat daily payouts and calculated payment breakdown." icon={<Calculator size={20} />} active={activeReport === 'lab-cost'} onClick={() => setActiveReport('lab-cost')} />
+          </>
+        )}
       </div>
 
       {/* Filter Bar */}
-      <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
-        <form onSubmit={handleApplyFilter} style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: '160px' }}>
-            <FormInput label="Start Date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-          <div style={{ flex: 1, minWidth: '160px' }}>
-            <FormInput label="End Date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </div>
-
-          {reportCategory === 'payment' && (
-            <div style={{ flex: 1, minWidth: '160px' }}>
-              <FormSelect
-                label="Payment Grouping"
-                value={paymentType}
-                onChange={(e) => setPaymentType(e.target.value)}
-                options={[
-                  { value: 'employee', label: 'By Employee' },
-                  { value: 'daily', label: 'By Date' },
-                  { value: 'project', label: 'By Project' },
-                  { value: 'task', label: 'By Task' },
-                ]}
-              />
-            </div>
-          )}
-
-          <Button type="submit" variant="primary" style={{ marginBottom: '1.25rem' }}>
-            <Filter size={16} /> Apply Filters
+      <div className="glass-card mb-6" style={{ padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        <FormInput label="Start Date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        <FormInput label="End Date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <FormSelect
+          label="Project"
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          options={[
+            { value: '', label: 'All Projects' },
+            ...projects.map(p => ({ value: p.project_id.toString(), label: p.project_name }))
+          ]}
+        />
+        {activeTab === 'employee' ? (
+          <FormSelect
+            label="Employee"
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+            options={[
+              { value: '', label: 'All Employees' },
+              ...employees.map(e => ({ value: e.employee_id.toString(), label: e.name }))
+            ]}
+          />
+        ) : (
+          <FormSelect
+            label="Labour / Contractor"
+            value={labourId}
+            onChange={(e) => setLabourId(e.target.value)}
+            options={[
+              { value: '', label: 'All Labours' },
+              ...labours.map(l => ({ value: l.labour_id.toString(), label: `${l.name} (${l.labour_type})` }))
+            ]}
+          />
+        )}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.25rem' }}>
+          <Button variant="secondary" onClick={() => { setStartDate(''); setEndDate(''); setProjectId(''); setEmployeeId(''); setLabourId(''); fetchReportData(); }}>
+            Reset
           </Button>
-        </form>
+          <Button onClick={handleApplyFilter}>
+            <Filter size={16} /> Filter
+          </Button>
+          {activeReport === 'lab-details' && (
+            <Button variant="secondary" onClick={() => setShowAadhaar(!showAadhaar)}>
+              <ShieldCheck size={16} /> {showAadhaar ? 'Hide Aadhaar' : 'Show Aadhaar'}
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Data Table */}
       <div className="glass-card">
         <DataTable
-          columns={getReportColumns() || []}
+          columns={getColumns()}
           data={data}
-          searchPlaceholder={`Filter ${reportCategory} report records...`}
-          exportFilename={`${reportCategory}_report`}
           isLoading={isLoading}
+          searchPlaceholder={`Search ${activeReport} records...`}
+          exportFilename={`HTCO_Report_${activeReport}_${new Date().toISOString().split('T')[0]}`}
         />
       </div>
     </div>
   );
 };
+
+const ReportCard = ({ title, desc, icon, active, onClick }: { title: string, desc: string, icon: any, active: boolean, onClick: () => void }) => (
+  <div 
+    onClick={onClick}
+    style={{
+      padding: '1.25rem',
+      borderRadius: 'var(--radius-lg)',
+      background: active ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%)' : 'var(--bg-card)',
+      border: `1px solid ${active ? '#6366f1' : 'var(--border-color)'}`,
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}
+  >
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        <div style={{ padding: '0.5rem', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+          {icon}
+        </div>
+        <ChevronRight size={18} color={active ? '#6366f1' : 'var(--text-secondary)'} />
+      </div>
+      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>{title}</h3>
+      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>{desc}</p>
+    </div>
+  </div>
+);

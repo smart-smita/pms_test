@@ -9,6 +9,8 @@ import dashboardRoutes from './dashboard.routes';
 import reportRoutes from './report.routes';
 import notificationRoutes from './notification.routes';
 import wbsRoutes from './wbs.routes';
+import labourRoutes from './labour.routes';
+import timesheetRoutes from './timesheet.routes';
 const router = Router();
 
 router.use('/auth', authRoutes);
@@ -21,4 +23,6 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/wbs', wbsRoutes);
+router.use('/labours', labourRoutes);
+router.use('/timesheets', timesheetRoutes);
 export default router;

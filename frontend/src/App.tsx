@@ -12,6 +12,10 @@ import { Tasks } from './pages/Tasks';
 import { Attendance } from './pages/Attendance';
 import { Payments } from './pages/Payments';
 import { Reports } from './pages/Reports';
+import { Labours } from './pages/Labours';
+import { ProjectWorkReport } from './pages/ProjectWorkReport';
+import { ProjectWork } from './pages/ProjectWork';
+import { Timesheets } from './pages/Timesheets';
 import { Settings } from './pages/Settings';
 import { Support } from './pages/Support';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
@@ -56,18 +60,26 @@ const AppContent: React.FC = () => {
         return <Dashboard />; // Everyone has a dashboard, metrics are scoped
       case 'employees': 
         return <RequirePermission module="employees" action="view" fallback={fallback}><Employees /></RequirePermission>;
+      case 'labours':
+        return <RequirePermission module="labours" action="view" fallback={fallback}><Labours /></RequirePermission>;
       case 'projects': 
         return <RequirePermission module="projects" action="view" fallback={fallback}><Projects onNavigate={(page) => setCurrentPage(page)} /></RequirePermission>;
       case 'projects/create':
         return <RequirePermission module="projects" action="create" fallback={fallback}><ProjectForm onBack={() => setCurrentPage('projects')} /></RequirePermission>;
+      case 'projects/manage-work':
+        return <RequirePermission module="projects" action="view" fallback={fallback}><ProjectWork /></RequirePermission>;
       case 'tasks': 
         return <RequirePermission module="tasks" action="view" fallback={fallback}><Tasks /></RequirePermission>;
+      case 'timesheets':
+        return <RequirePermission module="timesheets" action="view" fallback={fallback}><Timesheets /></RequirePermission>;
       case 'attendance':
         return <RequirePermission module="attendance" action="view" fallback={fallback}><Attendance /></RequirePermission>;
       case 'payments': 
         return <RequirePermission module="payments" action="view" fallback={fallback}><Payments /></RequirePermission>;
       case 'reports': 
         return <RequirePermission module="reports" action="view" fallback={fallback}><Reports /></RequirePermission>;
+      case 'reports/project-work':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ProjectWorkReport /></RequirePermission>;
       case 'settings':
         return <Settings />;
       case 'support':

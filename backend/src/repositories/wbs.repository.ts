@@ -48,6 +48,17 @@ export class WbsRepository {
     return rows as ProjectWBSRow[];
   }
 
+  async findProjectWbsById(id: number): Promise<ProjectWBSRow | null> {
+    const [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT pw.*, w.wbs_code, w.wbs_name 
+       FROM project_wbs pw
+       JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+       WHERE pw.id = ? AND pw.deleted_at IS NULL`,
+      [id]
+    );
+    return (rows[0] as ProjectWBSRow) || null;
+  }
+
   async createProjectWbs(connection: any, data: {
     project_id: number;
     wbs_id: number;
@@ -56,7 +67,8 @@ export class WbsRepository {
     total_hours?: number;
     note?: string;
   }): Promise<number> {
-    const [result] = await connection.execute(
+    const db = connection || dbPool;
+    const [result] = await db.execute(
       `INSERT INTO project_wbs (project_id, wbs_id, start_date, end_date, total_hours, note)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -72,6 +84,7 @@ export class WbsRepository {
   }
 
   async updateProjectWbs(connection: any, id: number, data: Partial<ProjectWBSRow>): Promise<boolean> {
+    const db = connection || dbPool;
     const fields: string[] = [];
     const params: any[] = [];
 
@@ -83,15 +96,42 @@ export class WbsRepository {
     if (fields.length === 0) return false;
 
     params.push(id);
-    const [result] = await connection.execute(
+    const [result] = await db.execute(
       `UPDATE project_wbs SET ${fields.join(', ')} WHERE id = ?`,
       params
     );
     return result.affectedRows > 0;
   }
 
+  async checkDependencies(projectWbsId: number) {
+    const [taskRows]: any = await dbPool.execute(
+      `SELECT COUNT(*) AS count FROM tasks WHERE wbs_id = ? AND is_deleted = 0`,
+      [projectWbsId]
+    );
+    const [timesheetRows]: any = await dbPool.execute(
+      `SELECT COUNT(*) AS count FROM timesheets WHERE wbs_id = ?`,
+      [projectWbsId]
+    );
+    const [labourRows]: any = await dbPool.execute(
+      `SELECT COUNT(*) AS count FROM labour_attendance WHERE wbs_id = ?`,
+      [projectWbsId]
+    );
+
+    const taskCount = Number(taskRows[0]?.count || 0);
+    const timesheetCount = Number(timesheetRows[0]?.count || 0);
+    const labourAttendanceCount = Number(labourRows[0]?.count || 0);
+
+    return {
+      hasDependencies: taskCount > 0 || timesheetCount > 0 || labourAttendanceCount > 0,
+      taskCount,
+      timesheetCount,
+      labourAttendanceCount,
+    };
+  }
+
   async softDeleteProjectWbs(connection: any, id: number, deleted_by: number): Promise<boolean> {
-    const [result] = await connection.execute(
+    const db = connection || dbPool;
+    const [result] = await db.execute(
       `UPDATE project_wbs SET deleted_at = NOW(), deleted_by = ? WHERE id = ?`,
       [deleted_by, id]
     );

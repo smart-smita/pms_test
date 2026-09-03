@@ -29,9 +29,16 @@ export class UserRepository {
 
   async findById(id: number): Promise<EmployeeRow | null> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT e.*, r.role_name 
+      `SELECT e.*, r.role_name, 
+              mgr.name AS reporting_to_name,
+              p.project_name AS assigned_project_name,
+              w.wbs_name AS assigned_wbs_name
        FROM employees e
        JOIN roles r ON e.role_id = r.role_id
+       LEFT JOIN employees mgr ON e.reporting_to_id = mgr.employee_id
+       LEFT JOIN projects p ON e.assigned_project_id = p.project_id
+       LEFT JOIN project_wbs pw ON e.assigned_wbs_id = pw.id
+       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE e.employee_id = ?`,
       [id]
     );
@@ -40,16 +47,23 @@ export class UserRepository {
 
   async findAll(status?: string, role_id?: number, search?: string, managerId?: number, employeeId?: number): Promise<EmployeeRow[]> {
     let sql = `
-      SELECT e.*, r.role_name 
+      SELECT e.*, r.role_name,
+              mgr.name AS reporting_to_name,
+              p.project_name AS assigned_project_name,
+              w.wbs_name AS assigned_wbs_name
       FROM employees e
       JOIN roles r ON e.role_id = r.role_id
+      LEFT JOIN employees mgr ON e.reporting_to_id = mgr.employee_id
+      LEFT JOIN projects p ON e.assigned_project_id = p.project_id
+      LEFT JOIN project_wbs pw ON e.assigned_wbs_id = pw.id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
       WHERE e.is_deleted = 0
     `;
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
+      params.push(managerId, managerId);
     }
 
     if (employeeId) {
@@ -85,10 +99,13 @@ export class UserRepository {
     role_id: number;
     hourly_rate: number;
     status: string;
+    reporting_to_id?: number | null;
+    assigned_project_id?: number | null;
+    assigned_wbs_id?: number | null;
   }): Promise<number> {
     const [result] = await dbPool.execute<ResultSetHeader>(
-      `INSERT INTO employees (employee_code, name, email, password_hash, role_id, hourly_rate, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO employees (employee_code, name, email, password_hash, role_id, hourly_rate, status, reporting_to_id, assigned_project_id, assigned_wbs_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.employee_code,
         data.name,
@@ -97,6 +114,9 @@ export class UserRepository {
         data.role_id,
         data.hourly_rate,
         data.status,
+        data.reporting_to_id || null,
+        data.assigned_project_id || null,
+        data.assigned_wbs_id || null,
       ]
     );
     return result.insertId;
@@ -112,6 +132,9 @@ export class UserRepository {
     if (data.role_id !== undefined) { fields.push('role_id = ?'); params.push(data.role_id); }
     if (data.hourly_rate !== undefined) { fields.push('hourly_rate = ?'); params.push(data.hourly_rate); }
     if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
+    if (data.reporting_to_id !== undefined) { fields.push('reporting_to_id = ?'); params.push(data.reporting_to_id || null); }
+    if (data.assigned_project_id !== undefined) { fields.push('assigned_project_id = ?'); params.push(data.assigned_project_id || null); }
+    if (data.assigned_wbs_id !== undefined) { fields.push('assigned_wbs_id = ?'); params.push(data.assigned_wbs_id || null); }
 
     if (fields.length === 0) return false;
 

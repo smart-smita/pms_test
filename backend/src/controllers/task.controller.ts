@@ -30,9 +30,29 @@ export class TaskController {
     }
   };
 
-  getById = async (req: Request, res: Response) => {
+  getById = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id, 10);
+      let empId = undefined;
+      let managerId = undefined;
+
+      if (req.user) {
+        if (req.user.role_name === 'Manager') {
+          managerId = req.user.employee_id;
+        }
+        if (req.user.role_name === 'Employee') {
+          empId = req.user.employee_id;
+        }
+      }
+
+      // Check access via findAll
+      const allAllowed = await this.taskService.getTasks(undefined, empId, undefined, managerId);
+      const isAllowed = allAllowed.find(t => t.task_id === id);
+
+      if (!isAllowed) {
+        return sendError(res, 'Task not found or access denied', [], 403);
+      }
+
       const task = await this.taskService.getTaskById(id);
       return sendSuccess(res, 'Task retrieved successfully', task);
     } catch (error: any) {

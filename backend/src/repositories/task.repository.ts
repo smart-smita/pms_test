@@ -45,7 +45,7 @@ export class TaskRepository {
       sql += ` AND t.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
       params.push(managerId);
     }
-    
+
     if (projectId) {
       sql += ` AND t.project_id = ?`;
       params.push(projectId);
@@ -76,7 +76,7 @@ export class TaskRepository {
 
       let currentStatus = r.status;
       const today = new Date().toISOString().split('T')[0];
-      
+
       if ((currentStatus === 'pending' || currentStatus === 'in-progress') && r.target_date && r.target_date < today) {
         currentStatus = 'delayed';
       }
@@ -100,6 +100,7 @@ export class TaskRepository {
         is_understaffed: assignedCount < requiredCount,
         productivity_status: productivityStatus,
         assigned_employees: assignedEmployees,
+        assigned_labours: await this.getAssignedLabours(r.task_id),
       } as TaskRow);
     }
 
@@ -120,6 +121,17 @@ export class TaskRepository {
       [taskId]
     );
     return rows as { employee_id: number; name: string; employee_code: string }[];
+  }
+
+  async getAssignedLabours(taskId: number): Promise<{ labour_id: number; name: string; labour_type: string }[]> {
+    const [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT l.labour_id, l.name, l.labour_type
+       FROM task_labour_assignments tla
+       JOIN labours l ON tla.labour_id = l.labour_id
+       WHERE tla.task_id = ?`,
+      [taskId]
+    );
+    return rows as { labour_id: number; name: string; labour_type: string }[];
   }
 
   async create(data: {
@@ -180,13 +192,19 @@ export class TaskRepository {
     return result.affectedRows > 0;
   }
 
-  async assignWorkers(taskId: number, employeeIds: number[]): Promise<void> {
+  async assignWorkers(taskId: number, employeeIds: number[], labourIds: number[] = []): Promise<void> {
     // Delete existing assignments for this task
     await dbPool.execute(`DELETE FROM task_assignments WHERE task_id = ?`, [taskId]);
+    await dbPool.execute(`DELETE FROM task_labour_assignments WHERE task_id = ?`, [taskId]);
 
     if (employeeIds.length > 0) {
       const values = employeeIds.map((empId) => `(${taskId}, ${empId})`).join(', ');
       await dbPool.execute(`INSERT INTO task_assignments (task_id, employee_id) VALUES ${values}`);
+    }
+
+    if (labourIds.length > 0) {
+      const labourValues = labourIds.map((labourId) => `(${taskId}, ${labourId})`).join(', ');
+      await dbPool.execute(`INSERT INTO task_labour_assignments (task_id, labour_id) VALUES ${labourValues}`);
     }
   }
 

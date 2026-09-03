@@ -5,65 +5,70 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { FormSelect } from '../components/forms/FormSelect';
 import { FormInput } from '../components/forms/FormInput';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { apiRequest, parseApiErrors } from '../services/api';
+import { apiRequest } from '../services/api';
 import { AttendanceLog, Task, Project } from '../types';
-import { showSuccess, showError, showWarning } from '../utils/toast';
-import { MapPin, LogIn, LogOut, Navigation, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { showSuccess, showError } from '../utils/toast';
+import { MapPin, LogIn, LogOut, Navigation, Clock, Edit2, Trash2, Users, HardHat } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3; // Earth radius in meters
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
 
 export const Attendance: React.FC = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role_name === 'Admin';
+  const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
+  const [activeTab, setActiveTab] = useState<'employees' | 'labours'>('employees');
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [labourLogs, setLabourLogs] = useState<any[]>([]);
   const [activeCheckIn, setActiveCheckIn] = useState<AttendanceLog | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [labours, setLabours] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check In Modal
+  // Check In / Punch on Behalf Modal
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number>(0);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number>(0);
+  const [selectedLabourId, setSelectedLabourId] = useState<number>(0);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [address, setAddress] = useState<string>('');
   const [locationStatus, setLocationStatus] = useState<string>('Click to fetch GPS location');
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit Modal State
+  const [editingLog, setEditingLog] = useState<any>(null);
+  const [editCheckInTime, setEditCheckInTime] = useState('');
+  const [editCheckOutTime, setEditCheckOutTime] = useState('');
+  const [editInAddress, setEditInAddress] = useState('');
+
+  // Delete Confirmation State
+  const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
+  const [deletingType, setDeletingType] = useState<'employee' | 'labour'>('employee');
 
   const fetchAttendanceData = async () => {
     setIsLoading(true);
     const promises: Promise<any>[] = [
       apiRequest<AttendanceLog[]>('/attendance/logs'),
       apiRequest<AttendanceLog>('/attendance/active'),
-      apiRequest<Task[]>('/tasks?assigned_to_me=true'),
+      apiRequest<Task[]>('/tasks'),
+      apiRequest<any[]>('/labours/attendance'),
     ];
     if (isAdmin) {
       promises.push(apiRequest<Project[]>('/projects'));
+      promises.push(apiRequest<any[]>('/employees'));
+      promises.push(apiRequest<any[]>('/labours'));
     }
 
-    const [lRes, aRes, tRes, pRes] = await Promise.all(promises);
+    const [lRes, aRes, tRes, labAttRes, pRes, eRes, labRes] = await Promise.all(promises);
 
     if (lRes.success && lRes.data) setLogs(lRes.data);
     if (aRes.success) setActiveCheckIn(aRes.data || null);
     if (tRes.success && tRes.data) setTasks(tRes.data);
+    if (labAttRes.success && labAttRes.data) setLabourLogs(labAttRes.data);
     if (pRes?.success && pRes.data) setProjects(pRes.data);
+    if (eRes?.success && eRes.data) setEmployees(eRes.data.filter((e: any) => e.status === 'active'));
+    if (labRes?.success && labRes.data) setLabours(labRes.data);
 
     setIsLoading(false);
   };
@@ -88,43 +93,57 @@ export const Attendance: React.FC = () => {
         setLocationStatus(`GPS Locked: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         setAddress(`Site GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       },
-      (err) => {
-        console.warn('Geolocation error:', err.message);
-        setLatitude(null);
-        setLongitude(null);
-        if (err.code === err.PERMISSION_DENIED) {
-          showError('GPS Permission Denied. You must allow location access to check in.');
-          setLocationStatus('Permission Denied');
-        } else {
-          showError('Failed to acquire GPS location. Please check your signal and try again.');
-          setLocationStatus('GPS Error');
-        }
+      () => {
+        setLocationStatus('GPS Permission Denied - Defaulting to Manual Site Punch');
+        setAddress('Manual Punch (Location Access Denied)');
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
   const handleOpenCheckInModal = () => {
-    setFormErrors({});
     if (tasks.length > 0) setSelectedTaskId(tasks[0].task_id);
+    setSelectedEmployeeId(0);
+    setSelectedLabourId(0);
     getGPSLocation();
     setIsCheckInModalOpen(true);
   };
 
   const handlePerformCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!latitude || !longitude) {
-      showError('Please acquire GPS location before checking in');
+    setIsSubmitting(true);
+
+    if (activeTab === 'labours' && selectedLabourId) {
+      // Labour Attendance Log
+      const res = await apiRequest('/labours/attendance', {
+        method: 'POST',
+        body: JSON.stringify({
+          labour_id: selectedLabourId,
+          task_id: selectedTaskId || undefined,
+          attendance_date: new Date().toISOString().split('T')[0],
+          in_time: new Date().toTimeString().split(' ')[0],
+          in_address: address,
+          daily_pay_amount: 500,
+          worker_count: 1,
+        }),
+      });
+      setIsSubmitting(false);
+      if (res.success) {
+        showSuccess('Labour attendance logged successfully.');
+        setIsCheckInModalOpen(false);
+        fetchAttendanceData();
+      } else {
+        showError(res.message || 'Labour attendance logging failed.');
+      }
       return;
     }
 
-    setIsSubmitting(true);
-    setFormErrors({});
-
+    // Employee Check In
     const res = await apiRequest('/attendance/check-in', {
       method: 'POST',
       body: JSON.stringify({
         task_id: selectedTaskId || undefined,
+        employee_id: isAdmin && selectedEmployeeId ? selectedEmployeeId : undefined,
         latitude,
         longitude,
         address,
@@ -132,7 +151,6 @@ export const Attendance: React.FC = () => {
     });
 
     setIsSubmitting(false);
-
     if (res.success) {
       showSuccess('Checked in successfully.');
       setIsCheckInModalOpen(false);
@@ -143,32 +161,12 @@ export const Attendance: React.FC = () => {
   };
 
   const handlePerformCheckOut = async (attendanceId: number) => {
-    if (!latitude || !longitude) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          await submitCheckOut(attendanceId, pos.coords.latitude, pos.coords.longitude);
-        },
-        async () => {
-          showError('GPS is required for check-out. Please enable location permissions in your browser and try again.');
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      await submitCheckOut(attendanceId, latitude, longitude);
-    }
-  };
-
-
-
-  const submitCheckOut = async (attendanceId: number, lat: number, lng: number) => {
     setIsLoading(true);
     const res = await apiRequest('/attendance/check-out', {
       method: 'POST',
       body: JSON.stringify({
         attendance_id: attendanceId,
-        latitude: lat,
-        longitude: lng,
-        address: `Check-out GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+        address: address || 'Site GPS Punch Out',
       }),
     });
 
@@ -181,27 +179,52 @@ export const Attendance: React.FC = () => {
     setIsLoading(false);
   };
 
-  // Real-time distance evaluation for check-in modal
-  const selectedTaskObj = tasks.find((t) => t.task_id === selectedTaskId);
-  const selectedProjectObj = selectedTaskObj ? projects.find((p) => p.project_id === selectedTaskObj.project_id) : null;
-  
-  let calculatedDistance: number | null = null;
-  let isWithinRadius: boolean = true;
-  const projectRadius = (selectedTaskObj as any)?.project_radius_meters || selectedProjectObj?.radius_meters || 500;
-  const targetLat = (selectedTaskObj as any)?.project_latitude ?? selectedProjectObj?.latitude;
-  const targetLng = (selectedTaskObj as any)?.project_longitude ?? selectedProjectObj?.longitude;
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLog) return;
+    setIsSubmitting(true);
 
-  if (latitude && longitude && targetLat != null && targetLng != null) {
-    calculatedDistance = calculateHaversineDistance(
-      latitude,
-      longitude,
-      Number(targetLat),
-      Number(targetLng)
-    );
-    isWithinRadius = calculatedDistance <= projectRadius;
-  }
+    const isLabour = activeTab === 'labours';
+    const endpoint = isLabour ? `/labours/attendance/${editingLog.labour_attendance_id}` : `/attendance/${editingLog.attendance_id}`;
+    
+    const bodyPayload = isLabour
+      ? { in_time: editCheckInTime, out_time: editCheckOutTime, in_address: editInAddress }
+      : { check_in_time: editCheckInTime, check_out_time: editCheckOutTime, in_address: editInAddress };
 
-  const columns: Column<AttendanceLog>[] = [
+    const res = await apiRequest(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(bodyPayload),
+    });
+
+    setIsSubmitting(false);
+    if (res.success) {
+      showSuccess('Attendance record updated successfully.');
+      setEditingLog(null);
+      fetchAttendanceData();
+    } else {
+      showError(res.message || 'Failed to update record.');
+    }
+  };
+
+  const handleConfirmSoftDelete = async () => {
+    if (!deletingLogId) return;
+    setIsLoading(true);
+
+    const endpoint = deletingType === 'labour' ? `/labours/attendance/${deletingLogId}` : `/attendance/${deletingLogId}`;
+    const res = await apiRequest(endpoint, { method: 'DELETE' });
+
+    setIsLoading(false);
+    setDeletingLogId(null);
+
+    if (res.success) {
+      showSuccess('Attendance record soft-deleted successfully.');
+      fetchAttendanceData();
+    } else {
+      showError(res.message || 'Delete failed.');
+    }
+  };
+
+  const employeeColumns: Column<AttendanceLog>[] = [
     ...(isAdmin ? [{ 
       header: 'Employee', 
       accessor: (r: AttendanceLog) => `${r.employee_name || 'Worker'} (${r.employee_code || '-'})`, 
@@ -210,7 +233,7 @@ export const Attendance: React.FC = () => {
     }] : []),
     { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
     { header: 'Task / Project', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Site Work', csvAccessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Site Work', sortKey: (r) => r.task_name || '' },
-    { header: 'Check In Time', accessor: (r) => new Date(r.check_in_time).toLocaleTimeString(), csvAccessor: (r) => new Date(r.check_in_time).toLocaleTimeString(), sortKey: 'check_in_time' },
+    { header: 'Check In Time', accessor: (r) => r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '-', csvAccessor: (r) => r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '-', sortKey: 'check_in_time' },
     { header: 'Check Out Time', accessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-', csvAccessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-', sortKey: 'check_out_time' },
     {
       header: 'Working Hours',
@@ -223,53 +246,36 @@ export const Attendance: React.FC = () => {
       sortKey: 'total_working_hours'
     },
     {
-      header: 'Location & Distance',
-      accessor: (r) => {
-        const distText = r.in_distance_meters != null
-          ? `${r.in_distance_meters}m / ${r.project_radius_meters || 500}m allowed (${r.in_status === 'outside' ? 'Outside' : 'Inside'})`
-          : null;
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-              <MapPin size={13} color="#06b6d4" /> {r.in_address || 'GPS Logged'}
-            </span>
-            {distText && (
-              <span style={{ fontSize: '0.75rem', color: r.in_status === 'outside' ? '#ef4444' : '#10b981', fontWeight: 600 }}>
-                {distText}
-              </span>
-            )}
-          </div>
-        );
-      },
-      csvAccessor: (r) => `${r.in_address || 'GPS Logged'}${r.in_distance_meters != null ? ` (${r.in_distance_meters}m)` : ''}`,
+      header: 'Location Address',
+      accessor: (r) => (
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+          <MapPin size={13} color="#06b6d4" /> {r.in_address || 'GPS Logged'}
+        </span>
+      ),
+      csvAccessor: (r) => r.in_address || 'GPS Logged',
       sortKey: 'in_address'
     },
     {
-      header: 'Attendance Status',
+      header: 'Status',
       accessor: (r) => {
-        if (r.status === 'open') {
-          return <Badge variant="info">Present / Checked-In</Badge>;
-        }
-        if (r.status === 'completed') {
-          return <Badge variant="success">Checked-Out / Completed</Badge>;
-        }
-        if (r.status === 'outside_area') {
-          return <Badge variant="danger">Outside Project Area</Badge>;
-        }
-        if (r.status === 'missing_checkout') {
-          return <Badge variant="warning">Missing Checkout</Badge>;
-        }
-        return <Badge variant="info">{r.status}</Badge>;
+        if (r.status === 'open') return <Badge variant="info">Checked-In</Badge>;
+        if (r.status === 'completed') return <Badge variant="success">Completed</Badge>;
+        return <Badge variant="warning">{r.status}</Badge>;
       },
-      csvAccessor: (r) => {
-        if (r.status === 'open') return 'Present / Checked-In';
-        if (r.status === 'completed') return 'Checked-Out / Completed';
-        if (r.status === 'outside_area') return 'Outside Project Area';
-        if (r.status === 'missing_checkout') return 'Missing Checkout';
-        return r.status;
-      },
+      csvAccessor: (r) => r.status,
       sortKey: 'status'
     },
+  ];
+
+  const labourColumns: Column<any>[] = [
+    { header: 'Labour Name', accessor: (r) => `${r.labour_name} (${r.labour_type})`, csvAccessor: (r) => r.labour_name, sortKey: 'labour_name' },
+    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
+    { header: 'Task / Project', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Work', csvAccessor: (r) => r.task_name || 'General Work', sortKey: 'task_name' },
+    { header: 'In Time', accessor: (r) => r.in_time || '-', csvAccessor: (r) => r.in_time || '-', sortKey: 'in_time' },
+    { header: 'Out Time', accessor: (r) => r.out_time || '-', csvAccessor: (r) => r.out_time || '-', sortKey: 'out_time' },
+    { header: 'Workers', accessor: 'worker_count', sortKey: 'worker_count' },
+    { header: 'Daily Pay Rate', accessor: (r) => `₹${Number(r.daily_pay_amount || 0).toFixed(2)}`, csvAccessor: (r) => r.daily_pay_amount, sortKey: 'daily_pay_amount' },
+    { header: 'Total Payout', accessor: (r) => `₹${Number(r.calculated_payment || r.daily_pay_amount * r.worker_count || 0).toFixed(2)}`, csvAccessor: (r) => r.calculated_payment || r.daily_pay_amount * r.worker_count, sortKey: 'calculated_payment' },
   ];
 
   return (
@@ -279,19 +285,57 @@ export const Attendance: React.FC = () => {
           <h1 className="page-title">GPS Attendance & Time Logging</h1>
           <p className="page-subtitle">Site Check-In / Check-Out with verified latitude, longitude, and task time tracking</p>
         </div>
-        {isAdmin && (!activeCheckIn ? (
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
           <Button variant="primary" onClick={handleOpenCheckInModal}>
-            <LogIn size={18} /> GPS Check-In
+            <LogIn size={18} /> {isAdmin ? 'Punch / Log Attendance' : 'GPS Check-In'}
           </Button>
-        ) : (
-          <Button variant="danger" onClick={() => handlePerformCheckOut(activeCheckIn.attendance_id)}>
-            <LogOut size={18} /> Check-Out Now
-          </Button>
-        ))}
+        </div>
       </div>
 
-      {/* Active Check-In Banner */}
-      {isAdmin && activeCheckIn && (
+      {/* Admin Employee / Labour Tabs */}
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+          <button
+            onClick={() => setActiveTab('employees')}
+            style={{
+              padding: '0.6rem 1.25rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'employees' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
+              color: activeTab === 'employees' ? '#fff' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <Users size={16} /> Employee Attendance ({logs.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('labours')}
+            style={{
+              padding: '0.6rem 1.25rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'labours' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
+              color: activeTab === 'labours' ? '#fff' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <HardHat size={16} /> Labour / Contractor Attendance ({labourLogs.length})
+          </button>
+        </div>
+      )}
+
+      {/* Active Check-In Banner for Employee */}
+      {!isAdmin && activeCheckIn && (
         <div
           style={{
             background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)',
@@ -302,7 +346,6 @@ export const Attendance: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            flexWrap: 'wrap',
             gap: '1rem',
           }}
         >
@@ -325,44 +368,114 @@ export const Attendance: React.FC = () => {
         </div>
       )}
 
-        <div className="glass-card">
+      <div className="glass-card">
+        {activeTab === 'employees' ? (
           <DataTable
-            columns={columns}
+            columns={employeeColumns}
             data={logs}
-            searchPlaceholder="Search attendance logs by employee, task, or location..."
-            exportFilename="gps_attendance_logs"
+            searchPlaceholder="Search employee attendance logs..."
+            exportFilename="employee_attendance_logs"
             isLoading={isLoading}
-            actions={isAdmin ? (row) =>
-              row.status === 'open' || row.status === 'missing_checkout' ? (
-                <Button variant="danger" onClick={() => handlePerformCheckOut(row.attendance_id)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
-                  <LogOut size={12} /> Check-Out
-                </Button>
-              ) : (
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
-              )
-            : undefined}
+            actions={isAdmin ? (row: AttendanceLog) => (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    setEditingLog(row);
+                    setEditCheckInTime(row.check_in_time ? new Date(row.check_in_time).toISOString().slice(0, 16) : '');
+                    setEditCheckOutTime(row.check_out_time ? new Date(row.check_out_time).toISOString().slice(0, 16) : '');
+                    setEditInAddress(row.in_address || '');
+                  }}
+                  title="Edit Record"
+                  style={{ background: 'rgba(99, 102, 241, 0.1)', border: 'none', color: '#6366f1', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button
+                  onClick={() => {
+                    setDeletingLogId(row.attendance_id);
+                    setDeletingType('employee');
+                  }}
+                  title="Soft Delete"
+                  style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ) : undefined}
           />
-        </div>
+        ) : (
+          <DataTable
+            columns={labourColumns}
+            data={labourLogs}
+            searchPlaceholder="Search labour attendance logs..."
+            exportFilename="labour_attendance_logs"
+            isLoading={isLoading}
+            actions={isAdmin ? (row: any) => (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    setEditingLog(row);
+                    setEditCheckInTime(row.in_time || '');
+                    setEditCheckOutTime(row.out_time || '');
+                    setEditInAddress(row.in_address || '');
+                  }}
+                  title="Edit Record"
+                  style={{ background: 'rgba(99, 102, 241, 0.1)', border: 'none', color: '#6366f1', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button
+                  onClick={() => {
+                    setDeletingLogId(row.labour_attendance_id);
+                    setDeletingType('labour');
+                  }}
+                  title="Soft Delete"
+                  style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ) : undefined}
+          />
+        )}
+      </div>
 
-      {/* Check In Modal */}
-      <Modal isOpen={isCheckInModalOpen} onClose={() => setIsCheckInModalOpen(false)} title="GPS Site Check-In">
+      {/* Check In / Log Attendance Modal */}
+      <Modal isOpen={isCheckInModalOpen} onClose={() => setIsCheckInModalOpen(false)} title="Site Punch & Attendance Entry">
         <form noValidate onSubmit={handlePerformCheckIn}>
-          {tasks.length > 0 ? (
+          {isAdmin && activeTab === 'employees' && (
             <FormSelect
-              label="Select Assigned Task *"
-              value={selectedTaskId}
-              onChange={(e) => { setSelectedTaskId(parseInt(e.target.value, 10)); setFormErrors(prev => ({...prev, task_id: ''})); }}
-              options={tasks.map((t) => ({ value: t.task_id, label: `${t.task_name} (${t.project_name})` }))}
-              error={formErrors.task_id}
+              label="Select Employee (Punch on Behalf)"
+              value={selectedEmployeeId}
+              onChange={(e) => setSelectedEmployeeId(parseInt(e.target.value, 10) || 0)}
+              options={[
+                { value: 0, label: '-- Punch In Myself --' },
+                ...employees.map(emp => ({ value: emp.employee_id, label: `${emp.name} (${emp.employee_code})` }))
+              ]}
             />
-          ) : (
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
-              No tasks currently assigned. You can check in for general site duty.
-            </p>
           )}
 
+          {isAdmin && activeTab === 'labours' && (
+            <FormSelect
+              label="Select Labour / Contractor Worker *"
+              value={selectedLabourId}
+              onChange={(e) => setSelectedLabourId(parseInt(e.target.value, 10) || 0)}
+              options={[
+                { value: 0, label: '-- Select Worker --' },
+                ...labours.map(lab => ({ value: lab.labour_id, label: `${lab.name} (${lab.labour_type})` }))
+              ]}
+            />
+          )}
+
+          <FormSelect
+            label="Select Assigned Task"
+            value={selectedTaskId}
+            onChange={(e) => setSelectedTaskId(parseInt(e.target.value, 10))}
+            options={tasks.map((t) => ({ value: t.task_id, label: `${t.task_name} (${t.project_name})` }))}
+          />
+
           <div className="form-group">
-            <label className="form-label">GPS Location Verification</label>
+            <label className="form-label">GPS Verification</label>
             <div
               style={{
                 padding: '0.85rem',
@@ -386,48 +499,70 @@ export const Attendance: React.FC = () => {
             </div>
           </div>
 
-          {/* Real-time Radius Compliance Display */}
-          {selectedProjectObj && calculatedDistance !== null && (
-            <div style={{
-              padding: '0.85rem',
-              borderRadius: 'var(--radius-md)',
-              marginBottom: '1rem',
-              background: isWithinRadius ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-              border: `1px solid ${isWithinRadius ? '#10b981' : '#ef4444'}`,
-              fontSize: '0.85rem',
-              color: isWithinRadius ? '#10b981' : '#ef4444',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem'
-            }}>
-              {isWithinRadius ? <CheckCircle size={20} color="#10b981" /> : <AlertTriangle size={20} color="#ef4444" />}
-              <div>
-                <strong>{isWithinRadius ? 'Inside Project Area ✓' : 'Outside Project Area ⚠'}</strong>
-                <div style={{ fontSize: '0.78rem', marginTop: '0.15rem', color: 'var(--text-primary)' }}>
-                  Distance: <strong>{calculatedDistance}m</strong> | Allowed Radius: <strong>{projectRadius}m</strong> ({selectedProjectObj.project_name})
-                </div>
-              </div>
-            </div>
-          )}
-
           <FormInput
             label="Location Address / Site Note"
             type="text"
             value={address}
-            onChange={(e) => { setAddress(e.target.value); setFormErrors(prev => ({...prev, address: ''})); }}
-            placeholder="Auto-resolved GPS address"
-            error={formErrors.address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Location address"
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsCheckInModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={isSubmitting || !latitude}>
-              <LogIn size={18} /> {isSubmitting ? 'Recording...' : 'Confirm Check-In'}
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              <LogIn size={18} /> {isSubmitting ? 'Recording...' : 'Confirm Punch'}
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Admin Edit Modal */}
+      <Modal isOpen={!!editingLog} onClose={() => setEditingLog(null)} title="Edit Attendance Record">
+        <form onSubmit={handleSaveEdit}>
+          <FormInput
+            label="Check-In Time"
+            type={activeTab === 'employees' ? 'datetime-local' : 'time'}
+            value={editCheckInTime}
+            onChange={(e) => setEditCheckInTime(e.target.value)}
+          />
+          <FormInput
+            label="Check-Out Time"
+            type={activeTab === 'employees' ? 'datetime-local' : 'time'}
+            value={editCheckOutTime}
+            onChange={(e) => setEditCheckOutTime(e.target.value)}
+          />
+          <FormInput
+            label="Location Address"
+            type="text"
+            value={editInAddress}
+            onChange={(e) => setEditInAddress(e.target.value)}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <Button type="button" variant="secondary" onClick={() => setEditingLog(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={!!deletingLogId} onClose={() => setDeletingLogId(null)} title="Confirm Soft Delete">
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+          Are you sure you want to soft-delete this attendance record? The data will be marked as deleted (`is_deleted = 1`) and preserved in the audit database.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          <Button variant="secondary" onClick={() => setDeletingLogId(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleConfirmSoftDelete}>
+            Soft Delete Record
+          </Button>
+        </div>
       </Modal>
     </div>
   );

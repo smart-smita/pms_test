@@ -2,7 +2,7 @@ import { dbPool } from './config/db';
 
 export async function migrate() {
   console.log('Starting ACL migration...');
-  
+
   try {
     // 1. Create permissions table
     await dbPool.query(`
@@ -70,21 +70,100 @@ export async function migrate() {
     `);
     console.log('Created audit_logs table.');
 
-    // 6. Ensure default roles exist and get their IDs
-    const [existingRoles]: any = await dbPool.query(`SELECT id, role_name FROM roles`);
+    // 0. Ensure default roles exist (Super Admin, Admin, Manager, Employee)
+    const defaultRoles = ['Super Admin', 'Admin', 'Manager', 'Employee'];
+    for (const rName of defaultRoles) {
+      await dbPool.query(`INSERT IGNORE INTO roles (role_name) VALUES (?)`, [rName]);
+    }
+
+    // 5b. Create labours, labour_attendance & timesheets tables
+    try {
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS labours (
+          labour_id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          contact_number VARCHAR(20) DEFAULT NULL,
+          aadhar_id VARCHAR(20) DEFAULT NULL,
+          labour_type ENUM('contractor', 'direct_labour') NOT NULL DEFAULT 'direct_labour',
+          contractor_id INT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY unique_contact (contact_number),
+          UNIQUE KEY unique_aadhar (aadhar_id)
+        );
+      `);
+      await dbPool.query(`ALTER TABLE labours ADD COLUMN contractor_id INT DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS labour_attendance (
+          labour_attendance_id INT AUTO_INCREMENT PRIMARY KEY,
+          labour_id INT NOT NULL,
+          project_id INT DEFAULT NULL,
+          wbs_id INT DEFAULT NULL,
+          task_id INT DEFAULT NULL,
+          attendance_date DATE NOT NULL,
+          in_time TIME DEFAULT NULL,
+          out_time TIME DEFAULT NULL,
+          daily_pay_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          worker_count INT NOT NULL DEFAULT 1,
+          comment TEXT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (labour_id) REFERENCES labours(labour_id) ON DELETE CASCADE,
+          FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE SET NULL,
+          FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE SET NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE SET NULL,
+          UNIQUE KEY unique_labour_task_date (labour_id, task_id, attendance_date)
+        );
+      `);
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS timesheets (
+          timesheet_id INT AUTO_INCREMENT PRIMARY KEY,
+          project_id INT NOT NULL,
+          wbs_id INT DEFAULT NULL,
+          task_id INT NOT NULL,
+          employee_id INT NOT NULL,
+          log_date DATE NOT NULL,
+          working_hours DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          comment TEXT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+          FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE SET NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE,
+          FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
+        );
+      `);
+      // Column migrations for soft-delete & GPS addresses
+      await dbPool.query(`ALTER TABLE attendance_logs ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0`).catch(() => {});
+      await dbPool.query(`ALTER TABLE attendance_logs ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL`).catch(() => {});
+
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN is_deleted TINYINT(1) NOT NULL DEFAULT 0`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN hourly_rate DECIMAL(10,2) DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN calculated_payment DECIMAL(10,2) NOT NULL DEFAULT 0.00`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN in_latitude DECIMAL(10,8) DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN in_longitude DECIMAL(11,8) DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN in_address TEXT DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN out_latitude DECIMAL(10,8) DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN out_longitude DECIMAL(11,8) DEFAULT NULL`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN out_address TEXT DEFAULT NULL`).catch(() => {});
+
+      console.log('Created labours, labour_attendance and timesheets tables.');
+    } catch (err: any) {
+      console.warn('Table migration warning:', err.message);
+    }
+
+    // 6. Ensure default roles map
+    const [existingRoles]: any = await dbPool.query(`SELECT role_id AS id, role_name FROM roles`);
     const rolesMap: Record<string, number> = {};
     for (const r of existingRoles) {
-      rolesMap[r.role_name.toUpperCase().replace(' ', '_')] = r.id; 
-      rolesMap[r.role_name] = r.id; 
+      rolesMap[r.role_name.toUpperCase().replace(/\s+/g, '_')] = r.id;
+      rolesMap[r.role_name] = r.id;
     }
 
-    const adminRoleId = rolesMap['Admin'] || rolesMap['SUPER_ADMIN'] || rolesMap['System Administrator'];
-    const managerRoleId = rolesMap['Manager'];
-    const employeeRoleId = rolesMap['Employee'];
-
-    if (!adminRoleId || !managerRoleId || !employeeRoleId) {
-        console.log('Warning: Some default roles might be missing. Ensure Admin, Manager, and Employee exist.');
-    }
+    const superAdminRoleId = rolesMap['SUPER_ADMIN'] || rolesMap['Super Admin'];
+    const adminRoleId = rolesMap['ADMIN'] || rolesMap['Admin'] || rolesMap['System Administrator'] || superAdminRoleId;
+    const managerRoleId = rolesMap['MANAGER'] || rolesMap['Manager'];
+    const employeeRoleId = rolesMap['EMPLOYEE'] || rolesMap['Employee'];
 
     // 7. Seed permissions
     const permissionsToSeed = [
@@ -112,6 +191,14 @@ export async function migrate() {
       ['profile', 'view', 'profile_view'],
       ['profile', 'update', 'profile_update'],
       ['settings', 'manage', 'settings_manage'],
+      ['labours', 'view', 'labours_view'],
+      ['labours', 'create', 'labours_create'],
+      ['labours', 'update', 'labours_update'],
+      ['labours', 'delete', 'labours_delete'],
+      ['timesheets', 'view', 'timesheets_view'],
+      ['timesheets', 'create', 'timesheets_create'],
+      ['timesheets', 'update', 'timesheets_update'],
+      ['timesheets', 'delete', 'timesheets_delete'],
     ];
 
     for (const p of permissionsToSeed) {
@@ -119,7 +206,7 @@ export async function migrate() {
     }
     console.log('Seeded permissions.');
 
-    // 8. Seed Role-Permissions (Matrix from plan)
+    // 8. Seed Role-Permissions
     const [allPerms]: any = await dbPool.query(`SELECT id, permission_code FROM permissions`);
     const permMap: Record<string, number> = {};
     for (const p of allPerms) {
@@ -136,8 +223,9 @@ export async function migrate() {
       }
     };
 
-    // Admin gets EVERYTHING
+    // Super Admin & Admin get EVERYTHING
     const adminPerms = Object.keys(permMap);
+    await grantPermission(superAdminRoleId, adminPerms);
     await grantPermission(adminRoleId, adminPerms);
 
     // Manager gets Scoped permissions
@@ -148,7 +236,9 @@ export async function migrate() {
       'attendance_view',
       'payments_view',
       'reports_view', 'reports_export',
-      'profile_view', 'profile_update'
+      'profile_view', 'profile_update',
+      'labours_view', 'labours_create', 'labours_update',
+      'timesheets_view', 'timesheets_create', 'timesheets_update'
     ];
     await grantPermission(managerRoleId, managerPerms);
 
@@ -159,19 +249,24 @@ export async function migrate() {
       'tasks_view', 'tasks_update',
       'projects_view',
       'payments_view',
-      'reports_view', 'reports_export'
+      'reports_view', 'reports_export',
+      'labours_view',
+      'timesheets_view', 'timesheets_create'
     ];
     await grantPermission(employeeRoleId, employeePerms);
 
     console.log('Seeded role_permissions! ACL Migration COMPLETE.');
 
-    // 9. Migrate attendance_logs table schema for GPS distance & radius tracking
+    // 9. Schema extensions for Employees & Attendance
     const alterQueries = [
-      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS in_distance_meters DECIMAL(10,2) DEFAULT NULL`,
-      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS out_distance_meters DECIMAL(10,2) DEFAULT NULL`,
-      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS project_radius_meters INT DEFAULT 500`,
-      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS in_status ENUM('inside', 'outside') DEFAULT 'inside'`,
-      `ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS out_status ENUM('inside', 'outside') DEFAULT 'inside'`,
+      `ALTER TABLE employees ADD COLUMN reporting_to_id INT DEFAULT NULL`,
+      `ALTER TABLE employees ADD COLUMN assigned_project_id INT DEFAULT NULL`,
+      `ALTER TABLE employees ADD COLUMN assigned_wbs_id INT DEFAULT NULL`,
+      `ALTER TABLE attendance_logs ADD COLUMN in_distance_meters DECIMAL(10,2) DEFAULT NULL`,
+      `ALTER TABLE attendance_logs ADD COLUMN out_distance_meters DECIMAL(10,2) DEFAULT NULL`,
+      `ALTER TABLE attendance_logs ADD COLUMN project_radius_meters INT DEFAULT 500`,
+      `ALTER TABLE attendance_logs ADD COLUMN in_status ENUM('inside', 'outside') DEFAULT 'inside'`,
+      `ALTER TABLE attendance_logs ADD COLUMN out_status ENUM('inside', 'outside') DEFAULT 'inside'`,
       `ALTER TABLE attendance_logs MODIFY COLUMN status ENUM('open', 'completed', 'outside_area', 'missing_checkout') NOT NULL DEFAULT 'open'`,
     ];
 
@@ -179,13 +274,30 @@ export async function migrate() {
       try {
         await dbPool.query(query);
       } catch (err: any) {
-        // Fallback for MySQL versions without IF NOT EXISTS in ALTER TABLE
-        if (!err.message?.includes('Duplicate column name')) {
+        // Fallback for MySQL duplicate column error (ER_DUP_FIELDNAME / 1060)
+        if (err.code !== 'ER_DUP_FIELDNAME' && !err.message?.includes('Duplicate column name') && !err.message?.includes('duplicate column')) {
           console.warn('Attendance schema alter note:', err.message);
         }
       }
     }
     console.log('Migrated attendance_logs GPS schema extensions.');
+
+    // 10. Task Labour Assignments
+    try {
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS task_labour_assignments (
+          task_id INT NOT NULL,
+          labour_id INT NOT NULL,
+          assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (task_id, labour_id),
+          FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE,
+          FOREIGN KEY (labour_id) REFERENCES labours(labour_id) ON DELETE CASCADE
+        );
+      `);
+      console.log('Created task_labour_assignments table.');
+    } catch (err: any) {
+      console.warn('Table migration warning (task_labour_assignments):', err.message);
+    }
   } catch (error) {
     console.error('Migration failed:', error);
   }

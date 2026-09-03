@@ -6,7 +6,7 @@ export class AttendanceRepository {
   async findOpenCheckInByEmployee(employeeId: number): Promise<AttendanceRow | null> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT * FROM attendance_logs 
-       WHERE employee_id = ? AND status = 'open'`,
+       WHERE employee_id = ? AND status = 'open' AND (is_deleted = 0 OR is_deleted IS NULL)`,
       [employeeId]
     );
     return (rows[0] as AttendanceRow) || null;
@@ -25,7 +25,7 @@ export class AttendanceRepository {
        JOIN employees e ON al.employee_id = e.employee_id
        LEFT JOIN tasks t ON al.task_id = t.task_id
        LEFT JOIN projects p ON t.project_id = p.project_id
-       WHERE al.attendance_id = ?`,
+       WHERE al.attendance_id = ? AND (al.is_deleted = 0 OR al.is_deleted IS NULL)`,
       [id]
     );
     if (!rows[0]) return null;
@@ -102,8 +102,39 @@ export class AttendanceRepository {
     return result.affectedRows > 0;
   }
 
+  async update(id: number, data: any): Promise<boolean> {
+    const fields: string[] = [];
+    const params: any[] = [];
+    if (data.task_id !== undefined) { fields.push('task_id = ?'); params.push(data.task_id || null); }
+    if (data.attendance_date !== undefined) { fields.push('attendance_date = ?'); params.push(data.attendance_date); }
+    if (data.check_in_time !== undefined) { fields.push('check_in_time = ?'); params.push(data.check_in_time); }
+    if (data.check_out_time !== undefined) { fields.push('check_out_time = ?'); params.push(data.check_out_time); }
+    if (data.in_address !== undefined) { fields.push('in_address = ?'); params.push(data.in_address); }
+    if (data.out_address !== undefined) { fields.push('out_address = ?'); params.push(data.out_address); }
+    if (data.total_working_hours !== undefined) { fields.push('total_working_hours = ?'); params.push(data.total_working_hours); }
+    if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
+
+    if (fields.length === 0) return false;
+
+    params.push(id);
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE attendance_logs SET ${fields.join(', ')} WHERE attendance_id = ?`,
+      params
+    );
+    return result.affectedRows > 0;
+  }
+
+  async softDelete(id: number): Promise<boolean> {
+    const [result] = await dbPool.execute<ResultSetHeader>(
+      `UPDATE attendance_logs SET is_deleted = 1, deleted_at = NOW() WHERE attendance_id = ?`,
+      [id]
+    );
+    return result.affectedRows > 0;
+  }
+
   async findAll(filters: {
     employee_id?: number;
+    manager_id?: number;
     task_id?: number;
     project_id?: number;
     start_date?: string;
@@ -122,9 +153,14 @@ export class AttendanceRepository {
       JOIN employees e ON al.employee_id = e.employee_id
       LEFT JOIN tasks t ON al.task_id = t.task_id
       LEFT JOIN projects p ON t.project_id = p.project_id
-      WHERE 1=1
+      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
     `;
     const params: any[] = [];
+
+    if (filters.manager_id) {
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
+      params.push(filters.manager_id, filters.manager_id);
+    }
 
     if (filters.employee_id) {
       sql += ` AND al.employee_id = ?`;
@@ -169,7 +205,7 @@ export class AttendanceRepository {
     const [result] = await dbPool.execute<ResultSetHeader>(
       `UPDATE attendance_logs 
        SET status = 'missing_checkout'
-       WHERE status = 'open' AND attendance_date < ?`,
+       WHERE status = 'open' AND attendance_date < ? AND (is_deleted = 0 OR is_deleted IS NULL)`,
       [currentDate]
     );
     return result.affectedRows;

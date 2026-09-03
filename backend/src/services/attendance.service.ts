@@ -13,7 +13,7 @@ export class AttendanceService {
   private projectRepo = new ProjectRepository();
   private taskRepo = new TaskRepository();
 
-  async checkIn(employeeId: number, data: { task_id?: number; latitude: number; longitude: number; address?: string }) {
+  async checkIn(employeeId: number, data: { task_id?: number; latitude?: number; longitude?: number; address?: string }) {
     // 1. Check for existing open check-in session
     const openCheckIn = await this.attendanceRepo.findOpenCheckInByEmployee(employeeId);
     if (openCheckIn) {
@@ -27,8 +27,11 @@ export class AttendanceService {
     let inStatus: 'inside' | 'outside' = 'inside';
     let status: 'open' | 'outside_area' = 'open';
 
+    const lat = data.latitude || 0;
+    const lng = data.longitude || 0;
+
     // 2. Fetch task and project location coordinates
-    if (data.task_id) {
+    if (data.task_id && data.latitude != null && data.longitude != null) {
       const task = await this.taskRepo.findById(data.task_id);
       if (task) {
         const project = await this.projectRepo.findById(task.project_id);
@@ -36,8 +39,8 @@ export class AttendanceService {
           projectRadiusMeters = project.radius_meters || 500;
           inDistanceMeters = Math.round(
             calculateDistanceMeters(
-              data.latitude,
-              data.longitude,
+              lat,
+              lng,
               Number(project.latitude),
               Number(project.longitude)
             ) * 100
@@ -63,9 +66,9 @@ export class AttendanceService {
       task_id: data.task_id,
       attendance_date: attendanceDate,
       check_in_time: checkInTime,
-      in_latitude: data.latitude,
-      in_longitude: data.longitude,
-      in_address: data.address || `GPS: ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`,
+      in_latitude: lat,
+      in_longitude: lng,
+      in_address: data.address || (lat !== 0 ? `GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}` : 'Manual Punch'),
       in_distance_meters: inDistanceMeters,
       project_radius_meters: projectRadiusMeters,
       in_status: inStatus,
@@ -75,11 +78,11 @@ export class AttendanceService {
     return await this.attendanceRepo.findById(attendanceId);
   }
 
-  async checkOut(employeeId: number, data: { attendance_id: number; latitude: number; longitude: number; address?: string }) {
+  async checkOut(employeeId: number, data: { attendance_id: number; latitude?: number; longitude?: number; address?: string }, userRole?: string) {
     const record = await this.attendanceRepo.findById(data.attendance_id);
     if (!record) throw new Error('Attendance record not found');
 
-    if (record.employee_id !== employeeId) {
+    if (record.employee_id !== employeeId && userRole !== 'Admin' && userRole !== 'Super Admin' && userRole !== 'Manager') {
       throw new Error('Unauthorized to check out another employee record');
     }
 
@@ -89,8 +92,11 @@ export class AttendanceService {
 
     let outDistanceMeters: number | undefined;
     let outStatus: 'inside' | 'outside' = 'inside';
+    
+    const lat = data.latitude || 0;
+    const lng = data.longitude || 0;
 
-    if (record.task_id) {
+    if (record.task_id && data.latitude != null && data.longitude != null) {
       const task = await this.taskRepo.findById(record.task_id);
       if (task) {
         const project = await this.projectRepo.findById(task.project_id);
@@ -98,8 +104,8 @@ export class AttendanceService {
           const maxRadius = project.radius_meters || 500;
           outDistanceMeters = Math.round(
             calculateDistanceMeters(
-              data.latitude,
-              data.longitude,
+              lat,
+              lng,
               Number(project.latitude),
               Number(project.longitude)
             ) * 100
@@ -121,9 +127,9 @@ export class AttendanceService {
     await this.attendanceRepo.checkOut({
       attendance_id: data.attendance_id,
       check_out_time: checkOutTimeStr,
-      out_latitude: data.latitude,
-      out_longitude: data.longitude,
-      out_address: data.address || `GPS: ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`,
+      out_latitude: lat,
+      out_longitude: lng,
+      out_address: data.address || (lat !== 0 ? `GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}` : 'Manual Punch'),
       out_distance_meters: outDistanceMeters,
       out_status: outStatus,
       total_working_hours: totalWorkingHours,
@@ -144,5 +150,28 @@ export class AttendanceService {
 
   async getActiveCheckIn(employeeId: number) {
     return await this.attendanceRepo.findOpenCheckInByEmployee(employeeId);
+  }
+
+  async updateAttendance(id: number, data: any) {
+    const record = await this.attendanceRepo.findById(id);
+    if (!record) throw new Error('Attendance record not found');
+
+    const updatePayload = { ...data };
+    if (data.check_in_time && data.check_out_time) {
+      const inTime = new Date(data.check_in_time);
+      const outTime = new Date(data.check_out_time);
+      const diffHours = Math.max(0, (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60));
+      updatePayload.total_working_hours = Math.round(diffHours * 100) / 100;
+      updatePayload.status = 'completed';
+    }
+
+    await this.attendanceRepo.update(id, updatePayload);
+    return await this.attendanceRepo.findById(id);
+  }
+
+  async deleteAttendance(id: number) {
+    const record = await this.attendanceRepo.findById(id);
+    if (!record) throw new Error('Attendance record not found');
+    return await this.attendanceRepo.softDelete(id);
   }
 }

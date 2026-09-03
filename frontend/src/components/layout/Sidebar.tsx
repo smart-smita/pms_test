@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -16,11 +16,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, isAllowed: true },
     { id: 'employees', label: 'Employees', icon: Users, isAllowed: !isEmployee && hasPermission('employees', 'view') },
+    { id: 'labours', label: 'Labours / Contractors', icon: Users, isAllowed: !isEmployee && hasPermission('labours', 'view') },
     { id: 'projects', label: 'Projects', icon: FolderKanban, isAllowed: !isEmployee && hasPermission('projects', 'view') },
+    { id: 'projects/manage-work', label: 'Manage Project Work', icon: FolderKanban, isAllowed: !isEmployee && hasPermission('projects', 'view') },
     { id: 'tasks', label: isEmployee ? 'My Tasks' : 'Task Management', icon: CheckSquare, isAllowed: hasPermission('tasks', 'view') },
+    { id: 'timesheets', label: isEmployee ? 'My Timesheets' : 'Timesheets', icon: Clock, isAllowed: hasPermission('timesheets', 'view') },
     { id: 'attendance', label: 'GPS Attendance', icon: MapPin, isAllowed: hasPermission('attendance', 'view') },
     { id: 'payments', label: isEmployee ? 'My Working Hours' : 'Hour Payments', icon: IndianRupee, isAllowed: hasPermission('payments', 'view') },
     { id: 'reports', label: isEmployee ? 'My Reports' : 'Reports', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
+    { id: 'reports/project-work', label: 'Project Work Report', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
   ];
 
   const filteredMenu = menuItems.filter((item) => item.isAllowed);

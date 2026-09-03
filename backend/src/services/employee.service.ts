@@ -22,6 +22,9 @@ export class EmployeeService {
     role_id: number;
     hourly_rate: number;
     status: string;
+    reporting_to_id?: number | null;
+    assigned_project_id?: number | null;
+    assigned_wbs_id?: number | null;
   }) {
     const existingCode = await this.userRepo.findByEmployeeCode(data.employee_code);
     if (existingCode) throw new Error('Employee code already exists');
@@ -39,6 +42,9 @@ export class EmployeeService {
       role_id: data.role_id,
       hourly_rate: data.hourly_rate,
       status: data.status,
+      reporting_to_id: data.reporting_to_id,
+      assigned_project_id: data.assigned_project_id,
+      assigned_wbs_id: data.assigned_wbs_id,
     });
 
     return await this.userRepo.findById(id);
@@ -54,6 +60,9 @@ export class EmployeeService {
     if (data.role_id) updatePayload.role_id = data.role_id;
     if (data.hourly_rate !== undefined) updatePayload.hourly_rate = data.hourly_rate;
     if (data.status) updatePayload.status = data.status;
+    if (data.reporting_to_id !== undefined) updatePayload.reporting_to_id = data.reporting_to_id;
+    if (data.assigned_project_id !== undefined) updatePayload.assigned_project_id = data.assigned_project_id;
+    if (data.assigned_wbs_id !== undefined) updatePayload.assigned_wbs_id = data.assigned_wbs_id;
     if (data.password) {
       updatePayload.password_hash = await bcrypt.hash(data.password, 10);
     }
@@ -65,6 +74,14 @@ export class EmployeeService {
   async deleteEmployee(id: number, deletedBy: number) {
     const emp = await this.userRepo.findById(id);
     if (!emp) throw new Error('Employee not found');
+
+    // Dependency check
+    const [taskCount] = await import('../config/db').then(m => m.dbPool.query<any[]>(`SELECT COUNT(*) as count FROM task_assignments WHERE employee_id = ?`, [id]));
+    if (taskCount[0].count > 0) throw new Error('Cannot delete employee: Assigned to tasks. Re-assign tasks or disable the account instead.');
+
+    const [attendanceCount] = await import('../config/db').then(m => m.dbPool.query<any[]>(`SELECT COUNT(*) as count FROM attendance_logs WHERE employee_id = ?`, [id]));
+    if (attendanceCount[0].count > 0) throw new Error('Cannot delete employee: Has attendance logs. Disable the account instead.');
+
     return await this.userRepo.softDelete(id, deletedBy);
   }
 }

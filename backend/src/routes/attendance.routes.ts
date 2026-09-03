@@ -12,5 +12,7 @@ router.post('/check-in', requirePermission('attendance', 'create'), controller.c
 router.post('/check-out', requirePermission('attendance', 'create'), controller.checkOut);
 router.get('/active', requirePermission('attendance', 'view'), controller.getActiveCheckIn);
 router.get('/logs', requirePermission('attendance', 'view'), controller.getLogs);
+router.put('/:id', requirePermission('attendance', 'update'), controller.update);
+router.delete('/:id', requirePermission('attendance', 'update'), controller.delete);
 
 export default router;

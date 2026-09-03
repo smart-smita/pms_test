@@ -7,6 +7,7 @@ import { showSuccess } from '../../utils/toast';
 export interface Column<T> {
   header: string;
   accessor?: keyof T | ((row: T) => React.ReactNode);
+  render?: (row: T) => React.ReactNode;
   csvAccessor?: keyof T | ((row: T) => string | number | null | undefined);
   sortable?: boolean;
   sortKey?: keyof T | ((row: T) => any);
@@ -315,7 +316,9 @@ export function DataTable<T extends Record<string, any>>({
                   <tr key={rIdx}>
                     {columns.map((col, cIdx) => (
                       <td key={cIdx} className={col.className}>
-                        {typeof col.accessor === 'function'
+                        {col.render
+                          ? col.render(row)
+                          : typeof col.accessor === 'function'
                           ? col.accessor(row)
                           : col.accessor
                           ? String(row[col.accessor] ?? '-')

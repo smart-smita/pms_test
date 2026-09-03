@@ -5,86 +5,131 @@ import { sendSuccess, sendError } from '../utils/apiResponse';
 export class ReportController {
   private reportService = new ReportService();
 
-  getAttendanceReport = async (req: Request, res: Response) => {
+  private getRoleIds(req: Request) {
+    const user = (req as any).user;
+    let empId = undefined;
+    let managerId = undefined;
+    const userId = user?.employee_id || user?.userId || user?.id;
+
+    if (user && user.role_name === 'Employee') {
+      empId = userId;
+    } else if (user && user.role_name === 'Manager') {
+      managerId = userId;
+    }
+    return { empId, managerId };
+  }
+
+  getEmployeeDetailsReport = async (req: Request, res: Response) => {
     try {
-      const { employee_id, start_date, end_date } = req.query;
-      const user = (req as any).user;
-      let empId = employee_id ? parseInt(employee_id as string, 10) : undefined;
-
-      if (user && user.role_name === 'Employee') {
-        empId = user.employee_id || user.id || user.userId;
-      }
-
-      const filters = {
-        employee_id: empId,
-        start_date: start_date as string,
-        end_date: end_date as string,
-      };
-      const data = await this.reportService.getAttendanceReport(filters);
-      return sendSuccess(res, 'Attendance report generated successfully', data);
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
+      const data = await this.reportService.getEmployeeDetailsReport(filters);
+      return sendSuccess(res, 'Employee details report generated successfully', data);
     } catch (error: any) {
-      return sendError(res, error.message || 'Failed to generate attendance report', [], 500);
+      return sendError(res, error.message || 'Failed to generate employee details report', [], 500);
     }
   };
 
-  getProjectReport = async (req: Request, res: Response) => {
+  getDisciplineDetailsReport = async (req: Request, res: Response) => {
     try {
-      const user = (req as any).user;
-      let empId = undefined;
-
-      if (user && user.role_name === 'Employee') {
-        empId = user.employee_id || user.id || user.userId;
-      }
-
-      const data = await this.reportService.getProjectReport(empId);
-      return sendSuccess(res, 'Project report generated successfully', data);
+      const data = await this.reportService.getDisciplineDetailsReport();
+      return sendSuccess(res, 'Discipline details report generated successfully', data);
     } catch (error: any) {
-      return sendError(res, error.message || 'Failed to generate project report', [], 500);
+      return sendError(res, error.message || 'Failed to generate discipline details report', [], 500);
     }
   };
 
-  getTaskReport = async (req: Request, res: Response) => {
+  getEmployeeAttendanceReport1 = async (req: Request, res: Response) => {
     try {
-      const { project_id, status } = req.query;
-      const user = (req as any).user;
-      let empId = undefined;
-
-      if (user && user.role_name === 'Employee') {
-        empId = user.employee_id || user.id || user.userId;
-      }
-
-      const filters = {
-        project_id: project_id ? parseInt(project_id as string, 10) : undefined,
-        status: status as string,
-        employee_id: empId,
-      };
-      const data = await this.reportService.getTaskReport(filters);
-      return sendSuccess(res, 'Task report generated successfully', data);
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId || (req.query.employee_id ? parseInt(req.query.employee_id as string, 10) : undefined), manager_id: managerId };
+      const data = await this.reportService.getEmployeeAttendanceReport1(filters);
+      return sendSuccess(res, 'Employee Attendance Report 1 generated successfully', data);
     } catch (error: any) {
-      return sendError(res, error.message || 'Failed to generate task report', [], 500);
+      return sendError(res, error.message || 'Failed to generate employee attendance report 1', [], 500);
     }
   };
 
-  getPaymentReport = async (req: Request, res: Response) => {
+  getEmployeeAttendanceReport2 = async (req: Request, res: Response) => {
     try {
-      const { type, start_date, end_date } = req.query;
-      const user = (req as any).user;
-      let empId = undefined;
-
-      if (user && user.role_name === 'Employee') {
-        empId = user.employee_id || user.id || user.userId;
-      }
-
-      const reportType = (type as any) || 'employee';
-      const data = await this.reportService.getPaymentReport(
-        reportType,
-        start_date as string,
-        end_date as string,
-        empId
-      );
-      return sendSuccess(res, 'Payment report generated successfully', data);
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId || (req.query.employee_id ? parseInt(req.query.employee_id as string, 10) : undefined), manager_id: managerId };
+      const data = await this.reportService.getEmployeeAttendanceReport2(filters);
+      return sendSuccess(res, 'Employee Attendance Report 2 generated successfully', data);
     } catch (error: any) {
-      return sendError(res, error.message || 'Failed to generate payment report', [], 500);
+      return sendError(res, error.message || 'Failed to generate employee attendance report 2', [], 500);
+    }
+  };
+
+  getEmployeeAttendanceReport3 = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId || (req.query.employee_id ? parseInt(req.query.employee_id as string, 10) : undefined), manager_id: managerId };
+      const data = await this.reportService.getEmployeeAttendanceReport3(filters);
+      return sendSuccess(res, 'Employee Attendance Report 3 generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate employee attendance report 3', [], 500);
+    }
+  };
+
+  getLabourDetailsReport = async (req: Request, res: Response) => {
+    try {
+      const filters = req.query;
+      const data = await this.reportService.getLabourDetailsReport(filters);
+      return sendSuccess(res, 'Labour details report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate labour details report', [], 500);
+    }
+  };
+
+  getLabourAttendanceReport1 = async (req: Request, res: Response) => {
+    try {
+      const filters = req.query;
+      const data = await this.reportService.getLabourAttendanceReport1(filters);
+      return sendSuccess(res, 'Labour Attendance Report 1 generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate labour attendance report 1', [], 500);
+    }
+  };
+
+  getLabourAttendanceReport2 = async (req: Request, res: Response) => {
+    try {
+      const filters = req.query;
+      const data = await this.reportService.getLabourAttendanceReport2(filters);
+      return sendSuccess(res, 'Labour Attendance Report 2 generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate labour attendance report 2', [], 500);
+    }
+  };
+
+  getLabourAttendanceReport3 = async (req: Request, res: Response) => {
+    try {
+      const filters = req.query;
+      const data = await this.reportService.getLabourAttendanceReport3(filters);
+      return sendSuccess(res, 'Labour Attendance Report 3 generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate labour attendance report 3', [], 500);
+    }
+  };
+
+  getLabourCostPaymentReport = async (req: Request, res: Response) => {
+    try {
+      const filters = req.query;
+      const data = await this.reportService.getLabourCostPaymentReport(filters);
+      return sendSuccess(res, 'Labour Cost/Payment report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate labour cost/payment report', [], 500);
+    }
+  };
+
+  getProjectWorkReport = async (req: Request, res: Response) => {
+    try {
+      const { project_id } = req.query;
+      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
+      const data = await this.reportService.getProjectWorkReport(projectId);
+      return sendSuccess(res, 'Project work report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate project work report', [], 500);
     }
   };
 }

@@ -12,6 +12,7 @@ export const createTaskSchema = z.object({
   target_date: z.string().optional(),
   target_time: z.string().optional(),
   assigned_employee_ids: z.array(z.number().int().positive()).optional(),
+  assigned_labour_ids: z.array(z.number().int().positive()).optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -25,6 +26,7 @@ export const updateTaskSchema = z.object({
   target_date: z.string().optional(),
   target_time: z.string().optional(),
   assigned_employee_ids: z.array(z.number().int().positive()).optional(),
+  assigned_labour_ids: z.array(z.number().int().positive()).optional(),
 });
 
 export const assignWorkersSchema = z.object({

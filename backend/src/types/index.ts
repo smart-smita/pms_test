@@ -1,6 +1,6 @@
 import { Request } from 'express';
 
-export type RoleName = 'Admin' | 'Manager' | 'Employee';
+export type RoleName = 'Super Admin' | 'Admin' | 'Manager' | 'Employee';
 
 export interface UserPayload {
   employee_id: number;
@@ -32,6 +32,12 @@ export interface EmployeeRow {
   password_hash: string;
   role_id: number;
   role_name: RoleName;
+  reporting_to_id?: number | null;
+  reporting_to_name?: string | null;
+  assigned_project_id?: number | null;
+  assigned_project_name?: string | null;
+  assigned_wbs_id?: number | null;
+  assigned_wbs_name?: string | null;
   hourly_rate: number;
   status: 'active' | 'inactive';
   created_at: Date;
@@ -80,6 +86,7 @@ export interface TaskRow {
   created_at: Date;
   updated_at: Date;
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
+  assigned_labours?: { labour_id: number; name: string; labour_type: string }[];
 }
 
 export interface AttendanceRow {

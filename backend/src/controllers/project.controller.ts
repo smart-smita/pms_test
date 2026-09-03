@@ -12,9 +12,10 @@ export class ProjectController {
       const user = (req as any).user;
       let managerId = undefined;
       let employeeId = undefined;
+      const userId = user?.employee_id || user?.userId || user?.id;
       
-      if (user.role_name === 'Manager') managerId = user.id;
-      if (user.role_name === 'Employee') employeeId = user.id;
+      if (user?.role_name === 'Manager') managerId = userId;
+      if (user?.role_name === 'Employee') employeeId = userId;
 
       const projects = await this.projectService.getProjects(status as string, search as string, managerId, employeeId);
       return sendSuccess(res, 'Projects retrieved successfully', projects);
@@ -26,7 +27,15 @@ export class ProjectController {
   getById = async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const project = await this.projectService.getProjectById(id);
+      const user = (req as any).user;
+      let managerId = undefined;
+      let employeeId = undefined;
+      const userId = user?.employee_id || user?.userId || user?.id;
+      
+      if (user?.role_name === 'Manager') managerId = userId;
+      if (user?.role_name === 'Employee') employeeId = userId;
+
+      const project = await this.projectService.getProjectById(id, managerId, employeeId);
       return sendSuccess(res, 'Project retrieved successfully', project);
     } catch (error: any) {
       return sendError(res, error.message || 'Project not found', [], 404);

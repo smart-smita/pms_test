@@ -23,14 +23,14 @@ export async function apiRequest<T = any>(
 
     const json = await res.json();
 
-    if (!res.ok && (res.status === 401 || res.status === 403)) {
+    if (!res.ok && res.status === 401) {
       // Clear token on auth failure
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
       
       // Dispatch global event for the app to handle logout state & UI
       window.dispatchEvent(new CustomEvent('auth-expired', { 
-        detail: { message: res.status === 403 ? 'You do not have permission.' : 'Your session has expired. Please log in again.' } 
+        detail: { message: 'Your session has expired. Please log in again.' } 
       }));
     }
 
@@ -59,3 +59,38 @@ export function parseApiErrors(errors?: any[]): Record<string, string> {
 
   return map;
 }
+
+export const apiService = {
+  get: <T = any>(endpoint: string, params?: Record<string, any>) => {
+    let url = endpoint;
+    if (params) {
+      const query = new URLSearchParams();
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') {
+          query.append(key, String(val));
+        }
+      });
+      const queryString = query.toString();
+      if (queryString) {
+        url += `${endpoint.includes('?') ? '&' : '?'}${queryString}`;
+      }
+    }
+    return apiRequest<T>(url, { method: 'GET' });
+  },
+  post: <T = any>(endpoint: string, body?: any) => {
+    return apiRequest<T>(endpoint, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+  put: <T = any>(endpoint: string, body?: any) => {
+    return apiRequest<T>(endpoint, {
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+  delete: <T = any>(endpoint: string) => {
+    return apiRequest<T>(endpoint, { method: 'DELETE' });
+  },
+};
+

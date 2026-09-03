@@ -18,6 +18,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   
+  const [activeCheckIn, setActiveCheckIn] = useState<any>(null);
+  const [loadingPunch, setLoadingPunch] = useState(false);
+
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   
@@ -31,9 +34,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
     }
   };
 
+  const fetchActiveStatus = async () => {
+    const res = await apiRequest<any>('/attendance/active');
+    if (res.success) {
+      setActiveCheckIn(res.data || null);
+    }
+  };
+
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // refresh every 30s
+    fetchActiveStatus();
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchActiveStatus();
+    }, 30000); // refresh every 30s
     return () => clearInterval(interval);
   }, []);
 
@@ -63,6 +77,75 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
     document.addEventListener('toggleNotifications', handleToggle);
     return () => document.removeEventListener('toggleNotifications', handleToggle);
   }, []);
+
+  const getLocationPayload = (): Promise<{ latitude?: number; longitude?: number; address?: string }> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ address: 'Manual Web Punch (No GPS Support)' });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          resolve({
+            latitude: lat,
+            longitude: lng,
+            address: `Site GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+          });
+        },
+        () => {
+          resolve({ address: 'Manual Punch (Location Access Denied)' });
+        },
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    });
+  };
+
+  const handlePunch = async () => {
+    setLoadingPunch(true);
+    try {
+      const geo = await getLocationPayload();
+      if (activeCheckIn) {
+        // punch out
+        const res = await apiRequest('/attendance/check-out', {
+          method: 'POST',
+          body: JSON.stringify({
+            attendance_id: activeCheckIn.attendance_id,
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            address: geo.address,
+          }),
+        });
+        if (res.success) {
+          setActiveCheckIn(null);
+          document.dispatchEvent(new Event('attendanceUpdated'));
+        } else {
+          alert(res.message || 'Punch Out failed');
+        }
+      } else {
+        // punch in
+        const res = await apiRequest('/attendance/check-in', {
+          method: 'POST',
+          body: JSON.stringify({
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            address: geo.address,
+          }),
+        });
+        if (res.success) {
+          setActiveCheckIn(res.data);
+          document.dispatchEvent(new Event('attendanceUpdated'));
+        } else {
+          alert(res.message || 'Punch In failed');
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Attendance action failed');
+    }
+    setLoadingPunch(false);
+  };
 
   return (
     <header className="top-navbar" style={{
@@ -133,6 +216,43 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
 
         {/* Action Icons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: '#94a3b8' }}>
+          
+          {/* Punch Button */}
+          {(user?.role_name === 'Employee' || user?.role_name === 'Manager') && (
+            <button
+              onClick={handlePunch}
+              disabled={loadingPunch}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                background: activeCheckIn ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                color: activeCheckIn ? '#ef4444' : '#22c55e',
+                border: `1px solid ${activeCheckIn ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)'}`,
+                padding: '0.4rem 1rem',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: loadingPunch ? 'not-allowed' : 'pointer',
+                opacity: loadingPunch ? 0.7 : 1,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {loadingPunch ? (
+                <span className="spinner" style={{ width: '14px', height: '14px', borderTopColor: 'currentColor' }} />
+              ) : (
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: 'currentColor',
+                  boxShadow: `0 0 8px currentColor`
+                }} />
+              )}
+              {activeCheckIn ? 'Punch Out' : 'Punch In'}
+            </button>
+          )}
+
           {/* Theme Toggle */}
           {onToggleTheme && (
             <button

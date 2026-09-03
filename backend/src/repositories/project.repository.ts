@@ -21,7 +21,7 @@ export class ProjectRepository {
     }
     
     if (employeeId) {
-      sql += ` AND p.project_id IN (SELECT t2.project_id FROM tasks t2 JOIN task_assignments ta ON t2.task_id = ta.task_id WHERE ta.user_id = ?)`;
+      sql += ` AND p.project_id IN (SELECT t2.project_id FROM tasks t2 JOIN task_assignments ta ON t2.task_id = ta.task_id WHERE ta.employee_id = ?)`;
       params.push(employeeId);
     }
 
@@ -52,29 +52,9 @@ export class ProjectRepository {
     });
   }
 
-  async findById(id: number): Promise<ProjectRow | null> {
-    const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT 
-        p.*,
-        COUNT(t.task_id) AS task_count,
-        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_task_count
-       FROM projects p
-       LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
-       WHERE p.project_id = ? AND p.is_deleted = 0
-       GROUP BY p.project_id`,
-      [id]
-    );
-    if (!rows[0]) return null;
-    const r: any = rows[0];
-    const taskCount = Number(r.task_count || 0);
-    const completedCount = Number(r.completed_task_count || 0);
-    const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
-    return {
-      ...r,
-      progress_percentage: progress,
-      task_count: taskCount,
-      completed_task_count: completedCount,
-    } as ProjectRow;
+  async findById(id: number, managerId?: number, employeeId?: number): Promise<ProjectRow | null> {
+    const projects = await this.findAll(undefined, undefined, managerId, employeeId);
+    return projects.find(p => p.project_id === id) || null;
   }
 
   async findByCode(code: string): Promise<ProjectRow | null> {

@@ -8,6 +8,9 @@ export const createEmployeeSchema = z.object({
   role_id: z.number().int().positive('Valid role ID is required'),
   hourly_rate: z.number().nonnegative('Hourly rate must be non-negative').default(25.0),
   status: z.enum(['active', 'inactive']).default('active'),
+  reporting_to_id: z.number().int().nullable().optional(),
+  assigned_project_id: z.number().int().nullable().optional(),
+  assigned_wbs_id: z.number().int().nullable().optional(),
 });
 
 export const updateEmployeeSchema = z.object({
@@ -17,4 +20,7 @@ export const updateEmployeeSchema = z.object({
   role_id: z.number().int().positive().optional(),
   hourly_rate: z.number().nonnegative().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  reporting_to_id: z.number().int().nullable().optional(),
+  assigned_project_id: z.number().int().nullable().optional(),
+  assigned_wbs_id: z.number().int().nullable().optional(),
 });

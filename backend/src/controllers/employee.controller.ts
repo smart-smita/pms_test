@@ -13,13 +13,14 @@ export class EmployeeController {
       const user = (req as any).user;
       let managerId = undefined;
       let employeeId = undefined;
+      const userId = user?.employee_id || user?.userId || user?.id;
 
       if (user) {
         if (user.role_name === 'Manager') {
-          managerId = user.id;
+          managerId = userId;
         }
         if (user.role_name === 'Employee') {
-          employeeId = user.id;
+          employeeId = userId;
         }
       }
 
@@ -39,6 +40,28 @@ export class EmployeeController {
   getById = async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id, 10);
+      const user = (req as any).user;
+      let managerId = undefined;
+      let employeeId = undefined;
+      const userId = user?.employee_id || user?.userId || user?.id;
+
+      if (user) {
+        if (user.role_name === 'Manager') {
+          managerId = userId;
+        }
+        if (user.role_name === 'Employee') {
+          employeeId = userId;
+        }
+      }
+
+      // Check access via findAll
+      const allAllowed = await this.employeeService.getEmployees(undefined, undefined, undefined, managerId, employeeId);
+      const isAllowed = allAllowed.find(e => e.employee_id === id);
+
+      if (!isAllowed) {
+        return sendError(res, 'Employee not found or access denied', [], 403);
+      }
+
       const employee = await this.employeeService.getEmployeeById(id);
       return sendSuccess(res, 'Employee retrieved successfully', employee);
     } catch (error: any) {

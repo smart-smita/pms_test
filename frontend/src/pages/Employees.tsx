@@ -29,6 +29,11 @@ export const Employees: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState<number>(3); // 1=Admin, 2=Manager, 3=Employee
+  const [reportsToId, setReportsToId] = useState<number | ''>('');
+  const [assignedProjectId, setAssignedProjectId] = useState<number | ''>('');
+  const [assignedWbsId, setAssignedWbsId] = useState<number | ''>('');
+  const [projectOptions, setProjectOptions] = useState<{ id: number; name: string }[]>([]);
+  const [wbsOptions, setWbsOptions] = useState<{ id: number; name: string }[]>([]);
   const [hourlyRate, setHourlyRate] = useState<number>(25.0);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -45,6 +50,14 @@ export const Employees: React.FC = () => {
     if (res.success && res.data) {
       setEmployees(res.data);
     }
+    const projRes = await apiRequest<any[]>('/projects');
+    if (projRes.success && projRes.data) {
+      setProjectOptions(projRes.data.map((p: any) => ({ id: p.project_id, name: p.project_name })));
+    }
+    const wbsRes = await apiRequest<any[]>('/wbs');
+    if (wbsRes.success && wbsRes.data) {
+      setWbsOptions(wbsRes.data.map((w: any) => ({ id: w.id, name: w.wbs_name })));
+    }
     setIsLoading(false);
   };
 
@@ -59,6 +72,9 @@ export const Employees: React.FC = () => {
     setEmail('');
     setPassword('Employee@123');
     setRoleId(3);
+    setReportsToId('');
+    setAssignedProjectId('');
+    setAssignedWbsId('');
     setHourlyRate(25.0);
     setStatus('active');
     setFormErrors({});
@@ -72,6 +88,9 @@ export const Employees: React.FC = () => {
     setEmail(emp.email);
     setPassword('');
     setRoleId(emp.role_id);
+    setReportsToId(emp.reporting_to_id || emp.reports_to_id || '');
+    setAssignedProjectId(emp.assigned_project_id || '');
+    setAssignedWbsId(emp.assigned_wbs_id || '');
     setHourlyRate(Number(emp.hourly_rate));
     setStatus(emp.status);
     setFormErrors({});
@@ -103,7 +122,16 @@ export const Employees: React.FC = () => {
     setIsSubmitting(true);
 
     if (editingEmp) {
-      const payload: any = { name, email, role_id: roleId, hourly_rate: hourlyRate, status };
+      const payload: any = {
+        name,
+        email,
+        role_id: roleId,
+        reporting_to_id: reportsToId ? Number(reportsToId) : null,
+        assigned_project_id: assignedProjectId ? Number(assignedProjectId) : null,
+        assigned_wbs_id: assignedWbsId ? Number(assignedWbsId) : null,
+        hourly_rate: hourlyRate,
+        status,
+      };
       if (password) payload.password = password;
       const res = await apiRequest(`/employees/${editingEmp.employee_id}`, {
         method: 'PUT',
@@ -126,6 +154,9 @@ export const Employees: React.FC = () => {
           email,
           password,
           role_id: roleId,
+          reporting_to_id: reportsToId ? Number(reportsToId) : null,
+          assigned_project_id: assignedProjectId ? Number(assignedProjectId) : null,
+          assigned_wbs_id: assignedWbsId ? Number(assignedWbsId) : null,
           hourly_rate: hourlyRate,
           status,
         }),
@@ -142,6 +173,13 @@ export const Employees: React.FC = () => {
     setIsSubmitting(false);
   };
 
+  // Filter manager options according to role
+  const eligibleManagers = employees.filter((emp) => {
+    if (roleId === 2) return emp.role_name === 'Admin' || emp.role_name === 'Super Admin';
+    if (roleId === 3) return emp.role_name === 'Admin' || emp.role_name === 'Super Admin' || emp.role_name === 'Manager';
+    return false;
+  });
+
   const columns: Column<Employee>[] = [
     { header: 'Code', accessor: 'employee_code', sortKey: 'employee_code' },
     { header: 'Name', accessor: 'name', sortKey: 'name' },
@@ -149,12 +187,27 @@ export const Employees: React.FC = () => {
     {
       header: 'Role',
       accessor: (r) => (
-        <Badge variant={r.role_name === 'Admin' ? 'danger' : r.role_name === 'Manager' ? 'warning' : 'info'}>
+        <Badge variant={r.role_name === 'Super Admin' || r.role_name === 'Admin' ? 'danger' : r.role_name === 'Manager' ? 'warning' : 'info'}>
           {r.role_name}
         </Badge>
       ),
       csvAccessor: 'role_name',
       sortKey: 'role_name'
+    },
+    {
+      header: 'Reports To',
+      accessor: (r) => r.reporting_to_name || r.manager_name || '-',
+      csvAccessor: (r) => r.reporting_to_name || r.manager_name || '-',
+    },
+    {
+      header: 'Assigned Project',
+      accessor: (r) => r.assigned_project_name || '-',
+      csvAccessor: (r) => r.assigned_project_name || '-',
+    },
+    {
+      header: 'Assigned WBS',
+      accessor: (r) => r.assigned_wbs_name || '-',
+      csvAccessor: (r) => r.assigned_wbs_name || '-',
     },
     {
       header: 'Hourly Rate',
@@ -243,6 +296,43 @@ export const Employees: React.FC = () => {
               error={formErrors.role_id}
             />
 
+            <FormSelect
+              label="Reporting Manager"
+              value={reportsToId}
+              onChange={(e) => setReportsToId(e.target.value ? parseInt(e.target.value, 10) : '')}
+              options={[
+                { value: '', label: '-- None (Direct Admin) --' },
+                ...eligibleManagers.map((m) => ({ value: m.employee_id, label: `${m.name} (${m.role_name})` })),
+              ]}
+              error={formErrors.reports_to_id}
+            />
+          </div>
+
+          <div className="grid-2-col">
+            <FormSelect
+              label="Assigned Project"
+              value={assignedProjectId}
+              onChange={(e) => setAssignedProjectId(e.target.value ? parseInt(e.target.value, 10) : '')}
+              options={[
+                { value: '', label: '-- None --' },
+                ...projectOptions.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              error={formErrors.assigned_project_id}
+            />
+
+            <FormSelect
+              label="Assigned WBS Discipline"
+              value={assignedWbsId}
+              onChange={(e) => setAssignedWbsId(e.target.value ? parseInt(e.target.value, 10) : '')}
+              options={[
+                { value: '', label: '-- None --' },
+                ...wbsOptions.map((w) => ({ value: w.id, label: w.name })),
+              ]}
+              error={formErrors.assigned_wbs_id}
+            />
+          </div>
+
+          <div className="grid-2-col">
             <FormInput
               label="Hourly Rate (₹/hr)"
               type="number"
@@ -252,18 +342,18 @@ export const Employees: React.FC = () => {
               required
               error={formErrors.hourly_rate}
             />
-          </div>
 
-          <FormSelect
-            label="Status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
-            options={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-            ]}
-            error={formErrors.status}
-          />
+            <FormSelect
+              label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+              error={formErrors.status}
+            />
+          </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
