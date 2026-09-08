@@ -333,7 +333,7 @@ export const LogHistoryModal: React.FC<LogHistoryModalProps> = ({
                         </div>
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <Badge variant="info" style={{ fontWeight: 600 }}>
+                        <Badge variant="info">
                           {log.working_hours} HRs
                         </Badge>
                       </td>

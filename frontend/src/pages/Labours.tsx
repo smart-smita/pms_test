@@ -201,7 +201,7 @@ export const Labours: React.FC = () => {
         setWorkLogForm({
           labour_id: '', project_id: '', wbs_id: '', task_id: '',
           work_date: new Date().toISOString().split('T')[0],
-          in_time: '', out_time: '', rate_type: 'hourly', rate: 500, work_description: '',
+          in_time: '', out_time: '', total_working_hours: 8, rate_type: 'hourly', rate: 500, work_description: '',
         });
         setShowAddWorkLog(false);
         fetchData();
@@ -396,6 +396,7 @@ export const Labours: React.FC = () => {
                 work_date: i.work_date,
                 in_time: i.in_time || '09:00',
                 out_time: i.out_time || '18:00',
+                total_working_hours: i.total_working_hours || 8,
                 rate_type: i.rate_type,
                 rate: i.rate,
                 work_description: i.work_description || '',
@@ -455,7 +456,7 @@ export const Labours: React.FC = () => {
                 setWorkLogForm({
                   labour_id: '', project_id: '', wbs_id: '', task_id: '',
                   work_date: new Date().toISOString().split('T')[0],
-                  in_time: '', out_time: '', rate_type: 'hourly', rate: 500, work_description: '',
+                  in_time: '', out_time: '', total_working_hours: 8, rate_type: 'hourly', rate: 500, work_description: '',
                 });
               }
             }}

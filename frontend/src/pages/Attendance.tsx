@@ -237,7 +237,7 @@ export const Attendance: React.FC = () => {
   // Filter data based on filterProjectId
   const filteredLogs = logs.filter((l) => {
     if (!filterProjectId) return true;
-    if (l.project_id && Number(l.project_id) === filterProjectId) return true;
+    if ((l as any).project_id && Number((l as any).project_id) === filterProjectId) return true;
     const task = tasks.find((t) => t.task_id === l.task_id);
     if (task && Number(task.project_id) === filterProjectId) return true;
     return false;

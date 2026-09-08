@@ -395,7 +395,7 @@ export const ProjectWork: React.FC = () => {
         {selectedProject && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
             <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Project Ref</span>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Project Ref</span>
               <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProject.project_code || `PRJ-${selectedProject.project_id}`}</span>
               {selectedProject.project_date && (
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>
@@ -404,7 +404,7 @@ export const ProjectWork: React.FC = () => {
               )}
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Client Name</span>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Client Name</span>
               <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProject.client_name || 'Standard Client'}</span>
             </div>
           </div>
