@@ -42,14 +42,10 @@ export class DashboardService {
       WHERE a.attendance_date = ? AND ${empScope}
     `, [today]);
 
-    // 3. Today's worker cost calculation
+    // 3. Today's worker cost calculation (Deprecated for employees)
     const [costRows] = await dbPool.execute<RowDataPacket[]>(`
-      SELECT 
-        COALESCE(SUM(al.total_working_hours * e.hourly_rate), 0) AS total_cost_today
-      FROM attendance_logs al
-      JOIN employees e ON al.employee_id = e.employee_id
-      WHERE al.attendance_date = ? AND ${empScope}
-    `, [today]);
+      SELECT 0 AS total_cost_today
+    `);
 
     // 4. Project metrics
     const [prjRows] = await dbPool.execute<RowDataPacket[]>(`
@@ -91,21 +87,24 @@ export class DashboardService {
       LIMIT 5
     `);
 
-    // 7. Live Attendance
+    // 7. Live Attendance (Currently Open or Today's Latest Check-ins)
     const [liveAttendanceRows] = await dbPool.execute<RowDataPacket[]>(`
       SELECT 
         e.name, 
         e.employee_code, 
-        r.role_name,
-        al.check_in_time, 
-        p.project_name 
+        COALESCE(r.role_name, 'Employee') AS role_name,
+        DATE_FORMAT(al.check_in_time, '%h:%i %p') AS check_in_time, 
+        COALESCE(p.project_name, 'Site') AS project_name,
+        al.status
       FROM attendance_logs al 
       JOIN employees e ON al.employee_id = e.employee_id 
-      JOIN roles r ON e.role_id = r.role_id
+      LEFT JOIN roles r ON e.role_id = r.role_id
       LEFT JOIN tasks t ON al.task_id = t.task_id 
       LEFT JOIN projects p ON t.project_id = p.project_id 
-      WHERE al.status = 'open' 
-      ORDER BY al.check_in_time DESC 
+      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
+      ORDER BY 
+        (CASE WHEN al.status = 'open' THEN 1 ELSE 2 END) ASC,
+        al.check_in_time DESC 
       LIMIT 5
     `);
 

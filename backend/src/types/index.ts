@@ -9,7 +9,7 @@ export interface UserPayload {
   email: string;
   role_id: number;
   role_name: RoleName;
-  hourly_rate: number;
+  hourly_rate?: number;
   permissions: string[];
 }
 
@@ -38,7 +38,7 @@ export interface EmployeeRow {
   assigned_project_name?: string | null;
   assigned_wbs_id?: number | null;
   assigned_wbs_name?: string | null;
-  hourly_rate: number;
+  hourly_rate?: number;
   status: 'active' | 'inactive';
   created_at: Date;
   updated_at: Date;

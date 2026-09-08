@@ -102,8 +102,6 @@ export class EmployeeController {
     try {
       const id = parseInt(req.params.id, 10);
       const deletedBy = (req as any).user.id;
-      // Note: We need a userRepo imported or use EmployeeService
-      // I will just use EmployeeService which will call repo
       const success = await this.employeeService.deleteEmployee(id, deletedBy);
       if (success) {
         res.json({ success: true, message: 'Employee deleted successfully' });
@@ -112,6 +110,33 @@ export class EmployeeController {
       }
     } catch (error: any) {
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+  };
+
+  getDetails = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const user = (req as any).user;
+      let managerId = undefined;
+      let employeeId = undefined;
+      const userId = user?.employee_id || user?.userId || user?.id;
+
+      if (user) {
+        if (user.role_name === 'Manager') managerId = userId;
+        if (user.role_name === 'Employee') employeeId = userId;
+      }
+
+      const allAllowed = await this.employeeService.getEmployees(undefined, undefined, undefined, managerId, employeeId);
+      const isAllowed = allAllowed.find(e => e.employee_id === id);
+
+      if (!isAllowed && user?.role_name !== 'Admin' && user?.role_name !== 'Super Admin') {
+        return sendError(res, 'Employee not found or access denied', [], 403);
+      }
+
+      const details = await this.employeeService.getEmployeeDetails(id);
+      return sendSuccess(res, 'Employee details retrieved successfully', details);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Employee details not found', [], 404);
     }
   };
 }

@@ -131,7 +131,7 @@ export const Timesheets: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.task_id) return showError('Task selection is required');
+    if (!form.task_id && !form.project_id) return showError('Please select a project or a task');
     if (!form.employee_id) return showError('Employee is required');
     setIsSubmitting(true);
 
@@ -139,7 +139,7 @@ export const Timesheets: React.FC = () => {
       const payload = {
         project_id: form.project_id ? Number(form.project_id) : undefined,
         wbs_id: form.wbs_id ? Number(form.wbs_id) : undefined,
-        task_id: Number(form.task_id),
+        task_id: form.task_id ? Number(form.task_id) : undefined,
         employee_id: Number(form.employee_id),
         log_date: form.log_date,
         working_hours: Number(form.working_hours),
@@ -342,9 +342,8 @@ export const Timesheets: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Select Task (Required)</label>
+                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Select Task (Optional — auto-links to Discipline task)</label>
                 <select
-                  required
                   value={form.task_id}
                   onChange={(e) => {
                     const tId = e.target.value;
@@ -414,7 +413,6 @@ export const Timesheets: React.FC = () => {
                     type="number"
                     step="0.25"
                     min="0.1"
-                    max="24"
                     required
                     value={form.working_hours}
                     onChange={(e) => setForm({ ...form, working_hours: Number(e.target.value) })}

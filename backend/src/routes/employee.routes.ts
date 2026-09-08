@@ -9,6 +9,7 @@ const controller = new EmployeeController();
 router.use(authenticateJwt);
 
 router.get('/', requirePermission('employees', 'view'), controller.getAll);
+router.get('/:id/details', requirePermission('employees', 'view'), controller.getDetails);
 router.get('/:id', requirePermission('employees', 'view'), controller.getById);
 router.post('/', requirePermission('employees', 'create'), controller.create);
 router.put('/:id', requirePermission('employees', 'update'), controller.update);

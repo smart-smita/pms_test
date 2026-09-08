@@ -20,7 +20,7 @@ export class EmployeeService {
     email: string;
     password: string;
     role_id: number;
-    hourly_rate: number;
+    hourly_rate?: number;
     status: string;
     reporting_to_id?: number | null;
     assigned_project_id?: number | null;
@@ -40,7 +40,7 @@ export class EmployeeService {
       email: data.email,
       password_hash: hash,
       role_id: data.role_id,
-      hourly_rate: data.hourly_rate,
+      hourly_rate: data.hourly_rate || 0,
       status: data.status,
       reporting_to_id: data.reporting_to_id,
       assigned_project_id: data.assigned_project_id,
@@ -83,5 +83,25 @@ export class EmployeeService {
     if (attendanceCount[0].count > 0) throw new Error('Cannot delete employee: Has attendance logs. Disable the account instead.');
 
     return await this.userRepo.softDelete(id, deletedBy);
+  }
+
+  async getEmployeeDetails(id: number) {
+    const emp = await this.userRepo.findById(id);
+    if (!emp) throw new Error('Employee not found');
+    const workHistory = await this.userRepo.getWorkHistory(id);
+
+    return {
+      employee: emp,
+      reporting_manager: {
+        code: (emp as any).reporting_to_code || null,
+        name: (emp as any).reporting_to_name || 'Direct Admin',
+        email: (emp as any).reporting_to_email || null,
+        role: (emp as any).reporting_to_role_name || 'Admin',
+        status: (emp as any).reporting_to_status || 'active',
+      },
+      assigned_projects: workHistory.projects,
+      assigned_tasks: workHistory.tasks,
+      timesheet_history: workHistory.timesheets,
+    };
   }
 }

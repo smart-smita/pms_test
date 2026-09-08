@@ -218,21 +218,21 @@ h1, h2, h3, h4, h5 {
 /* Dashboard Grid Layouts */
 .grid-top-metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
   margin-bottom: 1.5rem;
 }
 
 .grid-main-content {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
   gap: 1.5rem;
   margin-bottom: 1.5rem;
 }
 
 .grid-bottom-content {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
   gap: 1.5rem;
 }
 
@@ -1067,11 +1067,14 @@ h1, h2, h3, h4, h5 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
+  width: 100%;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  -webkit-overflow-scrolling: touch;
 }
 .premium-table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   text-align: left;
   font-size: 0.8rem;

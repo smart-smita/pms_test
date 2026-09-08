@@ -38,7 +38,8 @@ export class WbsRepository {
 
   async findProjectWbsByProjectId(projectId: number): Promise<ProjectWBSRow[]> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT pw.*, w.wbs_code, w.wbs_name 
+      `SELECT pw.*, w.wbs_code, w.wbs_name,
+              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
        FROM project_wbs pw
        JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE pw.project_id = ? AND pw.deleted_at IS NULL
@@ -50,13 +51,41 @@ export class WbsRepository {
 
   async findProjectWbsById(id: number): Promise<ProjectWBSRow | null> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT pw.*, w.wbs_code, w.wbs_name 
+      `SELECT pw.*, w.wbs_code, w.wbs_name,
+              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
        FROM project_wbs pw
        JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE pw.id = ? AND pw.deleted_at IS NULL`,
       [id]
     );
     return (rows[0] as ProjectWBSRow) || null;
+  }
+
+  async resolveProjectWbs(projectId: number, wbsId: number): Promise<ProjectWBSRow | null> {
+    // 1. Try matching project_wbs.id for specific project
+    let [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT pw.*, w.wbs_code, w.wbs_name,
+              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
+       FROM project_wbs pw
+       JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+       WHERE pw.id = ? AND pw.project_id = ? AND pw.deleted_at IS NULL`,
+      [wbsId, projectId]
+    );
+    if (rows.length > 0) return rows[0] as ProjectWBSRow;
+
+    // 2. Try matching project_wbs by master wbs_id for specific project
+    [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT pw.*, w.wbs_code, w.wbs_name,
+              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
+       FROM project_wbs pw
+       JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+       WHERE pw.wbs_id = ? AND pw.project_id = ? AND pw.deleted_at IS NULL`,
+      [wbsId, projectId]
+    );
+    if (rows.length > 0) return rows[0] as ProjectWBSRow;
+
+    // 3. Fallback to findProjectWbsById
+    return this.findProjectWbsById(wbsId);
   }
 
   async createProjectWbs(connection: any, data: {
@@ -113,7 +142,7 @@ export class WbsRepository {
       [projectWbsId]
     );
     const [labourRows]: any = await dbPool.execute(
-      `SELECT COUNT(*) AS count FROM labour_attendance WHERE wbs_id = ?`,
+      `SELECT COUNT(*) AS count FROM labour_work_logs WHERE wbs_id = ?`,
       [projectWbsId]
     );
 

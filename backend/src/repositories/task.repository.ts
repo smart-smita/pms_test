@@ -28,13 +28,14 @@ export class TaskRepository {
         p.latitude AS project_latitude,
         p.longitude AS project_longitude,
         p.radius_meters AS project_radius_meters,
-        w.wbs_name,
-        COALESCE(SUM(al.total_working_hours), 0) AS actual_hours,
+        COALESCE(w.wbs_name, w_direct.wbs_name) AS wbs_name,
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE task_id = t.task_id), 0) + COALESCE(SUM(al.total_working_hours), 0) AS actual_hours,
         COUNT(DISTINCT ta.employee_id) AS assigned_worker_count
       FROM tasks t
       JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
-      LEFT JOIN project_wbs pw ON t.wbs_id = pw.id
+      LEFT JOIN project_wbs pw ON (t.wbs_id = pw.id OR (t.wbs_id = pw.wbs_id AND pw.project_id = t.project_id AND pw.deleted_at IS NULL))
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+      LEFT JOIN work_breakdown_structures w_direct ON t.wbs_id = w_direct.id
       LEFT JOIN attendance_logs al ON t.task_id = al.task_id
       LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
       WHERE t.is_deleted = 0
@@ -110,6 +111,11 @@ export class TaskRepository {
   async findById(id: number): Promise<TaskRow | null> {
     const tasks = await this.findAll(undefined, undefined, undefined);
     return tasks.find((t) => t.task_id === id) || null;
+  }
+
+  async findByProjectAndWbs(projectId: number, wbsId: number): Promise<TaskRow | null> {
+    const tasks = await this.findAll(projectId, undefined, undefined);
+    return tasks.find((t) => Number(t.wbs_id) === Number(wbsId)) || null;
   }
 
   async getAssignedEmployees(taskId: number): Promise<{ employee_id: number; name: string; employee_code: string }[]> {

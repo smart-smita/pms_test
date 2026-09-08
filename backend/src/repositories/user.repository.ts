@@ -30,12 +30,17 @@ export class UserRepository {
   async findById(id: number): Promise<EmployeeRow | null> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT e.*, r.role_name, 
+              mgr.employee_code AS reporting_to_code,
               mgr.name AS reporting_to_name,
+              mgr.email AS reporting_to_email,
+              mgr_r.role_name AS reporting_to_role_name,
+              mgr.status AS reporting_to_status,
               p.project_name AS assigned_project_name,
               w.wbs_name AS assigned_wbs_name
        FROM employees e
        JOIN roles r ON e.role_id = r.role_id
        LEFT JOIN employees mgr ON e.reporting_to_id = mgr.employee_id
+       LEFT JOIN roles mgr_r ON mgr.role_id = mgr_r.role_id
        LEFT JOIN projects p ON e.assigned_project_id = p.project_id
        LEFT JOIN project_wbs pw ON e.assigned_wbs_id = pw.id
        LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
@@ -48,16 +53,21 @@ export class UserRepository {
   async findAll(status?: string, role_id?: number, search?: string, managerId?: number, employeeId?: number): Promise<EmployeeRow[]> {
     let sql = `
       SELECT e.*, r.role_name,
+              mgr.employee_code AS reporting_to_code,
               mgr.name AS reporting_to_name,
+              mgr.email AS reporting_to_email,
+              mgr_r.role_name AS reporting_to_role_name,
+              mgr.status AS reporting_to_status,
               p.project_name AS assigned_project_name,
               w.wbs_name AS assigned_wbs_name
       FROM employees e
       JOIN roles r ON e.role_id = r.role_id
       LEFT JOIN employees mgr ON e.reporting_to_id = mgr.employee_id
+      LEFT JOIN roles mgr_r ON mgr.role_id = mgr_r.role_id
       LEFT JOIN projects p ON e.assigned_project_id = p.project_id
       LEFT JOIN project_wbs pw ON e.assigned_wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
-      WHERE e.is_deleted = 0
+      WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
     `;
     const params: any[] = [];
 
@@ -97,7 +107,7 @@ export class UserRepository {
     email: string;
     password_hash: string;
     role_id: number;
-    hourly_rate: number;
+    hourly_rate?: number;
     status: string;
     reporting_to_id?: number | null;
     assigned_project_id?: number | null;
@@ -112,7 +122,7 @@ export class UserRepository {
         data.email,
         data.password_hash,
         data.role_id,
-        data.hourly_rate,
+        data.hourly_rate || 0,
         data.status,
         data.reporting_to_id || null,
         data.assigned_project_id || null,
@@ -171,5 +181,67 @@ export class UserRepository {
       [id]
     );
     return result.affectedRows > 0;
+  }
+
+  async getWorkHistory(employeeId: number): Promise<{ projects: any[]; tasks: any[]; timesheets: any[] }> {
+    // 1. Projects assigned directly or via tasks
+    const [projects] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT DISTINCT 
+        p.project_id, 
+        p.project_code, 
+        p.project_name, 
+        p.client_name, 
+        p.status
+      FROM projects p
+      LEFT JOIN tasks t ON p.project_id = t.project_id
+      LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
+      LEFT JOIN employees e ON e.employee_id = ?
+      WHERE (ta.employee_id = ? OR e.assigned_project_id = p.project_id)
+        AND (p.is_deleted = 0 OR p.is_deleted IS NULL)
+    `, [employeeId, employeeId]);
+
+    // 2. Tasks assigned
+    const [tasks] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT 
+        t.task_id, 
+        t.task_name, 
+        t.status AS task_status, 
+        t.estimated_hours, 
+        DATE_FORMAT(t.target_date, '%Y-%m-%d') AS due_date, 
+        p.project_name, 
+        w.wbs_name
+      FROM tasks t
+      JOIN task_assignments ta ON t.task_id = ta.task_id
+      LEFT JOIN projects p ON t.project_id = p.project_id
+      LEFT JOIN project_wbs pw ON t.wbs_id = pw.id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+      WHERE ta.employee_id = ? AND (t.is_deleted = 0 OR t.is_deleted IS NULL)
+      ORDER BY t.task_id DESC
+    `, [employeeId]);
+
+    // 3. Timesheet log history
+    const [timesheets] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT 
+        ts.timesheet_id, 
+        DATE_FORMAT(ts.log_date, '%Y-%m-%d') AS log_date, 
+        ts.working_hours, 
+        ts.comment, 
+        p.project_name, 
+        w.wbs_name, 
+        t.task_name
+      FROM timesheets ts
+      LEFT JOIN projects p ON ts.project_id = p.project_id
+      LEFT JOIN project_wbs pw ON ts.wbs_id = pw.id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+      LEFT JOIN tasks t ON ts.task_id = t.task_id
+      WHERE ts.employee_id = ? AND (ts.is_deleted = 0 OR ts.is_deleted IS NULL)
+      ORDER BY ts.log_date DESC, ts.timesheet_id DESC
+    `, [employeeId]);
+
+    return {
+      projects: projects || [],
+      tasks: tasks || [],
+      timesheets: timesheets || [],
+    };
   }
 }

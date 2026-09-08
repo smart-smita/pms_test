@@ -68,54 +68,5 @@ export class LabourController {
     }
   };
 
-  getAttendance = async (req: Request, res: Response) => {
-    try {
-      const { project_id, start_date, end_date } = req.query;
-      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
-      let managerId = undefined;
-      const user = (req as any).user;
-      if (user?.role_name === 'Manager') {
-        managerId = user.employee_id || user.userId || user.id;
-      }
 
-      const attendanceLogs = await this.labourService.getLabourAttendance(
-        projectId,
-        start_date as string,
-        end_date as string,
-        managerId
-      );
-      return sendSuccess(res, 'Labour attendance logs retrieved successfully', attendanceLogs);
-    } catch (error: any) {
-      return sendError(res, error.message || 'Failed to retrieve labour attendance logs', [], 500);
-    }
-  };
-
-  createAttendance = async (req: Request, res: Response) => {
-    try {
-      const result = await this.labourService.createLabourAttendance(req.body);
-      return sendSuccess(res, 'Labour attendance logged successfully', result, 201);
-    } catch (error: any) {
-      return sendError(res, error.message || 'Failed to log labour attendance', [], 400);
-    }
-  };
-
-  updateAttendance = async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const result = await this.labourService.updateLabourAttendance(id, req.body);
-      return sendSuccess(res, 'Labour attendance updated successfully', result);
-    } catch (error: any) {
-      return sendError(res, error.message || 'Failed to update labour attendance', [], 400);
-    }
-  };
-
-  deleteAttendance = async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const result = await this.labourService.deleteLabourAttendance(id);
-      return sendSuccess(res, 'Labour attendance soft-deleted successfully', result);
-    } catch (error: any) {
-      return sendError(res, error.message || 'Failed to delete labour attendance', [], 400);
-    }
-  };
 }

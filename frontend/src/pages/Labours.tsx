@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Eye, EyeOff, Calendar, AlertTriangle, ShieldAlert, X, Filter, RotateCcw } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Eye, EyeOff, Calendar, AlertTriangle, ShieldAlert, X, Filter, RotateCcw, Clock, CheckCircle } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
@@ -17,29 +17,35 @@ export interface Labour {
   created_at: string;
 }
 
-export interface LabourAttendance {
-  labour_attendance_id: number;
+export interface LabourWorkLog {
+  work_log_id: number;
   labour_id: number;
   labour_name: string;
   labour_type: string;
+  project_id: number;
   project_name?: string;
+  wbs_id?: number | null;
   wbs_name?: string;
+  task_id: number;
   task_name?: string;
-  attendance_date: string;
-  in_time: string;
-  out_time: string;
-  daily_pay_amount: number;
-  worker_count: number;
-  total_cost?: number;
-  comment?: string;
+  work_date: string;
+  in_time?: string;
+  out_time?: string;
+  total_working_hours: number;
+  rate_type: 'hourly' | 'daily';
+  rate: number;
+  amount: number;
+  work_description?: string;
+  work_status: 'pending' | 'in_progress' | 'completed';
+  payment_status: 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled';
 }
 
 export const Labours: React.FC = () => {
   const { hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState<'registry' | 'attendance'>('registry');
+  const [activeTab, setActiveTab] = useState<'registry' | 'work_logs'>('registry');
 
   const [labours, setLabours] = useState<Labour[]>([]);
-  const [attendanceLogs, setAttendanceLogs] = useState<LabourAttendance[]>([]);
+  const [workLogs, setWorkLogs] = useState<LabourWorkLog[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Filters
@@ -51,10 +57,10 @@ export const Labours: React.FC = () => {
 
   // Dropdown options
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
-  const [wbsList, setWbsList] = useState<{ id: number; name: string }[]>([]);
-  const [tasks, setTasks] = useState<{ id: number; name: string }[]>([]);
+  const [wbsList, setWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
+  const [tasks, setTasks] = useState<{ id: number; name: string; project_id?: number; wbs_id?: number }[]>([]);
 
-  // Create / Edit Form State
+  // Create / Edit Labour Form State
   const [showAddLabour, setShowAddLabour] = useState(false);
   const [editingLabour, setEditingLabour] = useState<Labour | null>(null);
   const [labourForm, setLabourForm] = useState({
@@ -65,19 +71,21 @@ export const Labours: React.FC = () => {
     contractor_id: '' as string | number,
   });
 
-  // Attendance Form State
-  const [showLogAttendance, setShowLogAttendance] = useState(false);
-  const [attendanceForm, setAttendanceForm] = useState({
+  // Work Log Form State
+  const [showAddWorkLog, setShowAddWorkLog] = useState(false);
+  const [editingWorkLog, setEditingWorkLog] = useState<LabourWorkLog | null>(null);
+  const [workLogForm, setWorkLogForm] = useState({
     labour_id: '',
     project_id: '',
     wbs_id: '',
     task_id: '',
-    attendance_date: new Date().toISOString().split('T')[0],
-    in_time: '09:00',
-    out_time: '18:00',
-    daily_pay_amount: 300,
-    worker_count: 1,
-    comment: '',
+    work_date: new Date().toISOString().split('T')[0],
+    in_time: '',
+    out_time: '',
+    total_working_hours: 8,
+    rate_type: 'hourly' as 'hourly' | 'daily',
+    rate: 500,
+    work_description: '',
   });
 
   // PII Aadhar Toggle State
@@ -86,7 +94,6 @@ export const Labours: React.FC = () => {
   // Dependency Check Delete Modal State
   const [deleteTarget, setDeleteTarget] = useState<Labour | null>(null);
   const [deleteDeps, setDeleteDeps] = useState<{ attendanceCount: number; subWorkersCount: number } | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -98,23 +105,24 @@ export const Labours: React.FC = () => {
       const laboursRes = await apiService.get<Labour[]>('/labours', { search, labour_type: selectedType });
       if (laboursRes.data) setLabours(laboursRes.data);
 
-      if (activeTab === 'attendance') {
-        const res = await apiService.get<LabourAttendance[]>('/labours/attendance', {
+      if (activeTab === 'work_logs') {
+        const res = await apiService.get<LabourWorkLog[]>('/labour-work-logs', {
           project_id: selectedProject,
           start_date: startDate,
           end_date: endDate,
+          search,
         });
-        if (res.data) setAttendanceLogs(res.data);
+        if (res.data) setWorkLogs(res.data);
       }
 
       const projRes = await apiService.get<any[]>('/projects');
       if (projRes.data) setProjects(projRes.data.map((p) => ({ id: p.project_id, name: p.project_name })));
 
       const wbsRes = await apiService.get<any[]>('/wbs');
-      if (wbsRes.data) setWbsList(wbsRes.data.map((w) => ({ id: w.id, name: w.wbs_name })));
+      if (wbsRes.data) setWbsList(wbsRes.data.map((w) => ({ id: w.id, name: w.wbs_name, project_id: w.project_id })));
 
       const taskRes = await apiService.get<any[]>('/tasks');
-      if (taskRes.data) setTasks(taskRes.data.map((t) => ({ id: t.task_id, name: t.task_name })));
+      if (taskRes.data) setTasks(taskRes.data.map((t) => ({ id: t.task_id, name: t.task_name, project_id: t.project_id, wbs_id: t.wbs_id })));
     } catch (err) {
       console.error('Error fetching labours data:', err);
     } finally {
@@ -123,6 +131,13 @@ export const Labours: React.FC = () => {
   };
 
   const contractorsList = labours.filter((l) => l.labour_type === 'contractor');
+
+  // Filter tasks based on selected project/wbs in form
+  const filteredFormTasks = tasks.filter((t) => {
+    if (workLogForm.project_id && Number(t.project_id) !== Number(workLogForm.project_id)) return false;
+    if (workLogForm.wbs_id && Number(t.wbs_id) !== Number(workLogForm.wbs_id)) return false;
+    return true;
+  });
 
   const handleCreateOrUpdateLabour = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,9 +171,65 @@ export const Labours: React.FC = () => {
     }
   };
 
+  const handleCreateOrUpdateWorkLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      let res;
+      const payload = {
+        labour_id: parseInt(workLogForm.labour_id, 10),
+        project_id: parseInt(workLogForm.project_id, 10),
+        wbs_id: workLogForm.wbs_id ? parseInt(workLogForm.wbs_id, 10) : null,
+        task_id: parseInt(workLogForm.task_id, 10),
+        work_date: workLogForm.work_date,
+        in_time: workLogForm.in_time || null,
+        out_time: workLogForm.out_time || null,
+        total_working_hours: Number(workLogForm.total_working_hours) || 8,
+        rate_type: workLogForm.rate_type,
+        rate: Number(workLogForm.rate),
+        work_description: workLogForm.work_description,
+      };
+
+      if (editingWorkLog) {
+        res = await apiService.put(`/labour-work-logs/${editingWorkLog.work_log_id}`, payload);
+      } else {
+        res = await apiService.post('/labour-work-logs', payload);
+      }
+
+      if (res.success) {
+        showSuccess(editingWorkLog ? 'Work log updated successfully!' : 'Work log created successfully!');
+        setEditingWorkLog(null);
+        setWorkLogForm({
+          labour_id: '', project_id: '', wbs_id: '', task_id: '',
+          work_date: new Date().toISOString().split('T')[0],
+          in_time: '', out_time: '', rate_type: 'hourly', rate: 500, work_description: '',
+        });
+        setShowAddWorkLog(false);
+        fetchData();
+      } else {
+        showError(res.message || 'Failed to save work log');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to save work log');
+    }
+  };
+
+  const handleDeleteWorkLog = async (id: number) => {
+    if (!window.confirm('Are you sure you want to soft-delete this work log?')) return;
+    try {
+      const res = await apiService.delete(`/labour-work-logs/${id}`);
+      if (res.success) {
+        showSuccess('Work log soft-deleted successfully');
+        fetchData();
+      } else {
+        showError(res.message || 'Delete failed');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Delete failed');
+    }
+  };
+
   const handleOpenDelete = async (item: Labour) => {
     setDeleteTarget(item);
-    setDeleteLoading(true);
     try {
       const res = await apiService.get<{ attendanceCount: number; subWorkersCount: number }>(`/labours/${item.labour_id}/dependencies`);
       if (res.success && res.data) {
@@ -168,8 +239,6 @@ export const Labours: React.FC = () => {
       }
     } catch (err) {
       setDeleteDeps({ attendanceCount: 0, subWorkersCount: 0 });
-    } finally {
-      setDeleteLoading(false);
     }
   };
 
@@ -190,46 +259,6 @@ export const Labours: React.FC = () => {
     }
   };
 
-  const handleLogAttendance = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await apiService.post('/labours/attendance', {
-        labour_id: parseInt(attendanceForm.labour_id, 10),
-        project_id: attendanceForm.project_id ? parseInt(attendanceForm.project_id, 10) : null,
-        wbs_id: attendanceForm.wbs_id ? parseInt(attendanceForm.wbs_id, 10) : null,
-        task_id: attendanceForm.task_id ? parseInt(attendanceForm.task_id, 10) : null,
-        attendance_date: attendanceForm.attendance_date,
-        in_time: attendanceForm.in_time,
-        out_time: attendanceForm.out_time,
-        daily_pay_amount: Number(attendanceForm.daily_pay_amount),
-        worker_count: Number(attendanceForm.worker_count),
-        comment: attendanceForm.comment,
-      });
-
-      if (res.success) {
-        showSuccess('Labour flat daily pay logged successfully!');
-        setAttendanceForm({
-          labour_id: '',
-          project_id: '',
-          wbs_id: '',
-          task_id: '',
-          attendance_date: new Date().toISOString().split('T')[0],
-          in_time: '09:00',
-          out_time: '18:00',
-          daily_pay_amount: 300,
-          worker_count: 1,
-          comment: '',
-        });
-        setShowLogAttendance(false);
-        fetchData();
-      } else {
-        showError(res.message || 'Log attendance failed');
-      }
-    } catch (err: any) {
-      showError(err.message || 'Log attendance failed');
-    }
-  };
-
   const toggleAadhar = (id: number) => {
     setRevealAadhar((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -244,8 +273,7 @@ export const Labours: React.FC = () => {
       sortable: true,
       render: (item) => (
         <span
-          className={`badge ${item.labour_type === 'contractor' ? 'badge-info' : 'badge-success'
-            }`}
+          className={`badge ${item.labour_type === 'contractor' ? 'badge-info' : 'badge-success'}`}
           style={item.labour_type === 'contractor' ? { background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' } : {}}
         >
           {item.labour_type === 'contractor' ? 'Contractor' : 'Direct Labour'}
@@ -277,8 +305,8 @@ export const Labours: React.FC = () => {
       ),
     },
     {
-      accessor: (item) => new Date(item.created_at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      header: 'Created At',
+      accessor: (item) => new Date(item.created_at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      header: 'Registered On',
     },
     {
       accessor: (item) => (
@@ -295,7 +323,6 @@ export const Labours: React.FC = () => {
                   labour_type: item.labour_type,
                   contractor_id: item.contractor_id || '',
                 });
-                setTimeout(() => document.getElementById('create-labour-card')?.scrollIntoView({ behavior: 'smooth' }), 100);
               }}
               className="action-btn edit"
             >
@@ -303,10 +330,7 @@ export const Labours: React.FC = () => {
             </button>
           )}
           {hasPermission('labours', 'delete') && (
-            <button
-              onClick={() => handleOpenDelete(item)}
-              className="action-btn delete"
-            >
+            <button onClick={() => handleOpenDelete(item)} className="action-btn delete">
               <Trash2 size={14} />
             </button>
           )}
@@ -316,32 +340,77 @@ export const Labours: React.FC = () => {
     },
   ];
 
-  // Attendance Columns
-  const attendanceColumns: Column<LabourAttendance>[] = [
-    { accessor: 'attendance_date', header: 'Date', sortable: true },
+  // Work Log Columns
+  const workLogColumns: Column<LabourWorkLog>[] = [
+    { accessor: 'work_date', header: 'Date', sortable: true },
     { accessor: 'labour_name', header: 'Labour Name', sortable: true },
-    { accessor: 'labour_type', header: 'Type', render: (i) => i.labour_type || 'direct_labour' },
     { accessor: 'project_name', header: 'Project', render: (i) => i.project_name || '-' },
     { accessor: 'wbs_name', header: 'WBS Discipline', render: (i) => i.wbs_name || '-' },
-    { accessor: 'task_name', header: 'Task', render: (i) => i.task_name || '-' },
-    { accessor: 'worker_count', header: 'Worker Count', sortable: true },
+    { accessor: 'task_name', header: 'Task', render: (i) => <span className="font-semibold">{i.task_name || '-'}</span> },
+    { accessor: (i) => `${i.in_time || '-'} to ${i.out_time || '-'}`, header: 'In / Out Time' },
+    { accessor: (i) => `${Number(i.total_working_hours).toFixed(2)} hrs`, header: 'Hours', sortable: true },
     {
-      accessor: 'daily_pay_amount',
-      header: 'Daily Flat Pay (₹)',
-      sortable: true,
-      render: (i) => (
-        <span className="font-semibold">
-          {Number(i.daily_pay_amount).toFixed(2)}
+      accessor: (i) => (
+        <span style={{ fontSize: '0.85rem' }}>
+          ₹{Number(i.rate).toFixed(2)} / {i.rate_type}
         </span>
       ),
+      header: 'Rate',
     },
     {
       accessor: (i) => (
-        <span className="font-bold">
-          {(Number(i.daily_pay_amount) * (i.worker_count || 1)).toFixed(2)}
+        <span className="font-bold text-success" style={{ color: '#10b981', fontSize: '0.95rem' }}>
+          ₹{Number(i.amount).toFixed(2)}
         </span>
       ),
-      header: 'Total Pay Out (₹)',
+      header: 'Total Amount',
+      sortable: true,
+    },
+    {
+      accessor: (i) => (
+        <span
+          className="badge"
+          style={{
+            background: i.payment_status === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+            color: i.payment_status === 'paid' ? '#10b981' : '#f59e0b',
+            textTransform: 'capitalize',
+          }}
+        >
+          {i.payment_status}
+        </span>
+      ),
+      header: 'Payment Status',
+    },
+    {
+      accessor: (i) => (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setEditingWorkLog(i);
+              setShowAddWorkLog(true);
+              setWorkLogForm({
+                labour_id: String(i.labour_id),
+                project_id: String(i.project_id),
+                wbs_id: i.wbs_id ? String(i.wbs_id) : '',
+                task_id: String(i.task_id),
+                work_date: i.work_date,
+                in_time: i.in_time || '09:00',
+                out_time: i.out_time || '18:00',
+                rate_type: i.rate_type,
+                rate: i.rate,
+                work_description: i.work_description || '',
+              });
+            }}
+            className="action-btn edit"
+          >
+            <Edit2 size={14} />
+          </button>
+          <button onClick={() => handleDeleteWorkLog(i.work_log_id)} className="action-btn delete">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ),
+      header: 'Actions',
     },
   ];
 
@@ -355,7 +424,7 @@ export const Labours: React.FC = () => {
             Labour & Contractor Management
           </h1>
           <p className="page-subtitle">
-            Registry for non-login workers and flat-rate daily pay attendance tracking.
+            Task-wise, date-wise labour work log tracking and rate calculations.
           </p>
         </div>
 
@@ -368,7 +437,6 @@ export const Labours: React.FC = () => {
                 if (!showAddLabour) {
                   setEditingLabour(null);
                   setLabourForm({ name: '', contact_number: '', aadhar_id: '', labour_type: 'direct_labour', contractor_id: '' });
-                  setTimeout(() => document.getElementById('create-labour-card')?.scrollIntoView({ behavior: 'smooth' }), 100);
                 }
               }}
               className="btn btn-primary"
@@ -378,21 +446,24 @@ export const Labours: React.FC = () => {
             </button>
           )}
 
-          {hasPermission('labours', 'create') && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowLogAttendance(!showLogAttendance);
-                if (!showLogAttendance) {
-                  setTimeout(() => document.getElementById('log-attendance-card')?.scrollIntoView({ behavior: 'smooth' }), 100);
-                }
-              }}
-              className="btn btn-blue"
-            >
-              <Calendar size={16} />
-              Log Daily Pay Attendance
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setShowAddWorkLog(!showAddWorkLog);
+              if (!showAddWorkLog) {
+                setEditingWorkLog(null);
+                setWorkLogForm({
+                  labour_id: '', project_id: '', wbs_id: '', task_id: '',
+                  work_date: new Date().toISOString().split('T')[0],
+                  in_time: '', out_time: '', rate_type: 'hourly', rate: 500, work_description: '',
+                });
+              }
+            }}
+            className="btn btn-blue"
+          >
+            <Clock size={16} />
+            + Add Task Work Log
+          </button>
         </div>
       </div>
 
@@ -407,10 +478,10 @@ export const Labours: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('attendance')}
-          className={`tab-btn ${activeTab === 'attendance' ? 'active' : ''}`}
+          onClick={() => setActiveTab('work_logs')}
+          className={`tab-btn ${activeTab === 'work_logs' ? 'active' : ''}`}
         >
-          Daily Pay Attendance Logs ({attendanceLogs.length})
+          Labour Work Logs ({workLogs.length})
         </button>
       </div>
 
@@ -443,7 +514,7 @@ export const Labours: React.FC = () => {
             <label className="form-label text-xs uppercase text-muted">Search Keyword</label>
             <input
               type="text"
-              placeholder="Search by name, contact, aadhar..."
+              placeholder="Search by name, project, task..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="form-input"
@@ -503,350 +574,175 @@ export const Labours: React.FC = () => {
       {activeTab === 'registry' ? (
         <DataTable data={labours} columns={registryColumns} isLoading={loading} exportFilename="Labour_Registry" />
       ) : (
-        <DataTable data={attendanceLogs} columns={attendanceColumns} isLoading={loading} exportFilename="Labour_Attendance" />
+        <DataTable data={workLogs} columns={workLogColumns} isLoading={loading} exportFilename="Labour_Work_Logs" />
       )}
 
-      {/* Bottom Side-by-Side Section */}
-      {(showAddLabour || showLogAttendance) && (
-        <div className={showAddLabour && showLogAttendance ? 'grid-2-col pt-4' : 'pt-4'}>
-          {/* Left Card: Create / Edit Labour */}
-          {showAddLabour && (
-            <div id="create-labour-card" className="glass-card flex flex-col p-4 mb-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Users size={18} style={{ color: 'var(--accent-primary)' }} />
-                <h2 className="font-semibold" style={{ fontSize: '1.1rem' }}>
-                  {editingLabour ? 'Edit Labour' : 'Create / Edit Labour'}
-                </h2>
+      {/* Modal / Card for Work Log */}
+      {showAddWorkLog && (
+        <div className="glass-card p-4 mt-4 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
+              <Clock size={18} style={{ color: '#2563eb' }} />
+              {editingWorkLog ? 'Edit Labour Work Log' : 'Add Labour Work Log (Task & Date-Wise)'}
+            </h3>
+            <button onClick={() => setShowAddWorkLog(false)} className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}>
+              <X size={16} />
+            </button>
+          </div>
+
+          <form onSubmit={handleCreateOrUpdateWorkLog}>
+            <div className="grid-4-col mb-4">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Labour <span className="text-danger">*</span></label>
+                <select
+                  required
+                  value={workLogForm.labour_id}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, labour_id: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="">Select Labour</option>
+                  {labours.map((l) => {
+                    const code = `L${String(l.labour_id).padStart(3, '0')}`;
+                    const typeStr = l.labour_type === 'contractor' ? 'Contractor Labour' : 'Direct Labour';
+                    const parentStr = l.contractor_name ? ` - ${l.contractor_name}` : '';
+                    return (
+                      <option key={l.labour_id} value={l.labour_id}>
+                        {l.name} - {code} - {typeStr}{parentStr}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
 
-              <form onSubmit={handleCreateOrUpdateLabour} className="flex-col flex-1">
-                <div className="grid-2-col mb-4">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      Full Name <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter full name"
-                      value={labourForm.name}
-                      onChange={(e) => setLabourForm({ ...labourForm, name: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      Labour Type <span className="text-danger">*</span>
-                    </label>
-                    <select
-                      value={labourForm.labour_type}
-                      onChange={(e) => setLabourForm({ ...labourForm, labour_type: e.target.value as 'contractor' | 'direct_labour' })}
-                      className="form-select"
-                    >
-                      <option value="direct_labour">Direct Labour</option>
-                      <option value="contractor">Contractor</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid-2-col mb-4">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Contact Number</label>
-                    <input
-                      type="text"
-                      placeholder="Enter contact number"
-                      value={labourForm.contact_number}
-                      onChange={(e) => setLabourForm({ ...labourForm, contact_number: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Aadhar ID (PII)</label>
-                    <input
-                      type="text"
-                      placeholder="12-digit Aadhar number"
-                      value={labourForm.aadhar_id}
-                      onChange={(e) => setLabourForm({ ...labourForm, aadhar_id: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-
-                {labourForm.labour_type === 'direct_labour' && (
-                  <div className="form-group">
-                    <label className="form-label">Parent Contractor (Optional)</label>
-                    <select
-                      value={labourForm.contractor_id}
-                      onChange={(e) => setLabourForm({ ...labourForm, contractor_id: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="">-- Independent Direct Labour --</option>
-                      {contractorsList.map((c) => (
-                        <option key={c.labour_id} value={c.labour_id}>{c.name} (Contractor)</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="flex-1"></div>
-
-                <div className="flex justify-end gap-3 mt-auto pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingLabour(null);
-                      setLabourForm({ name: '', contact_number: '', aadhar_id: '', labour_type: 'direct_labour', contractor_id: '' });
-                      setShowAddLabour(false);
-                    }}
-                    className="btn"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary">
-                    {editingLabour ? 'Update Labour' : 'Save Labour'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Right Card: Log Daily Pay Attendance */}
-          {showLogAttendance && (
-            <div id="log-attendance-card" className="glass-card flex flex-col p-4 mb-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Calendar size={18} style={{ color: '#2563eb' }} />
-                <h2 className="font-semibold" style={{ fontSize: '1.1rem' }}>Log Daily Pay Attendance</h2>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Project <span className="text-danger">*</span></label>
+                <select
+                  required
+                  value={workLogForm.project_id}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, project_id: e.target.value, wbs_id: '', task_id: '' })}
+                  className="form-select"
+                >
+                  <option value="">Select Project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
-              <form onSubmit={handleLogAttendance} className="flex-col flex-1">
-                <div className="grid-4-col mb-4">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      Labour <span className="text-danger">*</span>
-                    </label>
-                    <select
-                      required
-                      value={attendanceForm.labour_id}
-                      onChange={(e) => {
-                        const lId = e.target.value;
-                        const selectedL = labours.find((l) => String(l.labour_id) === lId);
-                        setAttendanceForm({
-                          ...attendanceForm,
-                          labour_id: lId,
-                          worker_count: selectedL?.labour_type === 'contractor' && selectedL.sub_worker_count ? selectedL.sub_worker_count : 1,
-                        });
-                      }}
-                      className="form-select"
-                    >
-                      <option value="">Select Labour</option>
-                      {labours.map((l) => (
-                        <option key={l.labour_id} value={l.labour_id}>{l.name}</option>
-                      ))}
-                    </select>
-                  </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">WBS Discipline</label>
+                <select
+                  value={workLogForm.wbs_id}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, wbs_id: e.target.value, task_id: '' })}
+                  className="form-select"
+                >
+                  <option value="">Select WBS Discipline</option>
+                  {wbsList.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
 
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Project</label>
-                    <select
-                      value={attendanceForm.project_id}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, project_id: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="">Select Project</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">WBS Discipline</label>
-                    <select
-                      value={attendanceForm.wbs_id}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, wbs_id: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="">Select WBS</option>
-                      {wbsList.map((w) => (
-                        <option key={w.id} value={w.id}>{w.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Task</label>
-                    <select
-                      value={attendanceForm.task_id}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, task_id: e.target.value })}
-                      className="form-select"
-                    >
-                      <option value="">Select Task</option>
-                      {tasks.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid-4-col mb-4">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      Date <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={attendanceForm.attendance_date}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, attendance_date: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      IN Time <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      value={attendanceForm.in_time}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, in_time: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      OUT Time <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      value={attendanceForm.out_time}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, out_time: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      Workers <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      required
-                      value={attendanceForm.worker_count}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, worker_count: parseInt(e.target.value, 10) })}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid-2-col mb-4">
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">
-                      Daily Flat Pay (₹) <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      required
-                      value={attendanceForm.daily_pay_amount}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, daily_pay_amount: Number(e.target.value) })}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Comments / Work Scope</label>
-                    <input
-                      type="text"
-                      placeholder="Enter comments"
-                      value={attendanceForm.comment}
-                      onChange={(e) => setAttendanceForm({ ...attendanceForm, comment: e.target.value })}
-                      className="form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex-1"></div>
-
-                <div className="flex justify-end gap-3 mt-auto pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAttendanceForm({
-                        labour_id: '', project_id: '', wbs_id: '', task_id: '',
-                        attendance_date: new Date().toISOString().split('T')[0],
-                        in_time: '09:00', out_time: '18:00', daily_pay_amount: 300,
-                        worker_count: 1, comment: '',
-                      });
-                      setShowLogAttendance(false);
-                    }}
-                    className="btn"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-blue">
-                    Submit Attendance
-                  </button>
-                </div>
-              </form>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Task <span className="text-danger">*</span></label>
+                <select
+                  required
+                  value={workLogForm.task_id}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, task_id: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="">Select Task</option>
+                  {filteredFormTasks.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
-        </div>
-      )}
 
-      {/* Safety Modal remains here */}
-      {deleteTarget && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3 className="flex items-center gap-2 text-danger">
-                <AlertTriangle size={18} />
-                Remove Labour Record
-              </h3>
-              <button onClick={() => setDeleteTarget(null)} className="modal-close-btn">
-                <X size={18} />
+            <div className="grid-4-col mb-4">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Work Date <span className="text-danger">*</span></label>
+                <input
+                  type="date"
+                  required
+                  value={workLogForm.work_date}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, work_date: e.target.value })}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">In Time (Optional)</label>
+                <input
+                  type="time"
+                  value={workLogForm.in_time}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, in_time: e.target.value })}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Out Time (Optional)</label>
+                <input
+                  type="time"
+                  value={workLogForm.out_time}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, out_time: e.target.value })}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Rate Type <span className="text-danger">*</span></label>
+                <select
+                  value={workLogForm.rate_type}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate_type: e.target.value as 'hourly' | 'daily' })}
+                  className="form-select"
+                >
+                  <option value="hourly">Hourly Rate (₹/hr)</option>
+                  <option value="daily">Daily Flat Rate (₹/day)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2-col mb-4">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Rate (₹) <span className="text-danger">*</span></label>
+                <input
+                  type="number"
+                  step="0.5"
+                  required
+                  value={workLogForm.rate}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate: Number(e.target.value) })}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Work Description / Scope</label>
+                <input
+                  type="text"
+                  placeholder="Enter work details (e.g. Excavated North Section)"
+                  value={workLogForm.work_description}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, work_description: e.target.value })}
+                  className="form-input"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddWorkLog(false)}
+                className="btn"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-blue">
+                {editingWorkLog ? 'Update Work Log' : 'Save Work Log'}
               </button>
             </div>
-
-            <div className="modal-body">
-              {deleteLoading ? (
-                <div className="flex justify-center p-4">Loading...</div>
-              ) : deleteDeps && (deleteDeps.attendanceCount > 0 || deleteDeps.subWorkersCount > 0) ? (
-                <div className="flex-col gap-3">
-                  <div style={{ padding: '1rem', background: 'var(--warning-bg)', borderRadius: 'var(--radius-md)', color: 'var(--warning)' }}>
-                    <div className="font-bold flex items-center gap-2 mb-2">
-                      <ShieldAlert size={16} /> Active Dependencies Found!
-                    </div>
-                    <p style={{ fontSize: '0.85rem' }}>Worker <strong>{deleteTarget.name}</strong> has active records:</p>
-                    <ul style={{ paddingLeft: '1.5rem', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                      {deleteDeps.attendanceCount > 0 && <li>{deleteDeps.attendanceCount} daily pay attendance log entries</li>}
-                      {deleteDeps.subWorkersCount > 0 && <li>{deleteDeps.subWorkersCount} sub-workers linked</li>}
-                    </ul>
-                    <p className="font-bold mt-2" style={{ fontSize: '0.85rem' }}>Forcing removal will delete linked attendance logs and unlink sub-workers.</p>
-                  </div>
-                  <div className="flex justify-end gap-3 mt-4">
-                    <button onClick={() => setDeleteTarget(null)} className="btn btn-secondary">Cancel</button>
-                    <button onClick={() => handleConfirmDelete(true)} className="btn" style={{ background: 'var(--danger)', color: '#fff' }}>Force Delete</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-col gap-3">
-                  <p style={{ fontSize: '0.9rem' }}>Are you sure you want to delete worker <strong>{deleteTarget.name}</strong>? This action cannot be undone.</p>
-                  <div className="flex justify-end gap-3 mt-4">
-                    <button onClick={() => setDeleteTarget(null)} className="btn btn-secondary">Cancel</button>
-                    <button onClick={() => handleConfirmDelete(false)} className="btn" style={{ background: 'var(--danger)', color: '#fff' }}>Delete Worker</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          </form>
         </div>
       )}
     </div>

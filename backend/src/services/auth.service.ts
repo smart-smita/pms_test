@@ -62,7 +62,6 @@ export class AuthService {
       email: user.email,
       role_id: user.role_id,
       role_name: user.role_name,
-      hourly_rate: Number(user.hourly_rate),
       permissions,
     };
 

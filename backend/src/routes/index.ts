@@ -10,7 +10,10 @@ import reportRoutes from './report.routes';
 import notificationRoutes from './notification.routes';
 import wbsRoutes from './wbs.routes';
 import labourRoutes from './labour.routes';
+import labourWorkLogRoutes from './labourWorkLog.routes';
+import labourPaymentRoutes from './labourPayment.routes';
 import timesheetRoutes from './timesheet.routes';
+
 const router = Router();
 
 router.use('/auth', authRoutes);
@@ -24,5 +27,8 @@ router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/wbs', wbsRoutes);
 router.use('/labours', labourRoutes);
+router.use('/labour-work-logs', labourWorkLogRoutes);
+router.use('/labour-payments', labourPaymentRoutes);
 router.use('/timesheets', timesheetRoutes);
+
 export default router;

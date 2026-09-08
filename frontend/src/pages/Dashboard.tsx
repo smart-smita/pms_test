@@ -12,7 +12,11 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onNavigate?: (page: string) => void;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const isEmployee = user?.role_name === 'Employee';
 
@@ -332,16 +336,16 @@ export const Dashboard: React.FC = () => {
         {/* Donut Chart Area using Recharts */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>Task Status Distribution</h3>
-          <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
-            <div style={{ width: '50%', height: '180px', position: 'relative' }}>
+          <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '1rem', width: '100%' }}>
+            <div style={{ flex: '1 1 140px', height: '180px', minWidth: '130px', maxWidth: '180px', position: 'relative' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={taskData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
+                    innerRadius={50}
+                    outerRadius={70}
                     paddingAngle={2}
                     dataKey="value"
                     stroke="none"
@@ -356,18 +360,18 @@ export const Dashboard: React.FC = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{metrics.tasks.total}</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{metrics.tasks.total}</div>
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Total Tasks</div>
               </div>
             </div>
-            <div style={{ width: '50%', paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '0.6rem', minWidth: '140px' }}>
               {taskData.map((entry, index) => (
-                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: PIE_COLORS[index] }} />
-                    <span style={{ color: 'var(--text-primary)' }}>{entry.name}</span>
+                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: PIE_COLORS[index], flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{entry.name}</span>
                   </div>
-                  <div style={{ color: '#94a3b8' }}>{entry.value} ({Math.round((entry.value / (metrics.tasks.total || 1)) * 100)}%)</div>
+                  <div style={{ color: '#94a3b8', fontWeight: 600 }}>{entry.value} ({Math.round((entry.value / (metrics.tasks.total || 1)) * 100)}%)</div>
                 </div>
               ))}
             </div>
@@ -378,30 +382,37 @@ export const Dashboard: React.FC = () => {
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>Live GPS Attendance</h3>
-            <span style={{ color: '#8b5cf6', fontSize: '0.75rem', cursor: 'pointer' }}>View All</span>
+            <span 
+              onClick={() => onNavigate?.('attendance')} 
+              style={{ color: '#8b5cf6', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+            >
+              View All →
+            </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflowY: 'auto' }}>
             {metrics.live_attendance?.map((log: any, idx: number) => (
-              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: idx < metrics.live_attendance.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem' }}>
-                    {log.name.charAt(0)}
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 700 }}>
+                    {log.name ? log.name.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 500 }}>{log.name}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{log.role_name}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>{log.name}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{log.role_name} • {log.check_in_time || 'Check-in'}</div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <Badge variant="success">Checked In</Badge>
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                  <Badge variant={log.status === 'open' ? 'success' : 'info'}>
+                    {log.status === 'open' ? 'Checked In' : 'Completed'}
+                  </Badge>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'flex-end' }}>
                     <MapPin size={10} /> {log.project_name || 'Site'}
                   </div>
                 </div>
               </div>
             ))}
             {(!metrics.live_attendance || metrics.live_attendance.length === 0) && (
-              <div style={{ color: '#64748b', fontSize: '0.85rem', textAlign: 'center', marginTop: '1rem' }}>No active check-ins right now.</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', marginTop: '1.5rem', padding: '1rem' }}>No active check-ins right now.</div>
             )}
           </div>
         </div>
@@ -413,56 +424,65 @@ export const Dashboard: React.FC = () => {
         <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>Recent Tasks</h3>
-            <span style={{ color: '#8b5cf6', fontSize: '0.75rem', cursor: 'pointer' }}>View All</span>
+            <span 
+              onClick={() => onNavigate?.('tasks')} 
+              style={{ color: '#8b5cf6', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
+            >
+              View All →
+            </span>
           </div>
-          <table className="minimal-table">
-            <thead>
-              <tr>
-                <th>Task</th>
-                <th>Project</th>
-                <th>Progress</th>
-                <th>Due Date</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.recent_tasks?.map((t: any, idx: number) => (
-                <tr key={idx}>
-                  <td style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{t.task_name}</td>
-                  <td style={{ color: '#94a3b8' }}>{t.project_name}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{ flex: 1, height: '4px', background: 'rgba(150,150,150,0.2)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${t.progress_percentage}%`, background: '#3b82f6' }} />
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>{t.progress_percentage}%</span>
-                    </div>
-                  </td>
-                  <td style={{ color: 'var(--text-primary)' }}>{new Date(t.due_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                  <td>
-                    <Badge variant={t.status === 'completed' ? 'success' : t.status === 'pending' ? 'warning' : t.status === 'delayed' ? 'danger' : 'info'}>
-                      {t.status.replace('-', ' ')}
-                    </Badge>
-                  </td>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="minimal-table" style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', whiteSpace: 'nowrap' }}>Task</th>
+                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', whiteSpace: 'nowrap' }}>Project</th>
+                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', whiteSpace: 'nowrap', minWidth: '120px' }}>Progress</th>
+                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', whiteSpace: 'nowrap' }}>Due Date</th>
+                  <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', whiteSpace: 'nowrap' }}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {metrics.recent_tasks?.map((t: any, idx: number) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border-color, rgba(150,150,150,0.1))' }}>
+                    <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-primary)', fontWeight: 500, whiteSpace: 'nowrap' }}>{t.task_name}</td>
+                    <td style={{ padding: '0.65rem 0.75rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>{t.project_name}</td>
+                    <td style={{ padding: '0.65rem 0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '100px' }}>
+                        <div style={{ flex: 1, height: '6px', background: 'rgba(150,150,150,0.2)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${t.progress_percentage}%`, background: '#3b82f6', borderRadius: '3px' }} />
+                        </div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', minWidth: '35px' }}>{t.progress_percentage}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                      {t.due_date ? new Date(t.due_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                    </td>
+                    <td style={{ padding: '0.65rem 0.75rem', whiteSpace: 'nowrap' }}>
+                      <Badge variant={t.status === 'completed' ? 'success' : t.status === 'pending' ? 'warning' : t.status === 'delayed' ? 'danger' : 'info'}>
+                        {t.status.replace('-', ' ')}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Attendance Summary */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>Today's Attendance Summary</h3>
-          <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
-            <div style={{ width: '50%', height: '180px', position: 'relative' }}>
+          <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '1rem', width: '100%' }}>
+            <div style={{ flex: '1 1 140px', height: '180px', minWidth: '130px', maxWidth: '180px', position: 'relative' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={attendanceData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
+                    innerRadius={50}
+                    outerRadius={70}
                     paddingAngle={2}
                     dataKey="value"
                     stroke="none"
@@ -477,18 +497,18 @@ export const Dashboard: React.FC = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{metrics.employees.total}</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{metrics.employees.total}</div>
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Total</div>
               </div>
             </div>
-            <div style={{ width: '50%', paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '0.6rem', minWidth: '140px' }}>
               {attendanceData.map((entry, index) => (
-                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: ATTENDANCE_COLORS[index] }} />
-                    <span style={{ color: 'var(--text-primary)' }}>{entry.name}</span>
+                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: ATTENDANCE_COLORS[index], flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{entry.name}</span>
                   </div>
-                  <div style={{ color: '#94a3b8' }}>{entry.value}</div>
+                  <div style={{ color: '#94a3b8', fontWeight: 600 }}>{entry.value}</div>
                 </div>
               ))}
             </div>
@@ -499,37 +519,37 @@ export const Dashboard: React.FC = () => {
         <div className="glass-card">
           <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>Quick Actions</h3>
           <div className="quick-actions-grid grid-3-col">
-            <div className="quick-action-btn">
+            <div className="quick-action-btn" onClick={() => onNavigate?.('employees')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#8b5cf6', padding: '0.75rem', borderRadius: '12px' }}>
                 <UserPlus size={20} />
               </div>
               Add Employee
             </div>
-            <div className="quick-action-btn">
+            <div className="quick-action-btn" onClick={() => onNavigate?.('projects')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '0.75rem', borderRadius: '12px' }}>
                 <FolderPlus size={20} />
               </div>
               Add Project
             </div>
-            <div className="quick-action-btn">
+            <div className="quick-action-btn" onClick={() => onNavigate?.('tasks')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '0.75rem', borderRadius: '12px' }}>
                 <FilePlus size={20} />
               </div>
               Add Task
             </div>
-            <div className="quick-action-btn">
+            <div className="quick-action-btn" onClick={() => onNavigate?.('attendance')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '0.75rem', borderRadius: '12px' }}>
                 <MapPin size={20} />
               </div>
               GPS Check-In
             </div>
-            <div className="quick-action-btn">
+            <div className="quick-action-btn" onClick={() => onNavigate?.('reports')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '0.75rem', borderRadius: '12px' }}>
                 <Receipt size={20} />
               </div>
               Attendance Report
             </div>
-            <div className="quick-action-btn">
+            <div className="quick-action-btn" onClick={() => onNavigate?.('payments')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '0.75rem', borderRadius: '12px' }}>
                 <IndianRupee size={20} />
               </div>

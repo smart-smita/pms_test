@@ -32,7 +32,9 @@ export class ReportController {
 
   getDisciplineDetailsReport = async (req: Request, res: Response) => {
     try {
-      const data = await this.reportService.getDisciplineDetailsReport();
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
+      const data = await this.reportService.getDisciplineDetailsReport(filters);
       return sendSuccess(res, 'Discipline details report generated successfully', data);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to generate discipline details report', [], 500);
@@ -74,7 +76,8 @@ export class ReportController {
 
   getLabourDetailsReport = async (req: Request, res: Response) => {
     try {
-      const filters = req.query;
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
       const data = await this.reportService.getLabourDetailsReport(filters);
       return sendSuccess(res, 'Labour details report generated successfully', data);
     } catch (error: any) {
@@ -84,7 +87,8 @@ export class ReportController {
 
   getLabourAttendanceReport1 = async (req: Request, res: Response) => {
     try {
-      const filters = req.query;
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
       const data = await this.reportService.getLabourAttendanceReport1(filters);
       return sendSuccess(res, 'Labour Attendance Report 1 generated successfully', data);
     } catch (error: any) {
@@ -94,7 +98,8 @@ export class ReportController {
 
   getLabourAttendanceReport2 = async (req: Request, res: Response) => {
     try {
-      const filters = req.query;
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
       const data = await this.reportService.getLabourAttendanceReport2(filters);
       return sendSuccess(res, 'Labour Attendance Report 2 generated successfully', data);
     } catch (error: any) {
@@ -104,7 +109,8 @@ export class ReportController {
 
   getLabourAttendanceReport3 = async (req: Request, res: Response) => {
     try {
-      const filters = req.query;
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
       const data = await this.reportService.getLabourAttendanceReport3(filters);
       return sendSuccess(res, 'Labour Attendance Report 3 generated successfully', data);
     } catch (error: any) {
@@ -114,7 +120,8 @@ export class ReportController {
 
   getLabourCostPaymentReport = async (req: Request, res: Response) => {
     try {
-      const filters = req.query;
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
       const data = await this.reportService.getLabourCostPaymentReport(filters);
       return sendSuccess(res, 'Labour Cost/Payment report generated successfully', data);
     } catch (error: any) {
@@ -124,9 +131,13 @@ export class ReportController {
 
   getProjectWorkReport = async (req: Request, res: Response) => {
     try {
-      const { project_id } = req.query;
+      const { empId, managerId } = this.getRoleIds(req);
+      const { project_id, start_date, end_date } = req.query;
       const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
-      const data = await this.reportService.getProjectWorkReport(projectId);
+      const startDate = start_date as string | undefined;
+      const endDate = end_date as string | undefined;
+
+      const data = await this.reportService.getProjectWorkReport(projectId, managerId, empId, startDate, endDate);
       return sendSuccess(res, 'Project work report generated successfully', data);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to generate project work report', [], 500);

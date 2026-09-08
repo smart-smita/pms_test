@@ -9,19 +9,25 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest, parseApiErrors } from '../services/api';
 import { Employee } from '../types';
 import { showSuccess, showError } from '../utils/toast';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, UserCheck, Briefcase, Clock, Layers, ShieldCheck, X } from 'lucide-react';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { useAuth } from '../context/AuthContext';
 
 export const Employees: React.FC = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role_name === 'Admin';
+  const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
+
+  // Employee Details Modal State
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsTab, setDetailsTab] = useState<'info' | 'manager' | 'history'>('info');
+  const [selectedDetails, setSelectedDetails] = useState<any | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   // Form State
   const [employeeCode, setEmployeeCode] = useState('');
@@ -64,6 +70,20 @@ export const Employees: React.FC = () => {
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  const openViewDetails = async (empId: number) => {
+    setIsLoadingDetails(true);
+    setIsDetailsOpen(true);
+    setDetailsTab('info');
+    setSelectedDetails(null);
+    const res = await apiRequest<any>(`/employees/${empId}/details`);
+    if (res.success && res.data) {
+      setSelectedDetails(res.data);
+    } else {
+      showError(res.message || 'Failed to load employee details');
+    }
+    setIsLoadingDetails(false);
+  };
 
   const openCreateModal = () => {
     setEditingEmp(null);
@@ -210,12 +230,6 @@ export const Employees: React.FC = () => {
       csvAccessor: (r) => r.assigned_wbs_name || '-',
     },
     {
-      header: 'Hourly Rate',
-      accessor: (r) => `₹${Number(r.hourly_rate).toFixed(2)}/hr`,
-      csvAccessor: (r) => Number(r.hourly_rate).toFixed(2),
-      sortKey: 'hourly_rate'
-    },
-    {
       header: 'Status',
       accessor: (r) => <Badge variant={r.status === 'active' ? 'success' : 'danger'}>{r.status}</Badge>,
       csvAccessor: (r) => r.status === 'active' ? 'Active' : 'Inactive',
@@ -241,21 +255,274 @@ export const Employees: React.FC = () => {
           <DataTable
             columns={columns}
             data={employees}
-            searchPlaceholder="Search employees..."
+            searchPlaceholder="Search employees by code, name, or role..."
             exportFilename="employees"
             isLoading={isLoading}
-            actions={isAdmin ? (row) => (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
-                  <Edit size={14} /> Edit
+            actions={(row) => (
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => openViewDetails(row.employee_id)} 
+                  style={{ padding: '0.35rem 0.65rem', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)' }}
+                  title="View Employee Details & Reporting Manager"
+                >
+                  <Eye size={14} /> View Details
                 </Button>
-                <Button variant="secondary" onClick={() => handleDelete(row.employee_id, row.name)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                  <Trash2 size={14} /> Delete
-                </Button>
+                {isAdmin && (
+                  <>
+                    <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
+                      <Edit size={14} /> Edit
+                    </Button>
+                    <Button variant="secondary" onClick={() => handleDelete(row.employee_id, row.name)} style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                      <Trash2 size={14} /> Delete
+                    </Button>
+                  </>
+                )}
               </div>
-            ) : undefined}
+            )}
           />
         </div>
+
+      {/* Employee Details Modal (3 Tabs: Info, Reporting Manager, Work History) */}
+      {isDetailsOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '750px', width: '90%' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 700 }}>
+                  {selectedDetails?.employee?.name ? selectedDetails.employee.name.charAt(0).toUpperCase() : 'E'}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                    {selectedDetails?.employee?.name || 'Employee Details'}
+                  </h3>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Code: <strong>{selectedDetails?.employee?.employee_code}</strong> • Role: <Badge variant="info">{selectedDetails?.employee?.role_name}</Badge>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setIsDetailsOpen(false)} className="modal-close-btn"><X size={18} /></button>
+            </div>
+
+            {isLoadingDetails ? (
+              <div style={{ padding: '3rem', textAlign: 'center' }}><LoadingSpinner /></div>
+            ) : selectedDetails ? (
+              <div className="modal-body" style={{ paddingTop: '1rem' }}>
+                {/* Modal Sub-Tabs */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                  <button
+                    onClick={() => setDetailsTab('info')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: detailsTab === 'info' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                      color: detailsTab === 'info' ? '#6366f1' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <UserCheck size={16} /> Employee Profile
+                  </button>
+                  <button
+                    onClick={() => setDetailsTab('manager')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: detailsTab === 'manager' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                      color: detailsTab === 'manager' ? '#6366f1' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <ShieldCheck size={16} /> Reporting Manager
+                  </button>
+                  <button
+                    onClick={() => setDetailsTab('history')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: detailsTab === 'history' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                      color: detailsTab === 'history' ? '#6366f1' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <Clock size={16} /> Work & Timesheet History
+                  </button>
+                </div>
+
+                {/* Tab 1: Employee Information */}
+                {detailsTab === 'info' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Employee Code</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.employee_code}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Full Name</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.name}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Email Address</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.email}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Role</span>
+                      <Badge variant="info">{selectedDetails.employee.role_name}</Badge>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Account Status</span>
+                      <Badge variant={selectedDetails.employee.status === 'active' ? 'success' : 'danger'}>{selectedDetails.employee.status}</Badge>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Assigned Project</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.assigned_project_name || 'None'}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Assigned WBS Discipline</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.assigned_wbs_name || 'None'}</strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 2: Reporting Manager Details */}
+                {detailsTab === 'manager' && (
+                  <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <ShieldCheck size={18} color="#6366f1" /> Reporting Manager Account Details
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Name</span>
+                        <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{selectedDetails.reporting_manager.name}</strong>
+                      </div>
+                      {selectedDetails.reporting_manager.code && (
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Employee Code</span>
+                          <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{selectedDetails.reporting_manager.code}</strong>
+                        </div>
+                      )}
+                      {selectedDetails.reporting_manager.email && (
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Email ID</span>
+                          <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{selectedDetails.reporting_manager.email}</strong>
+                        </div>
+                      )}
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Role</span>
+                        <Badge variant="warning">{selectedDetails.reporting_manager.role}</Badge>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Login Status</span>
+                        <Badge variant="success">{selectedDetails.reporting_manager.status}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 3: Work & Timesheet History */}
+                {detailsTab === 'history' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Projects */}
+                    <div>
+                      <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>Assigned Projects ({selectedDetails.assigned_projects?.length || 0})</h5>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {selectedDetails.assigned_projects?.map((p: any) => (
+                          <div key={p.project_id} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.4rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid var(--border-color)' }}>
+                            <strong>{p.project_code || `P0${p.project_id}`}</strong> {p.project_name} ({p.status})
+                          </div>
+                        ))}
+                        {(!selectedDetails.assigned_projects || selectedDetails.assigned_projects.length === 0) && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>No active project assignments found.</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tasks */}
+                    <div>
+                      <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>Assigned Tasks ({selectedDetails.assigned_tasks?.length || 0})</h5>
+                      <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                        <table className="minimal-table" style={{ width: '100%', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '0.4rem' }}>Task Name</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem' }}>Project / Discipline</th>
+                              <th style={{ textAlign: 'right', padding: '0.4rem' }}>Est. Hours</th>
+                              <th style={{ textAlign: 'center', padding: '0.4rem' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedDetails.assigned_tasks?.map((t: any) => (
+                              <tr key={t.task_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '0.4rem', color: 'var(--text-primary)', fontWeight: 600 }}>{t.task_name}</td>
+                                <td style={{ padding: '0.4rem', color: 'var(--text-secondary)' }}>{t.project_name} ({t.wbs_name || 'General'})</td>
+                                <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 600 }}>{t.estimated_hours} hrs</td>
+                                <td style={{ padding: '0.4rem', textAlign: 'center' }}><Badge variant="info">{t.task_status}</Badge></td>
+                              </tr>
+                            ))}
+                            {(!selectedDetails.assigned_tasks || selectedDetails.assigned_tasks.length === 0) && (
+                              <tr><td colSpan={4} style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No assigned tasks found.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Timesheets */}
+                    <div>
+                      <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>Timesheet Log History ({selectedDetails.timesheet_history?.length || 0})</h5>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                        <table className="minimal-table" style={{ width: '100%', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '0.4rem' }}>Log Date</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem' }}>Project / Task</th>
+                              <th style={{ textAlign: 'right', padding: '0.4rem' }}>Logged HRs</th>
+                              <th style={{ textAlign: 'center', padding: '0.4rem' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedDetails.timesheet_history?.map((ts: any) => (
+                              <tr key={ts.timesheet_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '0.4rem', color: 'var(--text-primary)' }}>{ts.log_date}</td>
+                                <td style={{ padding: '0.4rem', color: 'var(--text-secondary)' }}>{ts.project_name} ({ts.task_name || ts.wbs_name || 'General Log'})</td>
+                                <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>{ts.working_hours} hrs</td>
+                                <td style={{ padding: '0.4rem', textAlign: 'center' }}><Badge variant="success">{ts.status || 'Approved'}</Badge></td>
+                              </tr>
+                            ))}
+                            {(!selectedDetails.timesheet_history || selectedDetails.timesheet_history.length === 0) && (
+                              <tr><td colSpan={4} style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No timesheet logs found for this employee.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <Button variant="secondary" onClick={() => setIsDetailsOpen(false)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingEmp ? 'Edit Employee' : 'Add New Employee'}>
@@ -332,17 +599,7 @@ export const Employees: React.FC = () => {
             />
           </div>
 
-          <div className="grid-2-col">
-            <FormInput
-              label="Hourly Rate (₹/hr)"
-              type="number"
-              step="0.50"
-              value={hourlyRate}
-              onChange={(e) => { setHourlyRate(parseFloat(e.target.value)); setFormErrors(prev => ({...prev, hourly_rate: ''})); }}
-              required
-              error={formErrors.hourly_rate}
-            />
-
+          <div className="form-group mb-3">
             <FormSelect
               label="Status"
               value={status}

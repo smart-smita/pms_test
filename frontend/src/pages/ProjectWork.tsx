@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Briefcase, Layers, Clock, CheckCircle, Edit, Plus, Trash2, AlertTriangle, ShieldAlert, X, ChevronRight, ChevronDown, Filter, RotateCcw, FileSpreadsheet, FileText, BarChart3, Upload, Search, Maximize2, CalendarDays, Link } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import { Project, ProjectWBS, MasterWBS } from '../types';
+import { Project, ProjectWBS, MasterWBS, Task, Employee } from '../types';
 import { showSuccess, showError } from '../utils/toast';
 
 export const ProjectWork: React.FC = () => {
+  const { user } = useAuth();
+  const canManage = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -64,6 +68,18 @@ export const ProjectWork: React.FC = () => {
   const [checkingDeps, setCheckingDeps] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Timesheet Modal State
+  const [timesheetWbs, setTimesheetWbs] = useState<ProjectWBS | null>(null);
+  const [availableTasks, setAvailableTasks] = useState<Task[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [timesheetForm, setTimesheetForm] = useState({
+    task_id: '',
+    employee_id: '',
+    log_date: new Date().toISOString().split('T')[0],
+    working_hours: '',
+  });
+  const [isLoggingTimesheet, setIsLoggingTimesheet] = useState(false);
+
   useEffect(() => {
     fetchProjects();
     fetchMasterWbs();
@@ -100,6 +116,80 @@ export const ProjectWork: React.FC = () => {
       if (res.data) setMasterWbsList(res.data);
     } catch (err) {
       console.error('Error loading master WBS list:', err);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await apiService.get<Employee[]>('/employees');
+      if (res.data) setEmployees(res.data);
+    } catch (err) {
+      console.error('Error loading employees:', err);
+    }
+  };
+
+  const handleOpenTimesheet = async (item: ProjectWBS) => {
+    setTimesheetWbs(item);
+    setTimesheetForm({
+      task_id: '',
+      employee_id: user?.employee_id ? String(user.employee_id) : '',
+      log_date: new Date().toISOString().split('T')[0],
+      working_hours: '',
+    });
+
+    if (employees.length === 0) {
+      fetchEmployees();
+    }
+
+    if (selectedProjectId) {
+      try {
+        const res = await apiService.get<Task[]>(`/tasks?project_id=${selectedProjectId}`);
+        if (res.data) {
+          const matchingTasks = res.data.filter(
+            (t) => !t.wbs_id || Number(t.wbs_id) === Number(item.id) || Number(t.wbs_id) === Number(item.wbs_id)
+          );
+          setAvailableTasks(matchingTasks);
+        }
+      } catch (err) {
+        console.error('Error loading tasks for timesheet:', err);
+      }
+    }
+  };
+
+  const handleSaveTimesheet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!timesheetWbs || !selectedProjectId) return;
+    if (!timesheetForm.employee_id) {
+      showError('Please select an employee');
+      return;
+    }
+    if (!timesheetForm.working_hours || Number(timesheetForm.working_hours) <= 0) {
+      showError('Please enter valid working hours');
+      return;
+    }
+
+    setIsLoggingTimesheet(true);
+    try {
+      const res = await apiService.post('/timesheets', {
+        project_id: Number(selectedProjectId),
+        wbs_id: timesheetWbs.id,
+        task_id: timesheetForm.task_id ? Number(timesheetForm.task_id) : null,
+        employee_id: Number(timesheetForm.employee_id),
+        log_date: timesheetForm.log_date,
+        working_hours: Number(timesheetForm.working_hours),
+      });
+
+      if (res.success) {
+        showSuccess('Time sheet logged successfully');
+        setTimesheetWbs(null);
+        fetchProjectWbs(Number(selectedProjectId));
+      } else {
+        showError(res.message || 'Failed to log time sheet');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to log time sheet');
+    } finally {
+      setIsLoggingTimesheet(false);
     }
   };
 
@@ -274,472 +364,207 @@ export const ProjectWork: React.FC = () => {
   return (
     <div className="page-body">
       {/* Header & Title */}
-      <div className="flex items-center gap-2 mb-2">
-        <Briefcase size={22} style={{ color: '#0f172a' }} />
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>Manage Project Work & Disciplines</h1>
+      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+        <div>
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Briefcase size={24} style={{ color: '#6366f1' }} /> Project Master / Manage Project Work
+          </h1>
+          <p className="page-subtitle">View and manage project work details, discipline allocations, and log time sheets.</p>
+        </div>
       </div>
-      <p className="text-muted text-sm mb-6">
-        Maintain project WBS disciplines, allocations, planned hours, timelines and dependency checks.
-      </p>
 
-      {/* Select Project */}
-      <div className="mb-6" style={{ maxWidth: '400px' }}>
-        <label className="text-xs text-muted mb-1 block" style={{ fontWeight: 500 }}>Select Project <span className="text-danger">*</span></label>
-        <select
-          value={selectedProjectId}
-          onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : '')}
-          className="form-select"
-          style={{ padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 500 }}
-        >
-          <option value="">-- Choose Project --</option>
-          {projects.map((p) => (
-            <option key={p.project_id} value={p.project_id}>
-              {p.project_name} ({p.project_code})
-            </option>
-          ))}
-        </select>
+      {/* Select Project & Details Header Card */}
+      <div className="glass-card mb-6" style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem' }}>
+        <div style={{ flex: '1 1 300px', maxWidth: '500px' }}>
+          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem', display: 'block' }}>Project Name</label>
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : '')}
+            className="form-select"
+            style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 500 }}
+          >
+            <option value="">-- Choose Project --</option>
+            {projects.map((p) => (
+              <option key={p.project_id} value={p.project_id}>
+                {p.project_code || `P0${p.project_id}`} - {p.project_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedProject && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Project Ref</span>
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProject.project_code || `PRJ-${selectedProject.project_id}`}</span>
+              {selectedProject.project_date && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>
+                  {selectedProject.project_date.split('T')[0]}
+                </span>
+              )}
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Client Name</span>
+              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProject.client_name || 'Standard Client'}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 4 Premium Metric Cards Grid */}
       {selectedProject && (
-        <div className="grid-4-col mb-6">
-          <div className="metric-card-premium">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
             <div>
-              <span className="metric-title-premium">Total Disciplines</span>
-              <div className="metric-value-premium">{totalDisciplines}</div>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Total Disciplines</span>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalDisciplines}</div>
             </div>
-            <div className="metric-icon-circle" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
+            <div style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Layers size={24} />
             </div>
           </div>
 
-          <div className="metric-card-premium">
+          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
             <div>
-              <span className="metric-title-premium">Total Planned Hours</span>
-              <div className="metric-value-premium">
-                {totalPlannedHours.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="metric-unit-premium">hrs</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Total Planned Hours</span>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {totalPlannedHours.toLocaleString('en-US', { minimumFractionDigits: 0 })} <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>hrs</span>
               </div>
             </div>
-            <div className="metric-icon-circle" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Clock size={24} />
             </div>
           </div>
 
-          <div className="metric-card-premium">
+          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
             <div>
-              <span className="metric-title-premium">Total Actual Hours</span>
-              <div className="metric-value-premium">
-                {totalActualHours.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="metric-unit-premium">hrs</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Total Actual Hours</span>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {totalActualHours.toLocaleString('en-US', { minimumFractionDigits: 0 })} <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>hrs</span>
               </div>
             </div>
-            <div className="metric-icon-circle" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+            <div style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Upload size={24} />
             </div>
           </div>
 
-          <div className="metric-card-premium">
+          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
             <div>
-              <span className="metric-title-premium">Overall Progress</span>
-              <div className="metric-value-premium">{overallProgress}%</div>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Overall Progress</span>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>{overallProgress}%</div>
             </div>
-            <div className="metric-icon-circle" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+            <div style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BarChart3 size={24} />
             </div>
           </div>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="tabs-container" style={{ borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
-        <button onClick={() => setActiveTab('disciplines')} className={`tab-btn ${activeTab === 'disciplines' ? 'active' : ''}`}>WBS Disciplines</button>
-        <button onClick={() => setActiveTab('allocation')} className={`tab-btn ${activeTab === 'allocation' ? 'active' : ''}`}>Discipline Allocation</button>
-        <button onClick={() => setActiveTab('gantt')} className={`tab-btn ${activeTab === 'gantt' ? 'active' : ''}`}>Discipline Timeline (Gantt)</button>
-        <button onClick={() => setActiveTab('dependency')} className={`tab-btn ${activeTab === 'dependency' ? 'active' : ''}`}>Dependency Check</button>
-        <button onClick={() => setActiveTab('summary')} className={`tab-btn ${activeTab === 'summary' ? 'active' : ''}`}>Discipline Summary</button>
-      </div>
-
-      {/* Filters & Search Panel */}
-      <div className="metric-card-premium mb-6 flex-col" style={{ alignItems: 'stretch', padding: '1.25rem' }}>
-        <div className="flex items-center justify-between mb-4">
-          <span className="font-semibold flex items-center gap-2 text-sm text-muted">
-            <Filter size={16} /> Filters & Search
-          </span>
-          <div className="flex gap-2">
+      {/* Project Work Details - Disciplines List Table */}
+      <div className="glass-card mb-6" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Layers size={20} style={{ color: '#6366f1' }} /> Project Work Details
+          </h2>
+          {selectedProjectId && canManage && (
             <button
-              type="button"
-              onClick={resetFilters}
-              className="btn btn-outline-grey"
-              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', borderRadius: '6px' }}
-            >
-              <RotateCcw size={12} className="mr-1" style={{ display: 'inline' }} /> Reset
-            </button>
-            <button
-              type="button"
-              onClick={applyFilters}
+              onClick={handleOpenAddModal}
               className="btn btn-primary"
-              style={{ background: '#8b5cf6', padding: '0.35rem 1rem', fontSize: '0.75rem', borderRadius: '6px', fontWeight: 600 }}
+              style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', padding: '0.5rem 1.25rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', border: 'none' }}
             >
-              Apply Filters
+              + Add New Discipline
             </button>
-          </div>
+          )}
         </div>
 
-        <div className="grid-5-col">
-          <div>
-            <label className="form-label text-xs">Search Keyword</label>
-            <div className="search-input-container">
-              <Search className="search-icon" />
-              <input type="text" placeholder="Search discipline..." value={search} onChange={(e) => setSearch(e.target.value)} className="form-input" style={{ borderRadius: '6px' }} />
-            </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Loading disciplines...</div>
+        ) : filteredAllocations.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+            No discipline records found for this project.
           </div>
-          <div>
-            <label className="form-label text-xs">Discipline Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="form-select" style={{ borderRadius: '6px' }}>
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-          <div>
-            <label className="form-label text-xs">WBS Level</label>
-            <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="form-select" style={{ borderRadius: '6px' }}>
-              <option value="">All Levels</option>
-              <option value="1">Level 1 (Project)</option>
-              <option value="2">Level 2 (Discipline)</option>
-              <option value="3">Level 3 (Activity)</option>
-            </select>
-          </div>
-          <div>
-            <label className="form-label text-xs">From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="form-input" style={{ borderRadius: '6px' }} />
-          </div>
-          <div>
-            <label className="form-label text-xs">To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="form-input" style={{ borderRadius: '6px' }} />
-          </div>
-        </div>
-      </div>
+        ) : (
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table className="minimal-table" style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'left', width: '50px' }}>No.</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'left' }}>Discipline Name</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'left' }}>Plan Start Date</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'left' }}>Plan End Date</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>Plan HRs</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'left' }}>Actual Start Date</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'left' }}>Actual End Date</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>Actual HRs</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAllocations.map((item, idx) => {
+                  const isActive = item.status == 1 || String(item.status).toLowerCase() === 'active' || String(item.status).toLowerCase() === '1';
+                  const plannedH = Number(item.total_hours || 0);
+                  const actualH = Number(item.actual_hours || 0);
 
-      {/* Main Dynamic Views (Based on Tabs) */}
-      {loading ? (
-        <div className="flex justify-center p-12 text-muted">Loading...</div>
-      ) : activeTab === 'disciplines' ? (
-        <>
-          {/* Action Toolbar */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              {selectedProjectId && (
-                <button onClick={handleOpenAddModal} className="btn btn-primary" style={{ background: '#8b5cf6', padding: '0.5rem 1rem', borderRadius: '6px', fontWeight: 600 }}>
-                  <Plus size={16} /> Add Discipline
-                </button>
-              )}
-              <button onClick={toggleExpandAll} className="btn btn-outline-purple" style={{ padding: '0.5rem 1rem', borderRadius: '6px' }}>
-                <Maximize2 size={14} className="mr-2" style={{ display: 'inline' }} /> Expand All
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="btn btn-outline-green" style={{ padding: '0.5rem 1rem', borderRadius: '6px' }}>
-                <FileSpreadsheet size={14} className="mr-2" style={{ display: 'inline' }} /> Export Excel
-              </button>
-              <button className="btn btn-outline-red" style={{ padding: '0.5rem 1rem', borderRadius: '6px' }}>
-                <FileText size={14} className="mr-2" style={{ display: 'inline' }} /> Export PDF
-              </button>
-            </div>
-          </div>
-
-          {/* Premium Table */}
-          {filteredAllocations.length === 0 ? (
-            <div className="metric-card-premium p-10 flex-col items-center justify-center text-center gap-2">
-              <Layers size={40} style={{ color: '#8b5cf6' }} />
-              <p className="font-semibold text-sm">No WBS disciplines found.</p>
-              <p className="text-xs text-muted">Adjust filters or assign work breakdown structures to this project.</p>
-            </div>
-          ) : (
-            <div className="premium-table-wrapper mb-6">
-              <table className="premium-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40px' }}>No.</th>
-                    <th>Discipline / WBS Name</th>
-                    <th>WBS Code</th>
-                    <th style={{ textAlign: 'center' }}>Level</th>
-                    <th>Plan Start Date</th>
-                    <th>Plan End Date</th>
-                    <th style={{ textAlign: 'right' }}>Plan Hrs.</th>
-                    <th style={{ textAlign: 'right' }}>Actual Hrs.</th>
-                    <th>Progress</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'center' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAllocations.map((item, idx) => {
-                    const isActive = item.status == 1 || String(item.status).toLowerCase() === 'active' || String(item.status).toLowerCase() === '1';
-                    const plannedH = Number(item.total_hours || 0);
-                    const actualH = Number(item.actual_hours || 0);
-                    const progressPct = plannedH > 0 ? Math.min(100, Math.round((actualH / plannedH) * 100)) : 0;
-                    
-                    // Simulate hierarchy level
-                    const level = (idx % 3) + 1; 
-                    const isExpanded = expandedNodes[item.id] !== false;
-
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          {level === 1 ? `${idx + 1}` : level === 2 ? `1.${idx + 1}` : `1.1.${idx + 1}`}
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2" style={{ paddingLeft: `${(level - 1) * 20}px` }}>
-                            <button onClick={() => toggleNodeExpand(item.id)} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  return (
+                    <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{idx + 1}</td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-primary)', fontWeight: 600 }}>{item.wbs_name}</td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{item.start_date ? item.start_date.split('T')[0] : '-'}</td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{item.end_date ? item.end_date.split('T')[0] : '-'}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>{plannedH}</td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{item.actual_start_date ? item.actual_start_date.split('T')[0] : '-'}</td>
+                      <td style={{ padding: '0.85rem 1rem', color: 'var(--text-secondary)' }}>{item.actual_end_date ? item.actual_end_date.split('T')[0] : '-'}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>{actualH}</td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                        <span style={{
+                          color: isActive ? '#10b981' : '#ef4444',
+                          background: isActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700
+                        }}>
+                          {isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                          {canManage && (
+                            <button
+                              onClick={() => handleOpenEdit(item)}
+                              title="Edit Discipline"
+                              style={{ background: '#3b82f6', color: '#fff', padding: '0.4rem 0.5rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+                            >
+                              <Edit size={14} />
                             </button>
-                            <span className="text-primary">{item.wbs_name}</span>
-                            <span className={`badge-level badge-level-${level}`}>Level {level}</span>
-                          </div>
-                        </td>
-                        <td className="text-primary font-bold">
-                          {item.wbs_code || `PRJ-2026-03-0${idx + 1}`}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>{level}</td>
-                        <td>{item.start_date ? new Date(item.start_date).toLocaleDateString('en-GB') : '-'}</td>
-                        <td>{item.end_date ? new Date(item.end_date).toLocaleDateString('en-GB') : '-'}</td>
-                        <td style={{ textAlign: 'right' }}>{plannedH.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                        <td style={{ textAlign: 'right' }}>{actualH.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                        <td>
-                          <div className="progress-container">
-                            <div className="progress-bar-bg">
-                              <div className="progress-bar-fill" style={{ width: `${progressPct}%` }}></div>
-                            </div>
-                            <span className="progress-text">{progressPct}%</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span style={{ color: isActive ? '#10b981' : '#ef4444', background: isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700 }}>
-                            {isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button onClick={() => handleOpenEdit(item)} className="icon-btn icon-edit" title="Edit Discipline">
-                            <Edit size={14} />
+                          )}
+                          <button
+                            onClick={() => handleOpenTimesheet(item)}
+                            title="Log Time Sheet"
+                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '0.4rem 0.5rem', borderRadius: '6px', cursor: 'pointer' }}
+                          >
+                            <CalendarDays size={14} />
                           </button>
-                          <button onClick={() => handleOpenDelete(item)} className="icon-btn icon-delete" title="Remove Discipline">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {/* Footer Legend / Pagination */}
-              <div className="pagination-container">
-                <div>Showing 1 to {filteredAllocations.length} of {wbsAllocations.length} disciplines</div>
-                <div className="pagination-controls">
-                  <span>Show</span>
-                  <select className="form-select" style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', width: 'auto' }}>
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                  </select>
-                  <span>entries</span>
-                  <div className="flex items-center gap-1 ml-2">
-                    <button className="page-nav-btn"><ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} /></button>
-                    <button className="page-nav-btn active">1</button>
-                    <button className="page-nav-btn">2</button>
-                    <button className="page-nav-btn"><ChevronRight size={14} /></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Legend under table */}
-          {filteredAllocations.length > 0 && (
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-3">
-                <span className="badge-level badge-level-1">Level 1 (Project)</span>
-                <span className="badge-level badge-level-2">Level 2 (Discipline)</span>
-                <span className="badge-level badge-level-3">Level 3 (Activity)</span>
-              </div>
-              <span className="text-xs text-muted font-semibold">* Plan Hrs. & Actual Hrs. are in Hours.</span>
-            </div>
-          )}
-        </>
-      ) : activeTab === 'allocation' ? (
-        <div className="premium-table-wrapper mb-6">
-          <div className="p-4 border-b border-gray-200" style={{ borderColor: 'var(--border-color)' }}>
-            <h3 className="font-bold flex items-center gap-2"><Briefcase size={18} className="text-primary" /> Discipline Resource Allocations</h3>
-          </div>
-          <table className="premium-table">
-            <thead>
-              <tr>
-                <th>Discipline / WBS Name</th>
-                <th>WBS Code</th>
-                <th style={{ textAlign: 'right' }}>Plan Hrs.</th>
-                <th style={{ textAlign: 'right' }}>Actual Hrs.</th>
-                <th style={{ textAlign: 'right' }}>Remaining Hrs.</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAllocations.map(item => {
-                const p = Number(item.total_hours || 0);
-                const a = Number(item.actual_hours || 0);
-                const r = p - a;
-                const isActive = item.status == 1 || String(item.status).toLowerCase() === 'active' || String(item.status).toLowerCase() === '1';
-                return (
-                  <tr key={item.id}>
-                    <td className="font-semibold text-primary">{item.wbs_name}</td>
-                    <td className="font-bold">{item.wbs_code || '-'}</td>
-                    <td className="font-bold" style={{ textAlign: 'right' }}>{p.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="font-bold" style={{ color: '#3b82f6', textAlign: 'right' }}>{a.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="font-bold" style={{ color: r > 0 ? '#f59e0b' : '#10b981', textAlign: 'right' }}>{r > 0 ? r.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}</td>
-                    <td>
-                      <span style={{ color: isActive ? '#10b981' : '#ef4444', background: isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 700 }}>
-                        {isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredAllocations.length === 0 && (
-                <tr><td colSpan={6} className="text-center text-muted p-4">No allocations found.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : activeTab === 'gantt' ? (
-        <div className="metric-card-premium flex-col p-6 items-start gap-4 mb-6" style={{ minHeight: '300px' }}>
-          <h3 className="font-bold flex items-center gap-2 text-lg"><CalendarDays size={20} className="text-primary" /> Timeline (Gantt Chart)</h3>
-          <p className="text-sm text-muted">Visualizing WBS start and end dates chronologically.</p>
-          <div className="w-full mt-4" style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: '800px' }}>
-              {filteredAllocations.length === 0 ? (
-                <div className="p-12 text-center text-muted font-semibold">No timelines available.</div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {(() => {
-                    const validItems = filteredAllocations.filter(i => i.start_date && i.end_date);
-                    if (validItems.length === 0) return <div className="text-muted text-center p-4">No date ranges available for Gantt chart.</div>;
-                    const minD = Math.min(...validItems.map(i => new Date(i.start_date!).getTime()));
-                    const maxD = Math.max(...validItems.map(i => new Date(i.end_date!).getTime()));
-                    const totalD = maxD - minD || 1;
-                    
-                    return validItems.map(item => {
-                      const start = new Date(item.start_date!).getTime();
-                      const end = new Date(item.end_date!).getTime();
-                      const leftPct = ((start - minD) / totalD) * 100;
-                      const widthPct = Math.max(((end - start) / totalD) * 100, 2); // min width 2%
-                      return (
-                        <div key={item.id} className="flex items-center gap-4 text-xs">
-                          <div style={{ width: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} className="font-semibold" title={item.wbs_name}>{item.wbs_name}</div>
-                          <div className="flex-1" style={{ height: '28px', background: 'var(--bg-secondary)', borderRadius: '4px', position: 'relative' }}>
-                            <div style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, height: '100%', background: 'rgba(139, 92, 246, 0.2)', borderRadius: '4px', border: '1px solid #8b5cf6', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', color: '#8b5cf6', fontWeight: 'bold' }}>
-                              <span style={{ padding: '0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {Math.ceil((end - start) / (1000 * 60 * 60 * 24))} Days
-                              </span>
-                            </div>
-                          </div>
-                          <div style={{ width: '160px' }} className="text-muted font-semibold text-right">
-                             {new Date(item.start_date!).toLocaleDateString('en-GB')} - {new Date(item.end_date!).toLocaleDateString('en-GB')}
-                          </div>
+                          {canManage && (
+                            <button
+                              onClick={() => handleOpenDelete(item)}
+                              title="Remove Discipline"
+                              style={{ background: '#ef4444', color: '#fff', padding: '0.4rem 0.5rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
-            </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-      ) : activeTab === 'dependency' ? (
-        <div className="premium-table-wrapper mb-6">
-          <div className="p-4 border-b border-gray-200" style={{ borderColor: 'var(--border-color)' }}>
-            <h3 className="font-bold flex items-center gap-2"><Link size={18} className="text-primary" /> Dependency Check Network</h3>
-          </div>
-          <table className="premium-table">
-            <thead>
-              <tr>
-                <th>Discipline / WBS Name</th>
-                <th>WBS Code</th>
-                <th>Dependency Status</th>
-                <th>Prerequisites</th>
-                <th style={{ textAlign: 'center' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAllocations.map((item, idx) => {
-                const hasDeps = idx % 3 === 0; // Simple mock representation
-                return (
-                  <tr key={item.id}>
-                    <td className="font-semibold text-primary">{item.wbs_name}</td>
-                    <td className="font-bold">{item.wbs_code || '-'}</td>
-                    <td>
-                      <span className="badge-level" style={{ background: hasDeps ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: hasDeps ? '#f59e0b' : '#10b981' }}>
-                        {hasDeps ? 'Has Dependencies' : 'Independent'}
-                      </span>
-                    </td>
-                    <td className="text-muted font-semibold">{hasDeps ? 'Site Mobilization, Permits' : 'None'}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button className="btn btn-outline-purple" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', borderRadius: '4px' }}>Analyze</button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredAllocations.length === 0 && (
-                <tr><td colSpan={5} className="text-center text-muted p-4">No records found.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : activeTab === 'summary' ? (
-        <div className="metric-card-premium flex-col p-6 items-start gap-4 mb-6" style={{ minHeight: '300px' }}>
-          <h3 className="font-bold flex items-center gap-2 text-lg"><BarChart3 size={20} className="text-primary" /> Project Discipline Summary</h3>
-          <p className="text-sm text-muted">High-level financial and scheduling summary across all active WBS items.</p>
-          <div className="w-full mt-4 grid-4-col gap-4">
-            <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
-               <h4 className="font-bold mb-2 text-xs text-muted uppercase">Active Disciplines</h4>
-               <p className="text-2xl font-bold" style={{ color: '#0f172a' }}>{filteredAllocations.filter(i => i.status == 1 || String(i.status).toLowerCase() === 'active' || String(i.status).toLowerCase() === '1').length}</p>
-            </div>
-            <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
-               <h4 className="font-bold mb-2 text-xs text-muted uppercase">Total Planned Hours</h4>
-               <p className="text-2xl font-bold" style={{ color: '#10b981' }}>{totalPlannedHours.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
-               <h4 className="font-bold mb-2 text-xs text-muted uppercase">Total Actual Hours</h4>
-               <p className="text-2xl font-bold" style={{ color: '#3b82f6' }}>{totalActualHours.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div className="p-4 border rounded-lg" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
-               <h4 className="font-bold mb-2 text-xs text-muted uppercase">Overall Completion</h4>
-               <p className="text-2xl font-bold" style={{ color: '#f59e0b' }}>{overallProgress}%</p>
-            </div>
-          </div>
-          
-          <div className="w-full mt-4 border rounded-lg p-4" style={{ borderColor: 'var(--border-color)' }}>
-            <h4 className="font-bold mb-4 text-sm uppercase text-muted">Top Disciplines by Actual Hours (Top 5)</h4>
-            <div className="flex flex-col gap-4">
-              {[...filteredAllocations].sort((a, b) => Number(b.actual_hours || 0) - Number(a.actual_hours || 0)).slice(0, 5).map(item => {
-                 const p = Number(item.total_hours || 0);
-                 const a = Number(item.actual_hours || 0);
-                 const pct = p > 0 ? Math.min(100, Math.round((a / p) * 100)) : 0;
-                 return (
-                   <div key={item.id} className="flex items-center justify-between">
-                     <span className="font-semibold text-sm w-1/3 truncate" title={item.wbs_name}>{item.wbs_name}</span>
-                     <div className="w-1/2 mx-4">
-                        <div className="progress-container">
-                          <div className="progress-bar-bg" style={{ width: '100%' }}>
-                            <div className="progress-bar-fill" style={{ width: `${pct}%` }}></div>
-                          </div>
-                        </div>
-                     </div>
-                     <span className="text-sm font-bold w-32 text-right" style={{ color: '#3b82f6' }}>{a.toLocaleString('en-US', { minimumFractionDigits: 2 })} hrs</span>
-                   </div>
-                 );
-              })}
-              {filteredAllocations.length === 0 && <span className="text-muted text-sm font-semibold">No data available.</span>}
-            </div>
-          </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       {/* Modal - Allocate WBS */}
       {isAddModalOpen && (
@@ -872,6 +697,132 @@ export const ProjectWork: React.FC = () => {
                   {isSubmitting ? 'Removing...' : dependencyInfo?.hasDependencies ? 'Force Remove' : 'Confirm Remove'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal - Log Time Sheet */}
+      {timesheetWbs && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h3 className="flex items-center gap-2 text-lg font-bold" style={{ color: '#0f172a' }}>
+                Log Time Sheet
+              </h3>
+              <button onClick={() => setTimesheetWbs(null)} className="modal-close-btn"><X size={18} /></button>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '1rem' }}>
+              <form onSubmit={handleSaveTimesheet} className="flex-col gap-4">
+                {/* Project Name */}
+                <div className="form-group mb-3">
+                  <label className="form-label text-xs font-semibold mb-1 block">Project Name</label>
+                  <input
+                    type="text"
+                    disabled
+                    readOnly
+                    value={selectedProject ? `${selectedProject.project_code || `P0${selectedProject.project_id}`} ${selectedProject.project_name}` : ''}
+                    className="form-input"
+                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-color)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
+                  />
+                </div>
+                {/* Discipline Name */}
+                <div className="form-group mb-3">
+                  <label className="form-label text-xs font-semibold mb-1 block">Discipline Name</label>
+                  <input
+                    type="text"
+                    disabled
+                    readOnly
+                    value={timesheetWbs.wbs_name || ''}
+                    className="form-input"
+                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-color)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
+                  />
+                </div>
+                {/* Choose Task Name (optional) */}
+                <div className="form-group mb-3">
+                  <label className="form-label text-xs font-semibold mb-1 block">Choose Task Name (optional)</label>
+                  <select
+                    value={timesheetForm.task_id}
+                    onChange={(e) => setTimesheetForm({ ...timesheetForm, task_id: e.target.value })}
+                    className="form-select"
+                    style={{ borderRadius: '6px' }}
+                  >
+                    <option value="">-- Select Task --</option>
+                    {availableTasks.map((t) => (
+                      <option key={t.task_id} value={t.task_id}>
+                        {t.task_name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-muted mt-1 block" style={{ fontSize: '0.7rem' }}>
+                    * If no task is selected, a new task will be automatically created in Task Management.
+                  </span>
+                </div>
+                {/* Employee Name */}
+                <div className="form-group mb-3">
+                  <label className="form-label text-xs font-semibold mb-1 block">Employee Name <span className="text-danger">*</span></label>
+                  <select
+                    required
+                    value={timesheetForm.employee_id}
+                    onChange={(e) => setTimesheetForm({ ...timesheetForm, employee_id: e.target.value })}
+                    className="form-select"
+                    style={{ borderRadius: '6px' }}
+                  >
+                    <option value="">-- Select Employee --</option>
+                    {employees.map((emp) => (
+                      <option key={emp.employee_id} value={emp.employee_id}>
+                        {emp.name} ({emp.employee_code || `EMP0${emp.employee_id}`})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* Log Date & Work HRs */}
+                <div className="grid-2-col mb-4">
+                  <div className="form-group mb-0">
+                    <label className="form-label text-xs font-semibold mb-1 block">Log Date <span className="text-danger">*</span></label>
+                    <input
+                      type="date"
+                      required
+                      value={timesheetForm.log_date}
+                      onChange={(e) => setTimesheetForm({ ...timesheetForm, log_date: e.target.value })}
+                      className="form-input"
+                      style={{ borderRadius: '6px' }}
+                    />
+                  </div>
+                  <div className="form-group mb-0">
+                    <label className="form-label text-xs font-semibold mb-1 block">Work HRs. <span className="text-danger">*</span></label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.1"
+                      required
+                      placeholder="e.g. 6"
+                      value={timesheetForm.working_hours}
+                      onChange={(e) => setTimesheetForm({ ...timesheetForm, working_hours: e.target.value })}
+                      className="form-input"
+                      style={{ borderRadius: '6px' }}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTimesheetWbs(null)}
+                    className="btn btn-outline-grey"
+                    style={{ padding: '0.5rem 1.25rem', borderRadius: '6px' }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoggingTimesheet}
+                    className="btn btn-primary"
+                    style={{ background: '#f43f5e', color: '#ffffff', padding: '0.5rem 1.5rem', borderRadius: '6px', fontWeight: 600, border: 'none' }}
+                  >
+                    {isLoggingTimesheet ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

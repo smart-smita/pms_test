@@ -10,9 +10,14 @@ export class TimesheetController {
       const { project_id, wbs_id, task_id, employee_id, start_date, end_date } = req.query;
       const user = (req as any).user;
       let empId = employee_id ? parseInt(employee_id as string, 10) : undefined;
+      let managerId = undefined;
 
-      if (user && user.role_name === 'Employee') {
-        empId = user.employee_id || user.id;
+      if (user) {
+        if (user.role_name === 'Employee') {
+          empId = user.employee_id || user.id;
+        } else if (user.role_name === 'Manager') {
+          managerId = user.employee_id || user.id;
+        }
       }
 
       const list = await this.timesheetService.getTimesheets(
@@ -21,7 +26,8 @@ export class TimesheetController {
         task_id ? parseInt(task_id as string, 10) : undefined,
         empId,
         start_date as string,
-        end_date as string
+        end_date as string,
+        managerId
       );
       return sendSuccess(res, 'Timesheets retrieved successfully', list);
     } catch (error: any) {
@@ -36,6 +42,16 @@ export class TimesheetController {
       return sendSuccess(res, 'Timesheet entry retrieved successfully', ts);
     } catch (error: any) {
       return sendError(res, error.message || 'Timesheet entry not found', [], 404);
+    }
+  };
+
+  getTaskHistory = async (req: Request, res: Response) => {
+    try {
+      const taskId = parseInt(req.params.taskId, 10);
+      const history = await this.timesheetService.getTaskLogHistory(taskId);
+      return sendSuccess(res, 'Task log history retrieved successfully', history);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve task log history', [], 400);
     }
   };
 

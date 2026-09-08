@@ -18,7 +18,6 @@ export class AttendanceRepository {
         al.*,
         e.name AS employee_name,
         e.employee_code,
-        e.hourly_rate,
         t.task_name,
         p.project_name
        FROM attendance_logs al
@@ -29,13 +28,7 @@ export class AttendanceRepository {
       [id]
     );
     if (!rows[0]) return null;
-    const r: any = rows[0];
-    const hrs = Number(r.total_working_hours || 0);
-    const rate = Number(r.hourly_rate || 0);
-    return {
-      ...r,
-      calculated_payment: Math.round(hrs * rate * 100) / 100,
-    } as AttendanceRow;
+    return rows[0] as AttendanceRow;
   }
 
   async createCheckIn(data: {
@@ -146,7 +139,6 @@ export class AttendanceRepository {
         al.*,
         e.name AS employee_name,
         e.employee_code,
-        e.hourly_rate,
         t.task_name,
         p.project_name
       FROM attendance_logs al
@@ -190,15 +182,7 @@ export class AttendanceRepository {
     sql += ` ORDER BY al.check_in_time DESC`;
 
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
-
-    return rows.map((r: any) => {
-      const hrs = Number(r.total_working_hours || 0);
-      const rate = Number(r.hourly_rate || 0);
-      return {
-        ...r,
-        calculated_payment: Math.round(hrs * rate * 100) / 100,
-      } as AttendanceRow;
-    });
+    return rows as AttendanceRow[];
   }
 
   async markMissingCheckouts(currentDate: string): Promise<number> {

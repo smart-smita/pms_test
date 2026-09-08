@@ -34,8 +34,8 @@ export async function migrate() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         manager_id INT NOT NULL,
         project_id INT NOT NULL,
-        FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (manager_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
         UNIQUE KEY unique_manager_project (manager_id, project_id)
       );
     `);
@@ -47,8 +47,8 @@ export async function migrate() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         manager_id INT NOT NULL,
         employee_id INT NOT NULL,
-        FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (employee_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (manager_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
+        FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
         UNIQUE KEY unique_manager_employee (manager_id, employee_id)
       );
     `);
@@ -65,7 +65,7 @@ export async function migrate() {
         record_id INT,
         ip_address VARCHAR(45),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        FOREIGN KEY (user_id) REFERENCES employees(employee_id) ON DELETE SET NULL
       );
     `);
     console.log('Created audit_logs table.');
@@ -94,6 +94,8 @@ export async function migrate() {
       `);
       await dbPool.query(`ALTER TABLE labours ADD COLUMN contractor_id INT DEFAULT NULL`).catch(() => {});
       await dbPool.query(`
+        -- NOTE: labour_attendance is DEPRECATED and should not be used for new work.
+        -- It has been replaced by labour_work_logs for proper task/date/rate tracking.
         CREATE TABLE IF NOT EXISTS labour_attendance (
           labour_attendance_id INT AUTO_INCREMENT PRIMARY KEY,
           labour_id INT NOT NULL,
@@ -147,7 +149,71 @@ export async function migrate() {
       await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN out_longitude DECIMAL(11,8) DEFAULT NULL`).catch(() => {});
       await dbPool.query(`ALTER TABLE labour_attendance ADD COLUMN out_address TEXT DEFAULT NULL`).catch(() => {});
 
-      console.log('Created labours, labour_attendance and timesheets tables.');
+      // Create labour_work_logs, labour_payments, labour_payment_items tables
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS labour_work_logs (
+          work_log_id INT AUTO_INCREMENT PRIMARY KEY,
+          labour_id INT NOT NULL,
+          project_id INT NOT NULL,
+          wbs_id INT DEFAULT NULL,
+          task_id INT NOT NULL,
+          work_date DATE NOT NULL,
+          in_time TIME DEFAULT NULL,
+          out_time TIME DEFAULT NULL,
+          total_working_hours DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          rate_type ENUM('hourly', 'daily') NOT NULL DEFAULT 'hourly',
+          rate DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          work_description TEXT DEFAULT NULL,
+          work_status ENUM('pending', 'in_progress', 'completed') NOT NULL DEFAULT 'completed',
+          payment_status ENUM('pending', 'approved', 'paid', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
+          created_by INT DEFAULT NULL,
+          updated_by INT DEFAULT NULL,
+          is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+          deleted_at DATETIME DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (labour_id) REFERENCES labours(labour_id) ON DELETE CASCADE,
+          FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+          FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE SET NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE
+        );
+      `);
+
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS labour_payments (
+          payment_id INT AUTO_INCREMENT PRIMARY KEY,
+          payment_code VARCHAR(50) NOT NULL UNIQUE,
+          labour_id INT NOT NULL,
+          project_id INT DEFAULT NULL,
+          payment_date DATE NOT NULL,
+          total_hours DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          payment_method VARCHAR(50) DEFAULT 'cash',
+          reference_number VARCHAR(100) DEFAULT NULL,
+          status ENUM('pending', 'approved', 'paid', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
+          remarks TEXT DEFAULT NULL,
+          created_by INT DEFAULT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (labour_id) REFERENCES labours(labour_id) ON DELETE CASCADE,
+          FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE SET NULL
+        );
+      `);
+
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS labour_payment_items (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          payment_id INT NOT NULL,
+          work_log_id INT NOT NULL,
+          amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          FOREIGN KEY (payment_id) REFERENCES labour_payments(payment_id) ON DELETE CASCADE,
+          FOREIGN KEY (work_log_id) REFERENCES labour_work_logs(work_log_id) ON DELETE CASCADE,
+          UNIQUE KEY unique_payment_log (payment_id, work_log_id)
+        );
+      `);
+
+      console.log('Created labours, labour_work_logs, labour_payments, and timesheets tables.');
     } catch (err: any) {
       console.warn('Table migration warning:', err.message);
     }
@@ -199,6 +265,13 @@ export async function migrate() {
       ['timesheets', 'create', 'timesheets_create'],
       ['timesheets', 'update', 'timesheets_update'],
       ['timesheets', 'delete', 'timesheets_delete'],
+      ['labour_work_logs', 'view', 'labour_work_logs_view'],
+      ['labour_work_logs', 'create', 'labour_work_logs_create'],
+      ['labour_work_logs', 'update', 'labour_work_logs_update'],
+      ['labour_work_logs', 'delete', 'labour_work_logs_delete'],
+      ['labour_payments', 'view', 'labour_payments_view'],
+      ['labour_payments', 'create', 'labour_payments_create'],
+      ['labour_payments', 'update', 'labour_payments_update'],
     ];
 
     for (const p of permissionsToSeed) {
@@ -238,12 +311,14 @@ export async function migrate() {
       'reports_view', 'reports_export',
       'profile_view', 'profile_update',
       'labours_view', 'labours_create', 'labours_update',
-      'timesheets_view', 'timesheets_create', 'timesheets_update'
+      'timesheets_view', 'timesheets_create', 'timesheets_update',
+      'labour_work_logs_view', 'labour_work_logs_create', 'labour_work_logs_update', 'labour_payments_view'
     ];
     await grantPermission(managerRoleId, managerPerms);
 
     // Employee gets Self-Only permissions
     const employeePerms = [
+      'employees_view',
       'profile_view', 'profile_update',
       'attendance_view', 'attendance_create',
       'tasks_view', 'tasks_update',

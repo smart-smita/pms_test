@@ -15,8 +15,8 @@ export function requirePermission(moduleName: string, action: string) {
         return next();
       }
 
-      // Allow all authenticated users view access to personal modules
-      if (action === 'view' && ['tasks', 'attendance', 'payments', 'reports', 'settings', 'support', 'profile', 'dashboard'].includes(moduleName)) {
+      // Allow all authenticated users view access to viewable modules (controllers enforce data scoping)
+      if (action === 'view' && ['employees', 'projects', 'tasks', 'attendance', 'payments', 'reports', 'settings', 'support', 'profile', 'dashboard', 'timesheets', 'labours', 'wbs'].includes(moduleName)) {
         return next();
       }
 

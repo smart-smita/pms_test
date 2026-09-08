@@ -8,10 +8,6 @@ const controller = new LabourController();
 
 router.use(authenticateJwt);
 
-router.get('/attendance', requirePermission('labours', 'view'), controller.getAttendance);
-router.post('/attendance', requirePermission('labours', 'create'), controller.createAttendance);
-router.put('/attendance/:id', requirePermission('labours', 'update'), controller.updateAttendance);
-router.delete('/attendance/:id', requirePermission('labours', 'delete'), controller.deleteAttendance);
 
 router.get('/', requirePermission('labours', 'view'), controller.getAll);
 router.get('/:id/dependencies', requirePermission('labours', 'view'), controller.getDependencies);

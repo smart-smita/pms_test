@@ -5,33 +5,45 @@ import { sendSuccess, sendError } from '../utils/apiResponse';
 export class PaymentController {
   private paymentService = new PaymentService();
 
-  getEmployeePayments = async (req: Request, res: Response) => {
+  getLabourPayments = async (req: Request, res: Response) => {
     try {
-      const { start_date, end_date } = req.query;
+      const { start_date, end_date, labour_id, project_id } = req.query;
       const user = (req as any).user;
-      let employeeId = undefined;
-      if (user && user.role_name === 'Employee') {
-        employeeId = user.employee_id || user.id;
+      let managerId = undefined;
+      if (user && user.role_name === 'Manager') {
+        managerId = user.id || user.userId || user.employee_id;
       }
-      const data = await this.paymentService.getEmployeePayments(
+      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
+      const labourId = labour_id ? parseInt(labour_id as string, 10) : undefined;
+      const data = await this.paymentService.getLabourPayments(
         start_date as string,
         end_date as string,
-        employeeId
+        labourId,
+        projectId,
+        managerId
       );
-      return sendSuccess(res, 'Employee payments retrieved successfully', data);
+      return sendSuccess(res, 'Labour payments retrieved successfully', data);
     } catch (error: any) {
-      return sendError(res, error.message || 'Failed to fetch employee payments', [], 500);
+      return sendError(res, error.message || 'Failed to fetch labour payments', [], 500);
     }
   };
 
   getDailyPayments = async (req: Request, res: Response) => {
     try {
-      const { start_date, end_date } = req.query;
+      const { start_date, end_date, project_id } = req.query;
+      const user = (req as any).user;
+      let managerId = undefined;
+      if (user && user.role_name === 'Manager') {
+        managerId = user.id || user.userId || user.employee_id;
+      }
+      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
       const data = await this.paymentService.getDailyPayments(
         start_date as string,
-        end_date as string
+        end_date as string,
+        projectId,
+        managerId
       );
-      return sendSuccess(res, 'Daily payments retrieved successfully', data);
+      return sendSuccess(res, 'Daily labour payments retrieved successfully', data);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to fetch daily payments', [], 500);
     }
@@ -39,8 +51,15 @@ export class PaymentController {
 
   getProjectPayments = async (req: Request, res: Response) => {
     try {
-      const data = await this.paymentService.getProjectPayments();
-      return sendSuccess(res, 'Project payments retrieved successfully', data);
+      const { project_id } = req.query;
+      const user = (req as any).user;
+      let managerId = undefined;
+      if (user && user.role_name === 'Manager') {
+        managerId = user.id || user.userId || user.employee_id;
+      }
+      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
+      const data = await this.paymentService.getProjectPayments(projectId, managerId);
+      return sendSuccess(res, 'Project labour payments retrieved successfully', data);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to fetch project payments', [], 500);
     }
@@ -48,10 +67,33 @@ export class PaymentController {
 
   getTaskPayments = async (req: Request, res: Response) => {
     try {
-      const data = await this.paymentService.getTaskPayments();
-      return sendSuccess(res, 'Task payments retrieved successfully', data);
+      const { project_id } = req.query;
+      const user = (req as any).user;
+      let managerId = undefined;
+      if (user && user.role_name === 'Manager') {
+        managerId = user.id || user.userId || user.employee_id;
+      }
+      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
+      const data = await this.paymentService.getTaskPayments(projectId, managerId);
+      return sendSuccess(res, 'Task labour payments retrieved successfully', data);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to fetch task payments', [], 500);
+    }
+  };
+
+  getWBSPayments = async (req: Request, res: Response) => {
+    try {
+      const { project_id } = req.query;
+      const user = (req as any).user;
+      let managerId = undefined;
+      if (user && user.role_name === 'Manager') {
+        managerId = user.id || user.userId || user.employee_id;
+      }
+      const projectId = project_id ? parseInt(project_id as string, 10) : undefined;
+      const data = await this.paymentService.getWBSPayments(projectId, managerId);
+      return sendSuccess(res, 'WBS labour payments retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to fetch WBS payments', [], 500);
     }
   };
 }

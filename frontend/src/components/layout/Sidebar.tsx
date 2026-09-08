@@ -22,7 +22,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'tasks', label: isEmployee ? 'My Tasks' : 'Task Management', icon: CheckSquare, isAllowed: hasPermission('tasks', 'view') },
     { id: 'timesheets', label: isEmployee ? 'My Timesheets' : 'Timesheets', icon: Clock, isAllowed: hasPermission('timesheets', 'view') },
     { id: 'attendance', label: 'GPS Attendance', icon: MapPin, isAllowed: hasPermission('attendance', 'view') },
-    { id: 'payments', label: isEmployee ? 'My Working Hours' : 'Hour Payments', icon: IndianRupee, isAllowed: hasPermission('payments', 'view') },
+    { id: 'payments', label: 'Labour Payments', icon: IndianRupee, isAllowed: !isEmployee && hasPermission('payments', 'view') },
     { id: 'reports', label: isEmployee ? 'My Reports' : 'Reports', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
     { id: 'reports/project-work', label: 'Project Work Report', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
   ];

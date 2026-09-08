@@ -9,9 +9,10 @@ const controller = new PaymentController();
 router.use(authenticateJwt);
 router.use(requirePermission('payments', 'view'));
 
-router.get('/employee', controller.getEmployeePayments);
+router.get('/labour', controller.getLabourPayments);
 router.get('/daily', controller.getDailyPayments);
 router.get('/project', controller.getProjectPayments);
 router.get('/task', controller.getTaskPayments);
+router.get('/wbs', controller.getWBSPayments);
 
 export default router;

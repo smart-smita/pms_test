@@ -1,4 +1,4 @@
-import { LabourRepository, LabourRow, LabourAttendanceRow } from '../repositories/labour.repository';
+import { LabourRepository, LabourRow } from '../repositories/labour.repository';
 
 export class LabourService {
   private labourRepo = new LabourRepository();
@@ -93,66 +93,5 @@ export class LabourService {
     return await this.labourRepo.delete(id, force);
   }
 
-  async getLabourAttendance(projectId?: number, startDate?: string, endDate?: string, managerId?: number) {
-    return await this.labourRepo.findAttendance(projectId, startDate, endDate, managerId);
-  }
 
-  async createLabourAttendance(data: {
-    labour_id: number;
-    project_id?: number | null;
-    wbs_id?: number | null;
-    task_id?: number | null;
-    attendance_date: string;
-    in_time?: string | null;
-    out_time?: string | null;
-    daily_pay_amount: number;
-    worker_count: number;
-    comment?: string | null;
-  }): Promise<any> {
-    if (!data.labour_id) throw new Error('Labour selection is required');
-    if (!data.attendance_date) throw new Error('Attendance date is required');
-    if (data.daily_pay_amount < 0) throw new Error('Daily payment amount cannot be negative');
-    if (data.worker_count < 1) throw new Error('Worker count must be at least 1');
-
-    if (data.in_time && data.out_time && data.in_time >= data.out_time) {
-      throw new Error('Check-in time must be earlier than Check-out time');
-    }
-
-    let projectId = data.project_id || null;
-    let wbsId = data.wbs_id || null;
-
-    if (data.task_id) {
-      const { TaskRepository } = await import('../repositories/task.repository');
-      const taskRepo = new TaskRepository();
-      const task = await taskRepo.findById(data.task_id);
-      if (task) {
-        if (!projectId) projectId = task.project_id;
-        if (!wbsId) wbsId = task.wbs_id || null;
-      }
-
-      const isDuplicate = await this.labourRepo.checkDuplicateAttendance(data.labour_id, data.task_id, data.attendance_date);
-      if (isDuplicate) {
-        throw new Error('Attendance for this labour on the selected task and date already exists');
-      }
-    }
-
-    const id = await this.labourRepo.createAttendance({
-      ...data,
-      project_id: projectId,
-      wbs_id: wbsId,
-    });
-    return { id, message: 'Labour attendance logged successfully' };
-  }
-
-  async updateLabourAttendance(id: number, data: any) {
-    const success = await this.labourRepo.updateAttendance(id, data);
-    if (!success) throw new Error('Labour attendance record not found');
-    return { id, message: 'Labour attendance updated successfully' };
-  }
-
-  async deleteLabourAttendance(id: number) {
-    const success = await this.labourRepo.softDeleteAttendance(id);
-    if (!success) throw new Error('Labour attendance record not found');
-    return { id, message: 'Labour attendance deleted successfully' };
-  }
 }

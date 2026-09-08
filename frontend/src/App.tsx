@@ -57,7 +57,7 @@ const AppContent: React.FC = () => {
 
     switch (currentPage) {
       case 'dashboard': 
-        return <Dashboard />; // Everyone has a dashboard, metrics are scoped
+        return <Dashboard onNavigate={(page) => setCurrentPage(page)} />; // Everyone has a dashboard, metrics are scoped
       case 'employees': 
         return <RequirePermission module="employees" action="view" fallback={fallback}><Employees /></RequirePermission>;
       case 'labours':

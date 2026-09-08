@@ -9,8 +9,8 @@ export class ReportService {
     return await this.reportRepo.getEmployeeDetailsReport(filters);
   }
 
-  async getDisciplineDetailsReport() {
-    return await this.reportRepo.getDisciplineDetailsReport();
+  async getDisciplineDetailsReport(filters?: any) {
+    return await this.reportRepo.getDisciplineDetailsReport(filters);
   }
 
   async getEmployeeAttendanceReport1(filters: any) {
@@ -45,14 +45,14 @@ export class ReportService {
     return await this.reportRepo.getLabourCostPaymentReport(filters);
   }
 
-  async getProjectWorkReport(projectId?: number) {
-    return await this.reportRepo.getProjectWorkReport(projectId);
+  async getProjectWorkReport(projectId?: number, managerId?: number, employeeId?: number, startDate?: string, endDate?: string) {
+    return await this.reportRepo.getProjectWorkReport(projectId, managerId, employeeId, startDate, endDate);
   }
 
   async getPaymentReport(type: 'employee' | 'daily' | 'project' | 'task', startDate?: string, endDate?: string, employeeId?: number) {
     switch (type) {
       case 'employee':
-        return await this.paymentRepo.getEmployeePaymentSummary(startDate, endDate, employeeId);
+        return await this.paymentRepo.getLabourPaymentSummary(startDate, endDate, employeeId);
       case 'daily':
         return await this.paymentRepo.getDailyPaymentSummary(startDate, endDate);
       case 'project':
@@ -60,7 +60,7 @@ export class ReportService {
       case 'task':
         return await this.paymentRepo.getTaskPaymentSummary();
       default:
-        return await this.paymentRepo.getEmployeePaymentSummary(startDate, endDate, employeeId);
+        return await this.paymentRepo.getLabourPaymentSummary(startDate, endDate, employeeId);
     }
   }
 }

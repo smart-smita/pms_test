@@ -16,13 +16,32 @@ export class ProjectRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (
+        p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        p.project_id IN (SELECT project_id FROM tasks WHERE task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?))) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?) OR
+        p.project_id IN (SELECT project_id FROM timesheets WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        (
+          NOT EXISTS (SELECT 1 FROM manager_projects mp WHERE mp.manager_id = ?)
+          AND NOT EXISTS (SELECT 1 FROM employees e2 WHERE e2.reporting_to_id = ? AND e2.assigned_project_id IS NOT NULL)
+        )
+      )`;
+      params.push(managerId, managerId, managerId, managerId, managerId, managerId);
     }
     
     if (employeeId) {
-      sql += ` AND p.project_id IN (SELECT t2.project_id FROM tasks t2 JOIN task_assignments ta ON t2.task_id = ta.task_id WHERE ta.employee_id = ?)`;
-      params.push(employeeId);
+      sql += ` AND (
+        p.project_id IN (SELECT t2.project_id FROM tasks t2 JOIN task_assignments ta ON t2.task_id = ta.task_id WHERE ta.employee_id = ?) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ? AND assigned_project_id IS NOT NULL) OR
+        p.project_id IN (SELECT project_id FROM timesheets WHERE employee_id = ?) OR
+        p.project_id IN (SELECT DISTINCT t3.project_id FROM tasks t3 JOIN attendance_logs al ON t3.task_id = al.task_id WHERE al.employee_id = ?) OR
+        (
+          NOT EXISTS (SELECT 1 FROM employees e WHERE e.employee_id = ? AND e.assigned_project_id IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM task_assignments ta2 WHERE ta2.employee_id = ?)
+          AND NOT EXISTS (SELECT 1 FROM attendance_logs al2 WHERE al2.employee_id = ?)
+        )
+      )`;
+      params.push(employeeId, employeeId, employeeId, employeeId, employeeId, employeeId, employeeId);
     }
 
     if (status) {

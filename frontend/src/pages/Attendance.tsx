@@ -8,28 +8,28 @@ import { FormInput } from '../components/forms/FormInput';
 import { apiRequest } from '../services/api';
 import { AttendanceLog, Task, Project } from '../types';
 import { showSuccess, showError } from '../utils/toast';
-import { MapPin, LogIn, LogOut, Navigation, Clock, Edit2, Trash2, Users, HardHat } from 'lucide-react';
+import { MapPin, LogIn, LogOut, Navigation, Clock, Edit2, Trash2, Users, HardHat, Filter, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Attendance: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
-  const [activeTab, setActiveTab] = useState<'employees' | 'labours'>('employees');
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
-  const [labourLogs, setLabourLogs] = useState<any[]>([]);
   const [activeCheckIn, setActiveCheckIn] = useState<AttendanceLog | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [labours, setLabours] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Filter State
+  const [filterProjectId, setFilterProjectId] = useState<number>(0);
 
   // Check In / Punch on Behalf Modal
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
+  const [modalProjectId, setModalProjectId] = useState<number>(0);
   const [selectedTaskId, setSelectedTaskId] = useState<number>(0);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number>(0);
-  const [selectedLabourId, setSelectedLabourId] = useState<number>(0);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [address, setAddress] = useState<string>('');
@@ -44,31 +44,27 @@ export const Attendance: React.FC = () => {
 
   // Delete Confirmation State
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
-  const [deletingType, setDeletingType] = useState<'employee' | 'labour'>('employee');
 
   const fetchAttendanceData = async () => {
     setIsLoading(true);
+    const isManagerOrAdmin = isAdmin || user?.role_name === 'Manager';
     const promises: Promise<any>[] = [
       apiRequest<AttendanceLog[]>('/attendance/logs'),
       apiRequest<AttendanceLog>('/attendance/active'),
       apiRequest<Task[]>('/tasks'),
-      apiRequest<any[]>('/labours/attendance'),
+      apiRequest<Project[]>('/projects'),
     ];
-    if (isAdmin) {
-      promises.push(apiRequest<Project[]>('/projects'));
+    if (isManagerOrAdmin) {
       promises.push(apiRequest<any[]>('/employees'));
-      promises.push(apiRequest<any[]>('/labours'));
     }
 
-    const [lRes, aRes, tRes, labAttRes, pRes, eRes, labRes] = await Promise.all(promises);
+    const [lRes, aRes, tRes, pRes, eRes] = await Promise.all(promises);
 
     if (lRes.success && lRes.data) setLogs(lRes.data);
     if (aRes.success) setActiveCheckIn(aRes.data || null);
     if (tRes.success && tRes.data) setTasks(tRes.data);
-    if (labAttRes.success && labAttRes.data) setLabourLogs(labAttRes.data);
     if (pRes?.success && pRes.data) setProjects(pRes.data);
     if (eRes?.success && eRes.data) setEmployees(eRes.data.filter((e: any) => e.status === 'active'));
-    if (labRes?.success && labRes.data) setLabours(labRes.data);
 
     setIsLoading(false);
   };
@@ -104,7 +100,6 @@ export const Attendance: React.FC = () => {
   const handleOpenCheckInModal = () => {
     if (tasks.length > 0) setSelectedTaskId(tasks[0].task_id);
     setSelectedEmployeeId(0);
-    setSelectedLabourId(0);
     getGPSLocation();
     setIsCheckInModalOpen(true);
   };
@@ -112,31 +107,6 @@ export const Attendance: React.FC = () => {
   const handlePerformCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    if (activeTab === 'labours' && selectedLabourId) {
-      // Labour Attendance Log
-      const res = await apiRequest('/labours/attendance', {
-        method: 'POST',
-        body: JSON.stringify({
-          labour_id: selectedLabourId,
-          task_id: selectedTaskId || undefined,
-          attendance_date: new Date().toISOString().split('T')[0],
-          in_time: new Date().toTimeString().split(' ')[0],
-          in_address: address,
-          daily_pay_amount: 500,
-          worker_count: 1,
-        }),
-      });
-      setIsSubmitting(false);
-      if (res.success) {
-        showSuccess('Labour attendance logged successfully.');
-        setIsCheckInModalOpen(false);
-        fetchAttendanceData();
-      } else {
-        showError(res.message || 'Labour attendance logging failed.');
-      }
-      return;
-    }
 
     // Employee Check In
     const res = await apiRequest('/attendance/check-in', {
@@ -184,12 +154,9 @@ export const Attendance: React.FC = () => {
     if (!editingLog) return;
     setIsSubmitting(true);
 
-    const isLabour = activeTab === 'labours';
-    const endpoint = isLabour ? `/labours/attendance/${editingLog.labour_attendance_id}` : `/attendance/${editingLog.attendance_id}`;
+    const endpoint = `/attendance/${editingLog.attendance_id}`;
     
-    const bodyPayload = isLabour
-      ? { in_time: editCheckInTime, out_time: editCheckOutTime, in_address: editInAddress }
-      : { check_in_time: editCheckInTime, check_out_time: editCheckOutTime, in_address: editInAddress };
+    const bodyPayload = { check_in_time: editCheckInTime, check_out_time: editCheckOutTime, in_address: editInAddress };
 
     const res = await apiRequest(endpoint, {
       method: 'PUT',
@@ -210,7 +177,7 @@ export const Attendance: React.FC = () => {
     if (!deletingLogId) return;
     setIsLoading(true);
 
-    const endpoint = deletingType === 'labour' ? `/labours/attendance/${deletingLogId}` : `/attendance/${deletingLogId}`;
+    const endpoint = `/attendance/${deletingLogId}`;
     const res = await apiRequest(endpoint, { method: 'DELETE' });
 
     setIsLoading(false);
@@ -267,16 +234,19 @@ export const Attendance: React.FC = () => {
     },
   ];
 
-  const labourColumns: Column<any>[] = [
-    { header: 'Labour Name', accessor: (r) => `${r.labour_name} (${r.labour_type})`, csvAccessor: (r) => r.labour_name, sortKey: 'labour_name' },
-    { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
-    { header: 'Task / Project', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Work', csvAccessor: (r) => r.task_name || 'General Work', sortKey: 'task_name' },
-    { header: 'In Time', accessor: (r) => r.in_time || '-', csvAccessor: (r) => r.in_time || '-', sortKey: 'in_time' },
-    { header: 'Out Time', accessor: (r) => r.out_time || '-', csvAccessor: (r) => r.out_time || '-', sortKey: 'out_time' },
-    { header: 'Workers', accessor: 'worker_count', sortKey: 'worker_count' },
-    { header: 'Daily Pay Rate', accessor: (r) => `₹${Number(r.daily_pay_amount || 0).toFixed(2)}`, csvAccessor: (r) => r.daily_pay_amount, sortKey: 'daily_pay_amount' },
-    { header: 'Total Payout', accessor: (r) => `₹${Number(r.calculated_payment || r.daily_pay_amount * r.worker_count || 0).toFixed(2)}`, csvAccessor: (r) => r.calculated_payment || r.daily_pay_amount * r.worker_count, sortKey: 'calculated_payment' },
-  ];
+  // Filter data based on filterProjectId
+  const filteredLogs = logs.filter((l) => {
+    if (!filterProjectId) return true;
+    if (l.project_id && Number(l.project_id) === filterProjectId) return true;
+    const task = tasks.find((t) => t.task_id === l.task_id);
+    if (task && Number(task.project_id) === filterProjectId) return true;
+    return false;
+  });
+
+  const modalAvailableTasks = tasks.filter((t) => {
+    if (!modalProjectId) return true;
+    return Number(t.project_id) === modalProjectId;
+  });
 
   return (
     <div>
@@ -291,48 +261,6 @@ export const Attendance: React.FC = () => {
           </Button>
         </div>
       </div>
-
-      {/* Admin Employee / Labour Tabs */}
-      {isAdmin && (
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-          <button
-            onClick={() => setActiveTab('employees')}
-            style={{
-              padding: '0.6rem 1.25rem',
-              borderRadius: '8px',
-              border: 'none',
-              background: activeTab === 'employees' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
-              color: activeTab === 'employees' ? '#fff' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <Users size={16} /> Employee Attendance ({logs.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('labours')}
-            style={{
-              padding: '0.6rem 1.25rem',
-              borderRadius: '8px',
-              border: 'none',
-              background: activeTab === 'labours' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
-              color: activeTab === 'labours' ? '#fff' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <HardHat size={16} /> Labour / Contractor Attendance ({labourLogs.length})
-          </button>
-        </div>
-      )}
 
       {/* Active Check-In Banner for Employee */}
       {!isAdmin && activeCheckIn && (
@@ -368,11 +296,49 @@ export const Attendance: React.FC = () => {
         </div>
       )}
 
+      {/* Project Filter Bar */}
+      <div className="glass-card" style={{ marginBottom: '1.25rem', padding: '1rem 1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--text-main)' }}>
+            <Filter size={16} style={{ color: '#6366f1' }} /> Filter Attendance Logs:
+          </div>
+
+          <div style={{ minWidth: '220px' }}>
+            <select
+              className="form-input"
+              value={filterProjectId}
+              onChange={(e) => setFilterProjectId(parseInt(e.target.value, 10) || 0)}
+              style={{ padding: '0.45rem 0.75rem', fontSize: '0.875rem' }}
+            >
+              <option value={0}>All Projects</option>
+              {projects.map((p) => (
+                <option key={p.project_id} value={p.project_id}>
+                  {p.project_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {filterProjectId !== 0 && (
+            <Button
+              variant="secondary"
+              onClick={() => setFilterProjectId(0)}
+              style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
+            >
+              <RotateCcw size={14} /> Reset Filter
+            </Button>
+          )}
+
+          <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Showing <strong>{filteredLogs.length}</strong> records
+          </div>
+        </div>
+      </div>
+
       <div className="glass-card">
-        {activeTab === 'employees' ? (
           <DataTable
             columns={employeeColumns}
-            data={logs}
+            data={filteredLogs}
             searchPlaceholder="Search employee attendance logs..."
             exportFilename="employee_attendance_logs"
             isLoading={isLoading}
@@ -393,7 +359,6 @@ export const Attendance: React.FC = () => {
                 <button
                   onClick={() => {
                     setDeletingLogId(row.attendance_id);
-                    setDeletingType('employee');
                   }}
                   title="Soft Delete"
                   style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
@@ -403,47 +368,12 @@ export const Attendance: React.FC = () => {
               </div>
             ) : undefined}
           />
-        ) : (
-          <DataTable
-            columns={labourColumns}
-            data={labourLogs}
-            searchPlaceholder="Search labour attendance logs..."
-            exportFilename="labour_attendance_logs"
-            isLoading={isLoading}
-            actions={isAdmin ? (row: any) => (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={() => {
-                    setEditingLog(row);
-                    setEditCheckInTime(row.in_time || '');
-                    setEditCheckOutTime(row.out_time || '');
-                    setEditInAddress(row.in_address || '');
-                  }}
-                  title="Edit Record"
-                  style={{ background: 'rgba(99, 102, 241, 0.1)', border: 'none', color: '#6366f1', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  onClick={() => {
-                    setDeletingLogId(row.labour_attendance_id);
-                    setDeletingType('labour');
-                  }}
-                  title="Soft Delete"
-                  style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ) : undefined}
-          />
-        )}
       </div>
 
       {/* Check In / Log Attendance Modal */}
       <Modal isOpen={isCheckInModalOpen} onClose={() => setIsCheckInModalOpen(false)} title="Site Punch & Attendance Entry">
         <form noValidate onSubmit={handlePerformCheckIn}>
-          {isAdmin && activeTab === 'employees' && (
+          {isAdmin && (
             <FormSelect
               label="Select Employee (Punch on Behalf)"
               value={selectedEmployeeId}
@@ -455,23 +385,31 @@ export const Attendance: React.FC = () => {
             />
           )}
 
-          {isAdmin && activeTab === 'labours' && (
-            <FormSelect
-              label="Select Labour / Contractor Worker *"
-              value={selectedLabourId}
-              onChange={(e) => setSelectedLabourId(parseInt(e.target.value, 10) || 0)}
-              options={[
-                { value: 0, label: '-- Select Worker --' },
-                ...labours.map(lab => ({ value: lab.labour_id, label: `${lab.name} (${lab.labour_type})` }))
-              ]}
-            />
-          )}
+          {/* Project Selection for Punch Modal */}
+          <FormSelect
+            label="Select Project"
+            value={modalProjectId}
+            onChange={(e) => {
+              const pId = parseInt(e.target.value, 10) || 0;
+              setModalProjectId(pId);
+              const matching = tasks.filter(t => !pId || Number(t.project_id) === pId);
+              if (matching.length > 0) {
+                setSelectedTaskId(matching[0].task_id);
+              } else {
+                setSelectedTaskId(0);
+              }
+            }}
+            options={[
+              { value: 0, label: '-- All Projects --' },
+              ...projects.map(p => ({ value: p.project_id, label: p.project_name }))
+            ]}
+          />
 
           <FormSelect
             label="Select Assigned Task"
             value={selectedTaskId}
             onChange={(e) => setSelectedTaskId(parseInt(e.target.value, 10))}
-            options={tasks.map((t) => ({ value: t.task_id, label: `${t.task_name} (${t.project_name})` }))}
+            options={modalAvailableTasks.map((t) => ({ value: t.task_id, label: `${t.task_name} (${t.project_name})` }))}
           />
 
           <div className="form-group">
@@ -523,13 +461,13 @@ export const Attendance: React.FC = () => {
         <form onSubmit={handleSaveEdit}>
           <FormInput
             label="Check-In Time"
-            type={activeTab === 'employees' ? 'datetime-local' : 'time'}
+            type="datetime-local"
             value={editCheckInTime}
             onChange={(e) => setEditCheckInTime(e.target.value)}
           />
           <FormInput
             label="Check-Out Time"
-            type={activeTab === 'employees' ? 'datetime-local' : 'time'}
+            type="datetime-local"
             value={editCheckOutTime}
             onChange={(e) => setEditCheckOutTime(e.target.value)}
           />
