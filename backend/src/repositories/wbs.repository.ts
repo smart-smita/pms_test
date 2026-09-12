@@ -39,52 +39,79 @@ export class WbsRepository {
   async findProjectWbsByProjectId(projectId: number): Promise<ProjectWBSRow[]> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT pw.*, w.wbs_code, w.wbs_name,
-              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
+              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id)), 0) +
+              COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+              COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost
        FROM project_wbs pw
        JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE pw.project_id = ? AND pw.deleted_at IS NULL
        ORDER BY pw.id ASC`,
       [projectId]
     );
-    return rows as ProjectWBSRow[];
+
+    return rows.map((r: any) => {
+      const plannedHrs = Number(r.total_hours || 0);
+      const actualHrs = Number(r.actual_hours || 0);
+      const remainingHrs = Math.max(plannedHrs - actualHrs, 0);
+      const varianceHrs = actualHrs - plannedHrs;
+      const compPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 10000) / 100, 100) : 0;
+      let statusStr = 'Active';
+      if (actualHrs === 0) statusStr = 'Planned';
+      else if (actualHrs >= plannedHrs && plannedHrs > 0) statusStr = 'Completed';
+      else if (actualHrs > 0) statusStr = 'Active';
+
+      return {
+        ...r,
+        total_hours: plannedHrs,
+        actual_hours: Math.round(actualHrs * 100) / 100,
+        remaining_hours: Math.round(remainingHrs * 100) / 100,
+        completion_percentage: compPct,
+        variance: Math.round(varianceHrs * 100) / 100,
+        actual_cost: Number(r.actual_cost || 0),
+        status: statusStr,
+      } as ProjectWBSRow;
+    });
   }
 
   async findProjectWbsById(id: number): Promise<ProjectWBSRow | null> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT pw.*, w.wbs_code, w.wbs_name,
-              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
+              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id)), 0) +
+              COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+              COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost
        FROM project_wbs pw
        JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE pw.id = ? AND pw.deleted_at IS NULL`,
       [id]
     );
-    return (rows[0] as ProjectWBSRow) || null;
+    if (!rows[0]) return null;
+    const r: any = rows[0];
+    const plannedHrs = Number(r.total_hours || 0);
+    const actualHrs = Number(r.actual_hours || 0);
+    const remainingHrs = Math.max(plannedHrs - actualHrs, 0);
+    const varianceHrs = actualHrs - plannedHrs;
+    const compPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 10000) / 100, 100) : 0;
+    let statusStr = 'Active';
+    if (actualHrs === 0) statusStr = 'Planned';
+    else if (actualHrs >= plannedHrs && plannedHrs > 0) statusStr = 'Completed';
+    else if (actualHrs > 0) statusStr = 'Active';
+
+    return {
+      ...r,
+      total_hours: plannedHrs,
+      actual_hours: Math.round(actualHrs * 100) / 100,
+      remaining_hours: Math.round(remainingHrs * 100) / 100,
+      completion_percentage: compPct,
+      variance: Math.round(varianceHrs * 100) / 100,
+      actual_cost: Number(r.actual_cost || 0),
+      status: statusStr,
+    } as ProjectWBSRow;
   }
 
   async resolveProjectWbs(projectId: number, wbsId: number): Promise<ProjectWBSRow | null> {
-    // 1. Try matching project_wbs.id for specific project
-    let [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT pw.*, w.wbs_code, w.wbs_name,
-              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
-       FROM project_wbs pw
-       JOIN work_breakdown_structures w ON pw.wbs_id = w.id
-       WHERE pw.id = ? AND pw.project_id = ? AND pw.deleted_at IS NULL`,
-      [wbsId, projectId]
-    );
-    if (rows.length > 0) return rows[0] as ProjectWBSRow;
-
-    // 2. Try matching project_wbs by master wbs_id for specific project
-    [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT pw.*, w.wbs_code, w.wbs_name,
-              COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE wbs_id = pw.id), 0) AS actual_hours
-       FROM project_wbs pw
-       JOIN work_breakdown_structures w ON pw.wbs_id = w.id
-       WHERE pw.wbs_id = ? AND pw.project_id = ? AND pw.deleted_at IS NULL`,
-      [wbsId, projectId]
-    );
-    if (rows.length > 0) return rows[0] as ProjectWBSRow;
-
-    // 3. Fallback to findProjectWbsById
+    const list = await this.findProjectWbsByProjectId(projectId);
+    const found = list.find((item) => Number(item.id) === Number(wbsId) || Number(item.wbs_id) === Number(wbsId));
+    if (found) return found;
     return this.findProjectWbsById(wbsId);
   }
 

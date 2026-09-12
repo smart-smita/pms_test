@@ -45,8 +45,8 @@ export const Tasks: React.FC = () => {
   // Task Form State
   const [projectId, setProjectId] = useState<number>(0);
   const [wbsId, setWbsId] = useState<number>(0);
-  const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<number[]>([]);
-  const [assignedLabourIds, setAssignedLabourIds] = useState<number[]>([]);
+  const [assignedEmployeeId, setAssignedEmployeeId] = useState<number | string>('');
+  const [allocations, setAllocations] = useState<any[]>([]);
   const [taskName, setTaskName] = useState('');
   const [description, setDescription] = useState('');
   const [workerCount, setWorkerCount] = useState<number | string>(1);
@@ -55,6 +55,16 @@ export const Tasks: React.FC = () => {
   const [startTime, setStartTime] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [targetTime, setTargetTime] = useState('');
+  const [taskAddress, setTaskAddress] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+
+  // Auto-calculate Worker Count based on allocated labour workers count
+  useEffect(() => {
+    if (isModalOpen) {
+      setWorkerCount(allocations.length > 0 ? allocations.length : 1);
+    }
+  }, [allocations, isModalOpen]);
 
   // Status State
   const [status, setStatus] = useState<'pending' | 'in-progress' | 'completed' | 'delayed' | 'on-hold' | 'cancelled'>('pending');
@@ -140,8 +150,8 @@ export const Tasks: React.FC = () => {
     setEditingTask(null);
     setProjectId(projects[0]?.project_id || 0);
     setWbsId(0);
-    setAssignedEmployeeIds(user?.employee_id ? [user.employee_id] : []);
-    setAssignedLabourIds([]);
+    setAssignedEmployeeId(user?.employee_id || '');
+    setAllocations([]);
     setTaskName('');
     setDescription('');
     setWorkerCount(1);
@@ -150,17 +160,33 @@ export const Tasks: React.FC = () => {
     setStartTime('09:00');
     setTargetDate(new Date().toISOString().split('T')[0]);
     setTargetTime('18:00');
+    setTaskAddress('');
+    setLatitude('');
+    setLongitude('');
     setStatus('pending');
     setFormErrors({});
     setIsModalOpen(true);
   };
 
-  const openEditModal = (t: Task) => {
+  const openEditModal = async (t: Task) => {
     setEditingTask(t);
     setProjectId(t.project_id);
     setWbsId(t.wbs_id || 0);
-    setAssignedEmployeeIds(t.assigned_employees ? t.assigned_employees.map((e) => e.employee_id) : []);
-    setAssignedLabourIds(t.assigned_labours ? t.assigned_labours.map((l) => l.labour_id) : []);
+    setAssignedEmployeeId(t.assigned_employees && t.assigned_employees.length > 0 ? t.assigned_employees[0].employee_id : '');
+    
+    setAllocations([]);
+    apiService.get<any[]>(`/tasks/${t.task_id}/allocations`).then(res => {
+      if (res.success && res.data) {
+        setAllocations(res.data.map(d => ({
+          work_log_id: d.work_log_id,
+          labour_id: d.labour_id,
+          work_date: d.work_date ? d.work_date.split('T')[0] : '',
+          amount: d.amount || '',
+          work_description: d.work_description || ''
+        })));
+      }
+    }).catch(console.error);
+
     setTaskName(t.task_name);
     setDescription(t.description || '');
     setWorkerCount(t.required_worker_count);
@@ -169,6 +195,9 @@ export const Tasks: React.FC = () => {
     setStartTime(t.start_time || '');
     setTargetDate(t.target_date ? t.target_date.split('T')[0] : '');
     setTargetTime(t.target_time || '');
+    setTaskAddress((t as any).task_address || '');
+    setLatitude((t as any).latitude || '');
+    setLongitude((t as any).longitude || '');
     setStatus(t.status as any);
     setFormErrors({});
     setIsModalOpen(true);
@@ -256,8 +285,8 @@ export const Tasks: React.FC = () => {
       return;
     }
 
-    if (assignedEmployeeIds.length === 0 && assignedLabourIds.length === 0) {
-      setFormErrors({ assigned_employee_ids: 'Please select at least one employee or labourer.' });
+    if (!assignedEmployeeId && allocations.length === 0) {
+      setFormErrors({ assigned_employee_ids: 'Please select an employee or add a labour allocation.' });
       return;
     }
 
@@ -273,8 +302,14 @@ export const Tasks: React.FC = () => {
       start_time: startTime || undefined,
       target_date: targetDate || undefined,
       target_time: targetTime || undefined,
-      assigned_employee_ids: assignedEmployeeIds,
-      assigned_labour_ids: assignedLabourIds,
+      assigned_employee_ids: assignedEmployeeId ? [Number(assignedEmployeeId)] : [],
+      allocations: allocations.map(a => ({
+        ...a,
+        amount: typeof a.amount === 'string' ? parseFloat(a.amount) || 0 : a.amount
+      })),
+      task_address: taskAddress,
+      latitude: latitude ? parseFloat(latitude) : undefined,
+      longitude: longitude ? parseFloat(longitude) : undefined,
     };
 
     if (editingTask) {
@@ -403,16 +438,27 @@ export const Tasks: React.FC = () => {
     { header: 'Worker Count', accessor: 'required_worker_count', sortKey: 'required_worker_count' },
     {
       header: 'Working Hours',
-      accessor: (r: Task) =>
-        r.actual_hours !== undefined && r.actual_hours !== null ? (
+      accessor: (r: Task) => {
+        const est = Number(r.estimated_hours || 0);
+        const act = Number(r.actual_hours || 0);
+        const rem = Math.max(est - act, 0);
+        const alloc = r.allocation_status || (act > est ? 'Hours Exceeded' : act >= est * 0.85 ? 'Near Limit' : 'Within Allocation');
+        const badgeBg = alloc === 'Hours Exceeded' ? 'rgba(239, 68, 68, 0.12)' : alloc === 'Near Limit' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)';
+        const badgeColor = alloc === 'Hours Exceeded' ? '#ef4444' : alloc === 'Near Limit' ? '#f59e0b' : '#10b981';
+
+        return (
           <div>
-            <span>{r.estimated_hours}h</span>
-            <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Logged: {r.actual_hours}h</div>
+            <div style={{ fontWeight: 600 }}>{est}h <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>(Rem: {rem}h)</span></div>
+            <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Logged: {act}h</div>
+            <div style={{ marginTop: '0.2rem' }}>
+              <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: badgeBg, color: badgeColor, fontWeight: 700 }}>
+                {alloc}
+              </span>
+            </div>
           </div>
-        ) : (
-          `${r.estimated_hours}h`
-        ),
-      csvAccessor: (r: Task) => `${r.estimated_hours}h (Actual: ${r.actual_hours || 0}h)`,
+        );
+      },
+      csvAccessor: (r: Task) => `${r.estimated_hours}h (Actual: ${r.actual_hours || 0}h, Rem: ${Math.max((r.estimated_hours || 0) - (r.actual_hours || 0), 0)}h)`,
       sortKey: 'estimated_hours',
     },
     {
@@ -636,7 +682,8 @@ export const Tasks: React.FC = () => {
               <FormInput
                 label="Work HRs. *"
                 type="number"
-                step="0.5"
+                step="any"
+                min="0"
                 placeholder="e.g. 6"
                 value={timesheetForm.working_hours}
                 onChange={(e) => setTimesheetForm({ ...timesheetForm, working_hours: e.target.value })}
@@ -682,8 +729,18 @@ export const Tasks: React.FC = () => {
             label="Project *"
             value={projectId}
             onChange={(e) => {
-              setProjectId(parseInt(e.target.value, 10) || 0);
+              const pid = parseInt(e.target.value, 10) || 0;
+              setProjectId(pid);
               setFormErrors((prev) => ({ ...prev, project_id: '' }));
+              // Auto-fill address and GPS from selected project
+              if (!editingTask) {
+                const proj = projects.find(p => p.project_id === pid);
+                if (proj) {
+                  setTaskAddress(proj.project_address || '');
+                  setLatitude((proj as any).latitude || '');
+                  setLongitude((proj as any).longitude || '');
+                }
+              }
             }}
             options={[
               { value: 0, label: '-- Select Project --' },
@@ -709,107 +766,160 @@ export const Tasks: React.FC = () => {
             error={formErrors.wbs_id}
           />
 
-          {/* 3. Employee Name */}
-          <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label className="form-label">Employee Name</label>
-            <div
-              style={{
-                maxHeight: '150px',
-                overflowY: 'auto',
-                border: '1px solid var(--input-border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.5rem',
-                background: 'var(--input-bg)',
-                transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-              }}
-            >
-              {employees.length === 0 ? (
-                <div style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>No active employees found.</div>
-              ) : (
-                employees.map((emp) => (
-                  <label
-                    key={emp.employee_id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      padding: '0.5rem',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid var(--input-border)',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={assignedEmployeeIds.includes(emp.employee_id)}
-                      onChange={(e) => {
-                        if (e.target.checked) setAssignedEmployeeIds([...assignedEmployeeIds, emp.employee_id]);
-                        else setAssignedEmployeeIds(assignedEmployeeIds.filter((id) => id !== emp.employee_id));
-                        setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
-                      }}
-                      style={{ width: '16px', height: '16px' }}
-                    />
-                    <span>
-                      {emp.name} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>({emp.role_name})</span>
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-            {formErrors.assigned_employee_ids && (
-              <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                {formErrors.assigned_employee_ids}
-              </div>
-            )}
-          </div>
+          {/* 3. Employee Allocation (Single Dropdown) */}
+          <FormSelect
+            label="Employee Name *"
+            value={assignedEmployeeId}
+            onChange={(e) => {
+              setAssignedEmployeeId(e.target.value);
+              setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
+            }}
+            options={[
+              { value: '', label: '-- Select Employee --' },
+              ...employees.map((emp) => ({
+                value: emp.employee_id,
+                label: `${emp.name} (${emp.role_name || emp.employee_code || 'Employee'})`,
+              })),
+            ]}
+            error={formErrors.assigned_employee_ids}
+            required
+          />
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label className="form-label">Labour / Worker Name</label>
-            <div
-              style={{
-                maxHeight: '150px',
-                overflowY: 'auto',
-                border: '1px solid var(--input-border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.5rem',
-                background: 'var(--input-bg)',
-                transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-              }}
-            >
-              {labours.length === 0 ? (
-                <div style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>No labours found.</div>
-              ) : (
-                labours.map((labour) => (
-                  <label
-                    key={labour.labour_id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      padding: '0.5rem',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid var(--input-border)',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={assignedLabourIds.includes(labour.labour_id)}
-                      onChange={(e) => {
-                        if (e.target.checked) setAssignedLabourIds([...assignedLabourIds, labour.labour_id]);
-                        else setAssignedLabourIds(assignedLabourIds.filter((id) => id !== labour.labour_id));
-                        setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
-                      }}
-                      style={{ width: '16px', height: '16px' }}
-                    />
-                    <span>
-                      {labour.name}{' '}
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        ({labour.labour_type === 'contractor' ? 'Contractor' : 'Direct'})
-                      </span>
-                    </span>
-                  </label>
-                ))
-              )}
+            <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Labour / Contractor Allocations</span>
+              <Button type="button" variant="secondary" onClick={() => setAllocations([...allocations, { labour_id: '', work_date: new Date().toISOString().split('T')[0], amount: '', work_description: '' }])} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>
+                <Plus size={14} /> Add Allocation
+              </Button>
+            </label>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="minimal-table" style={{ width: '100%', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ background: 'var(--input-bg-solid)', fontSize: '0.8rem' }}>
+                    <th style={{ padding: '0.5rem' }}>Work Date</th>
+                    <th style={{ padding: '0.5rem' }}>Labour / Contractor</th>
+                    <th style={{ padding: '0.5rem', width: '100px' }}>Amount</th>
+                    <th style={{ padding: '0.5rem' }}>Remarks</th>
+                    <th style={{ padding: '0.5rem', width: '50px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allocations.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No allocations added.
+                      </td>
+                    </tr>
+                  ) : (
+                    allocations.map((alloc, idx) => (
+                      <tr key={idx}>
+                        <td style={{ padding: '0.4rem' }}>
+                          <input
+                            type="date"
+                            className="form-input"
+                            value={alloc.work_date}
+                            onChange={(e) => {
+                              const newAlloc = [...allocations];
+                              newAlloc[idx].work_date = e.target.value;
+                              setAllocations(newAlloc);
+                            }}
+                            required
+                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.4rem' }}>
+                          <select
+                            className="form-input"
+                            value={alloc.labour_id}
+                            onChange={(e) => {
+                              const newAlloc = [...allocations];
+                              newAlloc[idx].labour_id = parseInt(e.target.value, 10) || '';
+                              setAllocations(newAlloc);
+                            }}
+                            required
+                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
+                          >
+                            <option value="">-- Select Labour / Contractor --</option>
+                            {labours.map((l) => {
+                              const isContractor = l.labour_type === 'contractor';
+                              const subWorkers = l.sub_worker_count !== undefined ? l.sub_worker_count : 0;
+                              return (
+                                <option key={l.labour_id} value={l.labour_id}>
+                                  {isContractor
+                                    ? `${l.name} (Contractor - ${subWorkers} Workers Available)`
+                                    : `${l.name} (Direct Labour)`}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </td>
+                        <td style={{ padding: '0.4rem' }}>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            className="form-input"
+                            value={alloc.amount}
+                            onChange={(e) => {
+                              const newAlloc = [...allocations];
+                              newAlloc[idx].amount = e.target.value;
+                              setAllocations(newAlloc);
+                            }}
+                            placeholder="0.00"
+                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.4rem' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={alloc.work_description}
+                            onChange={(e) => {
+                              const newAlloc = [...allocations];
+                              newAlloc[idx].work_description = e.target.value;
+                              setAllocations(newAlloc);
+                            }}
+                            placeholder="Remarks..."
+                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newAlloc = [...allocations];
+                              newAlloc.splice(idx, 1);
+                              setAllocations(newAlloc);
+                            }}
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
+
+            {/* Contractor Available Worker Count Summary Banner */}
+            {allocations.some((a) => labours.find((l) => l.labour_id === Number(a.labour_id))?.labour_type === 'contractor') && (
+              <div style={{ marginTop: '0.6rem', padding: '0.6rem 0.85rem', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                {labours
+                  .filter((l) => l.labour_type === 'contractor' && allocations.some((a) => Number(a.labour_id) === l.labour_id))
+                  .map((c) => {
+                    const allocatedCountForContractor = allocations.filter((a) => Number(a.labour_id) === c.labour_id).length;
+                    const totalAvailable = c.sub_worker_count !== undefined ? c.sub_worker_count : 0;
+                    return (
+                      <div key={c.labour_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <span>🏢 Contractor <strong>{c.name}</strong>: <strong>{totalAvailable}</strong> total workers available under contractor</span>
+                        <span style={{ color: '#6366f1', fontWeight: 600 }}>Allocated to task: {allocatedCountForContractor} worker(s) | Total Worker Count: {allocations.length}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           {/* 4. Task Name */}
@@ -833,21 +943,25 @@ export const Tasks: React.FC = () => {
 
           {/* 6 & 7. Worker Count & Working Hours */}
           <div className="grid-2-col">
-            <FormInput
-              label="Worker Count *"
-              type="number"
-              value={workerCount}
-              onChange={(e) => {
-                setWorkerCount(e.target.value === '' ? '' : parseInt(e.target.value, 10));
-                setFormErrors((prev) => ({ ...prev, required_worker_count: '' }));
-              }}
-              required
-              error={formErrors.required_worker_count}
-            />
+            <div>
+              <FormInput
+                label="Worker Count *"
+                type="number"
+                value={workerCount}
+                readOnly
+                style={{ background: 'var(--input-bg-solid)', opacity: 0.85, cursor: 'not-allowed' }}
+                required
+                error={formErrors.required_worker_count}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '-0.3rem', marginBottom: '0.5rem' }}>
+                Auto-updated from allocated labour workers ({allocations.length} allocated)
+              </span>
+            </div>
             <FormInput
               label="Working Hours *"
               type="number"
-              step="0.5"
+              step="any"
+              min="0"
               value={workingHours}
               onChange={(e) => {
                 setWorkingHours(e.target.value === '' ? '' : parseFloat(e.target.value));
@@ -909,6 +1023,8 @@ export const Tasks: React.FC = () => {
               error={formErrors.target_time}
             />
           </div>
+
+
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>

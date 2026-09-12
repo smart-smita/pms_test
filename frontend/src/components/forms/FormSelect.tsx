@@ -12,10 +12,11 @@ interface FormSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> 
 }
 
 export const FormSelect: React.FC<FormSelectProps> = ({ label, options, error, className = '', ...props }) => {
+  const cleanLabel = label ? label.replace(/\s*\*+\s*$/, '') : '';
   return (
     <div className="form-group">
       <label className="form-label">
-        {label} {props.required && <span style={{ color: '#ef4444' }}>*</span>}
+        {cleanLabel} {props.required && <span style={{ color: '#ef4444' }}>*</span>}
       </label>
       <select className={`form-select ${error ? 'invalid-input' : ''} ${className}`} {...props}>
         {options.map((opt) => (

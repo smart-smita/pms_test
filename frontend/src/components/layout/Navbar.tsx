@@ -161,7 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
       zIndex: 20
     }}>
       {/* Left Section */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', minWidth: 0 }}>
         <button 
           className="hamburger-btn" 
           onClick={onToggleSidebar}
@@ -170,26 +170,27 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
             border: 'none',
             color: 'var(--text-primary)',
             cursor: 'pointer',
-            padding: '0'
+            padding: '0',
+            flexShrink: 0,
           }}
         >
           <Menu size={24} />
         </button>
         
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <h2 className="navbar-page-title" style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {pageTitle}
           </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          <span className="navbar-welcome" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Welcome back, {user?.name || 'User'} 👋
           </span>
         </div>
       </div>
 
       {/* Right Section */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+      <div className="navbar-right-icons" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexShrink: 0 }}>
         
-        {/* Search Bar */}
+        {/* Search Bar — hidden on tablet/mobile via CSS */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -215,11 +216,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
         </div>
 
         {/* Action Icons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', color: '#94a3b8' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: '#94a3b8' }}>
           
           {/* Punch Button */}
           {(user?.role_name === 'Employee' || user?.role_name === 'Manager') && (
             <button
+              className="navbar-punch-btn"
               onClick={handlePunch}
               disabled={loadingPunch}
               style={{
@@ -246,16 +248,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
                   height: '8px',
                   borderRadius: '50%',
                   backgroundColor: 'currentColor',
-                  boxShadow: `0 0 8px currentColor`
+                  boxShadow: `0 0 8px currentColor`,
+                  flexShrink: 0,
                 }} />
               )}
-              {activeCheckIn ? 'Punch Out' : 'Punch In'}
+              <span>{activeCheckIn ? 'Punch Out' : 'Punch In'}</span>
             </button>
           )}
 
-          {/* Theme Toggle */}
+          {/* Theme Toggle — hidden on mobile */}
           {onToggleTheme && (
             <button
+              className="navbar-theme-btn"
               onClick={onToggleTheme}
               style={{
                 background: 'transparent',
@@ -264,7 +268,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                padding: 0
+                padding: 0,
+                minWidth: '28px',
+                minHeight: '28px',
               }}
               title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
             >
@@ -274,7 +280,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
 
           {/* Notifications */}
           <div style={{ position: 'relative', cursor: 'pointer' }} ref={notifRef}>
-            <div onClick={() => setShowNotifMenu(!showNotifMenu)}>
+            <div onClick={() => setShowNotifMenu(!showNotifMenu)} style={{ minWidth: '28px', minHeight: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Bell size={18} />
               {unreadCount > 0 && (
                 <span style={{
@@ -300,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
 
             {/* Notification Dropdown Menu */}
             {showNotifMenu && (
-              <div style={{
+              <div className="notif-dropdown" style={{
                 position: 'absolute',
                 top: 'calc(100% + 15px)',
                 right: '-10px',
@@ -353,8 +359,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
             )}
           </div>
 
-          {/* Fullscreen */}
-          <Maximize size={18} style={{ cursor: 'pointer' }} />
+          {/* Fullscreen — hidden on mobile */}
+          <Maximize size={18} className="navbar-fullscreen" style={{ cursor: 'pointer' }} />
         </div>
 
         {/* User Profile */}
@@ -366,11 +372,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
                 alignItems: 'center', 
                 gap: '0.75rem', 
                 cursor: 'pointer',
-                marginLeft: '0.5rem'
               }}
               onClick={() => setShowProfileMenu(!showProfileMenu)}
             >
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div
                   style={{
                     width: '36px',
@@ -400,16 +405,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
                 }} />
               </div>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="navbar-user-name" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.2 }}>
                     {user.name}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                  <div className="navbar-user-role" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
                     {user.role_name}
                   </div>
                 </div>
-                <ChevronDown size={14} color="#94a3b8" />
+                <ChevronDown className="navbar-chevron" size={14} color="#94a3b8" />
               </div>
             </div>
 

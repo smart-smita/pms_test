@@ -63,6 +63,36 @@ export class ReportController {
     }
   };
 
+  getEmployeeAttendanceDayWiseReport2 = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = {
+        ...req.query,
+        employee_id: empId || (req.query.employee_id ? parseInt(req.query.employee_id as string, 10) : undefined),
+        manager_id: managerId,
+      };
+      const data = await this.reportService.getEmployeeAttendanceDayWiseReport2(filters);
+      return sendSuccess(res, 'Employee Attendance Day Wise Report View 2 generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate Employee Attendance Day Wise Report View 2', [], 500);
+    }
+  };
+
+  getEmployeeAttendanceSummaryMatrix = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = {
+        ...req.query,
+        employee_id: empId || (req.query.employee_id ? parseInt(req.query.employee_id as string, 10) : undefined),
+        manager_id: managerId,
+      };
+      const data = await this.reportService.getEmployeeAttendanceSummaryMatrix(filters);
+      return sendSuccess(res, 'Employee Attendance Summary Matrix generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate attendance summary matrix', [], 500);
+    }
+  };
+
   getEmployeeAttendanceReport3 = async (req: Request, res: Response) => {
     try {
       const { empId, managerId } = this.getRoleIds(req);
@@ -141,6 +171,28 @@ export class ReportController {
       return sendSuccess(res, 'Project work report generated successfully', data);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to generate project work report', [], 500);
+    }
+  };
+
+  getProjectBudgetReport = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
+      const data = await this.reportService.getProjectBudgetReport(filters);
+      return sendSuccess(res, 'Project budget report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate project budget report', [], 500);
+    }
+  };
+
+  getProjectSummaryReport = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
+      const data = await this.reportService.getProjectSummaryReport(filters);
+      return sendSuccess(res, 'Project summary report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate project summary report', [], 500);
     }
   };
 }

@@ -56,9 +56,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           </div>
         </div>
         <button 
-          className="hamburger-btn" 
+          className="sidebar-close-btn hamburger-btn" 
           onClick={onClose}
-          style={{ display: window.innerWidth <= 1024 ? 'block' : 'none', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
+          style={{ display: 'none', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
         >
           <X size={20} />
         </button>

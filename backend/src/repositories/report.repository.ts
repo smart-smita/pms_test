@@ -43,8 +43,8 @@ export class ReportRepository {
         w.id,
         w.wbs_code,
         w.wbs_name,
-        w.description,
-        w.status,
+        '' AS description,
+        COALESCE(pw.status, 'Active') AS status,
         p.project_name,
         p.project_code,
         COUNT(DISTINCT pw.project_id) AS allocated_projects_count,
@@ -59,7 +59,7 @@ export class ReportRepository {
       sql += ` AND pw.project_id = ?`;
       params.push(filters.project_id);
     }
-    sql += ` GROUP BY w.id, w.wbs_code, w.wbs_name, w.description, w.status, p.project_name, p.project_code ORDER BY w.wbs_name ASC`;
+    sql += ` GROUP BY w.id, w.wbs_code, w.wbs_name, pw.status, p.project_name, p.project_code ORDER BY w.wbs_name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
     return rows;
   }
@@ -69,6 +69,7 @@ export class ReportRepository {
     let sql = `
       SELECT 
         al.attendance_id,
+        al.employee_id,
         DATE_FORMAT(al.attendance_date, '%Y-%m-%d') AS attendance_date,
         e.employee_code,
         e.name AS employee_name,
@@ -76,14 +77,15 @@ export class ReportRepository {
         t.task_name,
         DATE_FORMAT(al.check_in_time, '%h:%i:%s %p') AS in_time,
         DATE_FORMAT(al.check_out_time, '%h:%i:%s %p') AS out_time,
-        al.in_address,
-        al.out_address,
+        DATE_FORMAT(al.check_in_time, '%H:%i') AS in_time_short,
+        DATE_FORMAT(al.check_out_time, '%H:%i') AS out_time_short,
+        COALESCE(p.project_address, '') AS project_address,
         al.total_working_hours,
         al.status
       FROM attendance_logs al
       JOIN employees e ON al.employee_id = e.employee_id
       LEFT JOIN tasks t ON al.task_id = t.task_id
-      LEFT JOIN projects p ON t.project_id = p.project_id
+      LEFT JOIN projects p ON p.project_id = COALESCE(t.project_id, e.assigned_project_id)
       WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
     `;
     const params: any[] = [];
@@ -194,12 +196,15 @@ export class ReportRepository {
         wl.labour_id,
         l.name AS labour_name,
         l.labour_type,
+        c.name AS contractor_name,
         p.project_name,
         w.wbs_name,
         t.task_name,
         DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS attendance_date,
         wl.in_time,
         wl.out_time,
+        wl.in_address,
+        wl.out_address,
         wl.total_working_hours,
         wl.rate_type,
         wl.rate,
@@ -208,6 +213,7 @@ export class ReportRepository {
         wl.work_description AS comment
       FROM labour_work_logs wl
       JOIN labours l ON wl.labour_id = l.labour_id
+      LEFT JOIN labours c ON l.contractor_id = c.labour_id
       JOIN projects p ON wl.project_id = p.project_id
       LEFT JOIN project_wbs pw ON wl.wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
@@ -217,6 +223,8 @@ export class ReportRepository {
     const params: any[] = [];
     if (filters.labour_id) { sql += ` AND wl.labour_id = ?`; params.push(filters.labour_id); }
     if (filters.project_id) { sql += ` AND wl.project_id = ?`; params.push(filters.project_id); }
+    if (filters.wbs_id) { sql += ` AND pw.wbs_id = ?`; params.push(filters.wbs_id); }
+    if (filters.task_id) { sql += ` AND wl.task_id = ?`; params.push(filters.task_id); }
     if (filters.manager_id) {
       sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
       params.push(filters.manager_id, filters.manager_id);
@@ -224,7 +232,7 @@ export class ReportRepository {
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
 
-    sql += ` ORDER BY wl.work_date DESC, wl.work_log_id DESC`;
+    sql += ` ORDER BY wl.work_date ASC, l.name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
     return rows;
   }
@@ -236,19 +244,25 @@ export class ReportRepository {
         wl.work_log_id AS labour_attendance_id,
         wl.labour_id,
         l.name AS labour_name,
+        l.labour_type,
+        c.name AS contractor_name,
         p.project_name,
         w.wbs_name AS discipline_name,
         t.task_name,
         DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS attendance_date,
         wl.in_time,
         wl.out_time,
+        wl.in_address,
+        wl.out_address,
         wl.total_working_hours,
         wl.rate_type,
         wl.rate,
         wl.amount AS daily_pay_amount,
-        wl.payment_status
+        wl.payment_status,
+        wl.work_description AS comment
       FROM labour_work_logs wl
       JOIN labours l ON wl.labour_id = l.labour_id
+      LEFT JOIN labours c ON l.contractor_id = c.labour_id
       JOIN projects p ON wl.project_id = p.project_id
       LEFT JOIN project_wbs pw ON wl.wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
@@ -258,6 +272,8 @@ export class ReportRepository {
     const params: any[] = [];
     if (filters.labour_id) { sql += ` AND wl.labour_id = ?`; params.push(filters.labour_id); }
     if (filters.project_id) { sql += ` AND wl.project_id = ?`; params.push(filters.project_id); }
+    if (filters.wbs_id) { sql += ` AND pw.wbs_id = ?`; params.push(filters.wbs_id); }
+    if (filters.task_id) { sql += ` AND wl.task_id = ?`; params.push(filters.task_id); }
     if (filters.manager_id) {
       sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
       params.push(filters.manager_id, filters.manager_id);
@@ -265,7 +281,7 @@ export class ReportRepository {
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
 
-    sql += ` ORDER BY wl.work_date DESC, l.name ASC`;
+    sql += ` ORDER BY wl.work_date ASC, l.name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
     return rows;
   }
@@ -274,25 +290,39 @@ export class ReportRepository {
   async getLabourAttendanceReport3(filters: any): Promise<any[]> {
     let sql = `
       SELECT 
+        wl.work_log_id AS labour_attendance_id,
         l.labour_id,
         l.name AS labour_name,
         l.labour_type,
+        c.name AS contractor_name,
         p.project_name,
         w.wbs_name AS discipline_name,
-        COUNT(DISTINCT wl.work_date) AS days_worked,
-        COUNT(DISTINCT wl.work_log_id) AS total_work_logs,
-        ROUND(COALESCE(SUM(wl.total_working_hours), 0), 2) AS total_hours,
-        ROUND(COALESCE(SUM(wl.amount), 0), 2) AS total_payment
-      FROM labours l
-      LEFT JOIN labour_work_logs wl ON l.labour_id = wl.labour_id AND (wl.is_deleted = 0 OR wl.is_deleted IS NULL)
-      LEFT JOIN projects p ON wl.project_id = p.project_id
+        t.task_name,
+        DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS attendance_date,
+        wl.in_time,
+        wl.out_time,
+        wl.in_address,
+        wl.out_address,
+        wl.total_working_hours,
+        wl.rate_type,
+        wl.rate,
+        wl.amount AS total_payment,
+        wl.payment_status,
+        wl.work_description AS comment
+      FROM labour_work_logs wl
+      JOIN labours l ON wl.labour_id = l.labour_id
+      LEFT JOIN labours c ON l.contractor_id = c.labour_id
+      JOIN projects p ON wl.project_id = p.project_id
       LEFT JOIN project_wbs pw ON wl.wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
-      WHERE 1=1
+      JOIN tasks t ON wl.task_id = t.task_id
+      WHERE (wl.is_deleted = 0 OR wl.is_deleted IS NULL)
     `;
     const params: any[] = [];
-    if (filters.labour_id) { sql += ` AND l.labour_id = ?`; params.push(filters.labour_id); }
+    if (filters.labour_id) { sql += ` AND wl.labour_id = ?`; params.push(filters.labour_id); }
     if (filters.project_id) { sql += ` AND wl.project_id = ?`; params.push(filters.project_id); }
+    if (filters.wbs_id) { sql += ` AND pw.wbs_id = ?`; params.push(filters.wbs_id); }
+    if (filters.task_id) { sql += ` AND wl.task_id = ?`; params.push(filters.task_id); }
     if (filters.manager_id) {
       sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
       params.push(filters.manager_id, filters.manager_id);
@@ -300,7 +330,7 @@ export class ReportRepository {
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
 
-    sql += ` GROUP BY l.labour_id, l.name, l.labour_type, p.project_name, w.wbs_name ORDER BY l.name ASC`;
+    sql += ` ORDER BY wl.work_date ASC, l.name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
     return rows;
   }
@@ -319,6 +349,8 @@ export class ReportRepository {
         DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS attendance_date,
         wl.in_time,
         wl.out_time,
+        wl.in_address,
+        wl.out_address,
         wl.total_working_hours,
         wl.rate_type,
         wl.rate,
@@ -350,6 +382,95 @@ export class ReportRepository {
     return rows;
   }
 
+  // 11. Employee Attendance Day Wise Report View 2 – Matrix (In/Out + Hrs per date)
+  async getEmployeeAttendanceDayWiseReport2(filters: any): Promise<any[]> {
+    let sql = `
+      SELECT 
+        al.attendance_id,
+        al.employee_id,
+        DATE_FORMAT(al.attendance_date, '%Y-%m-%d') AS attendance_date,
+        e.employee_code,
+        e.name AS employee_name,
+        DATE_FORMAT(al.check_in_time, '%H:%i') AS in_time_short,
+        DATE_FORMAT(al.check_out_time, '%H:%i') AS out_time_short,
+        al.check_in_time,
+        al.check_out_time,
+        al.total_working_hours,
+        al.status,
+        COALESCE(p.project_address, '') AS project_address
+      FROM attendance_logs al
+      JOIN employees e ON al.employee_id = e.employee_id
+      LEFT JOIN tasks t ON al.task_id = t.task_id
+      LEFT JOIN projects p ON p.project_id = COALESCE(t.project_id, e.assigned_project_id)
+      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
+    `;
+    const params: any[] = [];
+    if (filters.employee_id) { sql += ` AND al.employee_id = ?`; params.push(filters.employee_id); }
+    if (filters.manager_id) {
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
+      params.push(filters.manager_id, filters.manager_id);
+    }
+    if (filters.start_date) { sql += ` AND al.attendance_date >= ?`; params.push(filters.start_date); }
+    if (filters.end_date) { sql += ` AND al.attendance_date <= ?`; params.push(filters.end_date); }
+
+    sql += ` ORDER BY al.attendance_date ASC, al.employee_id ASC, al.check_in_time ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+    return rows;
+  }
+
+  // 12. Employee Attendance Summary Matrix – All employees, per-date status for day-wise matrix view
+  async getEmployeeAttendanceSummaryMatrix(filters: any): Promise<any[]> {
+    // Build date range conditions as sub-query conditions inside the LEFT JOIN
+    // so ALL employees appear even if they have no attendance in the date range
+    const joinConditions: string[] = [
+      `al.employee_id = e.employee_id`,
+      `(al.is_deleted = 0 OR al.is_deleted IS NULL)`,
+    ];
+    const joinParams: any[] = [];
+
+    if (filters.start_date) {
+      joinConditions.push(`al.attendance_date >= ?`);
+      joinParams.push(filters.start_date);
+    }
+    if (filters.end_date) {
+      joinConditions.push(`al.attendance_date <= ?`);
+      joinParams.push(filters.end_date);
+    }
+
+    let sql = `
+      SELECT 
+        e.employee_id,
+        e.employee_code,
+        e.name AS employee_name,
+        DATE_FORMAT(al.attendance_date, '%Y-%m-%d') AS attendance_date,
+        al.status,
+        al.total_working_hours,
+        DATE_FORMAT(al.check_in_time, '%H:%i') AS in_time_short,
+        DATE_FORMAT(al.check_out_time, '%H:%i') AS out_time_short,
+        COALESCE(p.project_address, '') AS project_address
+      FROM employees e
+      LEFT JOIN attendance_logs al ON ${joinConditions.join(' AND ')}
+      LEFT JOIN tasks t ON al.task_id = t.task_id
+      LEFT JOIN projects p ON p.project_id = COALESCE(t.project_id, e.assigned_project_id)
+      WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
+    `;
+
+    const whereParams: any[] = [...joinParams];
+
+    if (filters.employee_id) {
+      sql += ` AND e.employee_id = ?`;
+      whereParams.push(filters.employee_id);
+    }
+    if (filters.manager_id) {
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
+      whereParams.push(filters.manager_id, filters.manager_id);
+    }
+
+    sql += ` ORDER BY e.name ASC, al.attendance_date ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, whereParams);
+    return rows;
+  }
+
   async getProjectWorkReport(projectId?: number, managerId?: number, employeeId?: number, startDate?: string, endDate?: string): Promise<any[]> {
     let sql = `
       SELECT 
@@ -362,8 +483,10 @@ export class ReportRepository {
         t.task_id,
         t.task_name,
         t.status AS task_status,
-        t.estimated_hours,
-        COALESCE(SUM(al.total_working_hours), 0) AS actual_hours,
+        t.estimated_hours AS planned_hours,
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE task_id = t.task_id), 0) +
+        COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+        COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost,
         t.required_worker_count,
         GROUP_CONCAT(DISTINCT e.name SEPARATOR ', ') AS assigned_employee_name,
         GROUP_CONCAT(DISTINCT l.name SEPARATOR ', ') AS assigned_labour_name
@@ -371,7 +494,6 @@ export class ReportRepository {
       JOIN projects p ON t.project_id = p.project_id AND (p.is_deleted = 0 OR p.is_deleted IS NULL)
       LEFT JOIN project_wbs pw ON t.wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
-      LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND (al.is_deleted = 0 OR al.is_deleted IS NULL)
       LEFT JOIN task_assignments ta ON t.task_id = ta.task_id
       LEFT JOIN employees e ON ta.employee_id = e.employee_id AND (e.is_deleted = 0 OR e.is_deleted IS NULL)
       LEFT JOIN labour_work_logs la ON t.task_id = la.task_id AND (la.is_deleted = 0 OR la.is_deleted IS NULL)
@@ -418,6 +540,118 @@ export class ReportRepository {
 
     sql += ` GROUP BY t.task_id, p.project_id, p.project_name, p.project_code, pw.id, w.wbs_name, w.wbs_code, t.task_name, t.status, t.estimated_hours, t.required_worker_count ORDER BY p.project_name ASC, w.wbs_name ASC, t.task_name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
-    return rows;
+
+    return rows.map((r: any) => {
+      const plannedHrs = Number(r.planned_hours || 0);
+      const actualHrs = Number(r.actual_hours || 0);
+      const remainingHrs = Math.max(plannedHrs - actualHrs, 0);
+      const varianceHrs = actualHrs - plannedHrs;
+      const compPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 10000) / 100, 100) : 0;
+
+      return {
+        ...r,
+        planned_hours: Math.round(plannedHrs * 100) / 100,
+        actual_hours: Math.round(actualHrs * 100) / 100,
+        remaining_hours: Math.round(remainingHrs * 100) / 100,
+        completion_percentage: compPct,
+        variance: Math.round(varianceHrs * 100) / 100,
+        actual_cost: Number(r.actual_cost || 0),
+      };
+    });
+  }
+
+  // 13. Project Budget Report
+  async getProjectBudgetReport(filters?: any): Promise<any[]> {
+    let sql = `
+      SELECT 
+        p.project_id,
+        p.project_name,
+        p.project_code,
+        p.budget_amount,
+        COALESCE((SELECT SUM(budget_amount) FROM project_wbs WHERE project_id = p.project_id AND deleted_at IS NULL), 0) AS allocated_budget,
+        COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost,
+        COALESCE((SELECT SUM(total_amount) FROM labour_payments WHERE project_id = p.project_id AND status = 'paid'), 0) AS paid_amount
+      FROM projects p
+      WHERE (p.is_deleted = 0 OR p.is_deleted IS NULL)
+    `;
+    const params: any[] = [];
+    if (filters?.project_id) { sql += ` AND p.project_id = ?`; params.push(filters.project_id); }
+    sql += ` ORDER BY p.project_name ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+
+    return rows.map((r: any) => {
+      const budget = Number(r.budget_amount || 0);
+      const allocated = Number(r.allocated_budget || 0);
+      const actualCost = Number(r.actual_cost || 0);
+      const paid = Number(r.paid_amount || 0);
+      const pending = Math.max(actualCost - paid, 0);
+      const remainingBudget = budget - actualCost;
+      const variance = budget - actualCost;
+
+      return {
+        ...r,
+        budget_amount: budget,
+        allocated_budget: allocated,
+        actual_cost: actualCost,
+        paid_amount: paid,
+        pending_amount: pending,
+        remaining_budget: remainingBudget,
+        budget_variance: variance,
+        is_exceeded: actualCost > budget,
+      };
+    });
+  }
+
+  // 14. Project Summary Report
+  async getProjectSummaryReport(filters?: any): Promise<any[]> {
+    let sql = `
+      SELECT 
+        p.project_id,
+        p.project_name,
+        p.project_code,
+        p.budget_amount,
+        COUNT(DISTINCT pw.id) AS total_disciplines,
+        COUNT(DISTINCT CASE WHEN pw.status = 'Completed' OR pw.status = 2 THEN pw.id END) AS completed_disciplines,
+        COUNT(DISTINCT CASE WHEN pw.status = 'Active' OR pw.status = 1 THEN pw.id END) AS active_disciplines,
+        COUNT(DISTINCT t.task_id) AS total_tasks,
+        COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN t.task_id END) AS completed_tasks,
+        COALESCE(SUM(t.estimated_hours), 0) AS total_planned_hours,
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = p.project_id), 0) +
+        COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS total_actual_hours,
+        COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost,
+        COALESCE((SELECT SUM(total_amount) FROM labour_payments WHERE project_id = p.project_id AND status = 'paid'), 0) AS paid_amount
+      FROM projects p
+      LEFT JOIN project_wbs pw ON p.project_id = pw.project_id AND pw.deleted_at IS NULL
+      LEFT JOIN tasks t ON p.project_id = t.project_id AND (t.is_deleted = 0 OR t.is_deleted IS NULL)
+      WHERE (p.is_deleted = 0 OR p.is_deleted IS NULL)
+    `;
+    const params: any[] = [];
+    if (filters?.project_id) { sql += ` AND p.project_id = ?`; params.push(filters.project_id); }
+    sql += ` GROUP BY p.project_id, p.project_name, p.project_code, p.budget_amount ORDER BY p.project_name ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+
+    return rows.map((r: any) => {
+      const plannedHrs = Number(r.total_planned_hours || 0);
+      const actualHrs = Number(r.total_actual_hours || 0);
+      const remainingHrs = Math.max(plannedHrs - actualHrs, 0);
+      const compPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 10000) / 100, 100) : 0;
+      
+      const budget = Number(r.budget_amount || 0);
+      const actualCost = Number(r.actual_cost || 0);
+      const paid = Number(r.paid_amount || 0);
+      const pending = Math.max(actualCost - paid, 0);
+
+      return {
+        ...r,
+        total_planned_hours: Math.round(plannedHrs * 100) / 100,
+        total_actual_hours: Math.round(actualHrs * 100) / 100,
+        total_remaining_hours: Math.round(remainingHrs * 100) / 100,
+        completion_percentage: compPct,
+        budget_amount: budget,
+        actual_cost: actualCost,
+        paid_amount: paid,
+        pending_amount: pending,
+      };
+    });
   }
 }

@@ -11,8 +11,15 @@ export const createTaskSchema = z.object({
   start_time: z.string().optional(),
   target_date: z.string().optional(),
   target_time: z.string().optional(),
-  assigned_employee_ids: z.array(z.number().int().positive()).optional(),
+  assigned_employee_ids: z.array(z.number().int().positive()).max(1, 'A task can be assigned to ONLY ONE employee').optional(),
   assigned_labour_ids: z.array(z.number().int().positive()).optional(),
+  allocations: z.array(z.object({
+    work_log_id: z.number().int().positive().optional(),
+    labour_id: z.number().int().positive(),
+    work_date: z.string(),
+    amount: z.number().nonnegative().optional(),
+    work_description: z.string().optional(),
+  })).optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -25,8 +32,15 @@ export const updateTaskSchema = z.object({
   start_time: z.string().optional(),
   target_date: z.string().optional(),
   target_time: z.string().optional(),
-  assigned_employee_ids: z.array(z.number().int().positive()).optional(),
+  assigned_employee_ids: z.array(z.number().int().positive()).max(1, 'A task can be assigned to ONLY ONE employee').optional(),
   assigned_labour_ids: z.array(z.number().int().positive()).optional(),
+  allocations: z.array(z.object({
+    work_log_id: z.number().int().positive().optional(),
+    labour_id: z.number().int().positive(),
+    work_date: z.string(),
+    amount: z.number().nonnegative().optional(),
+    work_description: z.string().optional(),
+  })).optional(),
 });
 
 export const assignWorkersSchema = z.object({

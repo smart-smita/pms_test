@@ -57,9 +57,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   if (searchTerm) activeFilterCount++;
 
   const inputStyle: React.CSSProperties = {
-    backgroundColor: 'var(--input-bg)',
+    backgroundColor: 'var(--input-bg-solid)',
     border: '1px solid var(--input-border)',
-    color: 'var(--text-primary)',
+    color: 'var(--input-text)',
     borderRadius: '12px',
     padding: '0.55rem 0.85rem',
     fontSize: '0.825rem',

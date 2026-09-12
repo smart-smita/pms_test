@@ -60,6 +60,16 @@ export class TaskController {
     }
   };
 
+  getAllocations = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const allocations = await this.taskService.getTaskAllocations(id);
+      return sendSuccess(res, 'Task allocations retrieved successfully', allocations);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Task allocations not found', [], 404);
+    }
+  };
+
   create = async (req: Request, res: Response) => {
     const parseResult = createTaskSchema.safeParse(req.body);
     if (!parseResult.success) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, Edit2, Trash2, Calendar, FileText } from 'lucide-react';
+import { Clock, Plus, Edit2, Trash2 } from 'lucide-react';
 import { FilterBar } from '../components/common/FilterBar';
 import { DataTable, Column } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
@@ -210,15 +210,15 @@ export const Timesheets: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
+    <div className="page-body">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Clock className="w-7 h-7 text-indigo-500" />
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Clock size={22} style={{ color: '#6366f1', flexShrink: 0 }} />
             Employee Timesheet Management
           </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+          <p className="page-subtitle">
             Log time sheets for assigned project tasks and maintain actual working hours logs.
           </p>
         </div>
@@ -227,10 +227,10 @@ export const Timesheets: React.FC = () => {
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg transition-all"
+            className="btn btn-primary"
           >
-            <Plus className="w-4 h-4" />
-            <span>Log Time Sheet</span>
+            <Plus size={16} />
+            Log Time Sheet
           </button>
         )}
       </div>
@@ -263,202 +263,215 @@ export const Timesheets: React.FC = () => {
       />
 
       {/* Timesheet Data Table */}
-      <DataTable
-        data={timesheets}
-        columns={columns}
-        isLoading={loading}
-        searchPlaceholder="Search timesheet logs..."
-        exportFilename="Employee_Timesheets_Report"
-        actions={(item) => (
-          <div className="flex items-center gap-2">
-            {hasPermission('timesheets', 'update') && (
-              <button onClick={() => handleOpenEdit(item)} className="p-1 text-slate-400 hover:text-emerald-400 transition-colors">
-                <Edit2 className="w-4 h-4" />
-              </button>
-            )}
-            {hasPermission('timesheets', 'delete') && (
-              <button onClick={() => handleDelete(item.timesheet_id)} className="p-1 text-slate-400 hover:text-rose-400 transition-colors">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        )}
-      />
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <DataTable
+          data={timesheets}
+          columns={columns}
+          isLoading={loading}
+          searchPlaceholder="Search timesheet logs..."
+          exportFilename="Employee_Timesheets_Report"
+          actions={(item) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end' }}>
+              {hasPermission('timesheets', 'update') && (
+                <button
+                  onClick={() => handleOpenEdit(item)}
+                  className="action-btn edit"
+                  title="Edit timesheet"
+                >
+                  <Edit2 size={14} />
+                </button>
+              )}
+              {hasPermission('timesheets', 'delete') && (
+                <button
+                  onClick={() => handleDelete(item.timesheet_id)}
+                  className="action-btn delete"
+                  title="Delete timesheet"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          )}
+        />
+      </div>
 
       {/* Log / Edit Time Sheet Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="modal-overlay">
           <div
-            className="rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4"
-            style={{
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--text-primary)',
-            }}
+            className="modal-content"
+            style={{ maxWidth: '560px' }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-              <Clock className="w-5 h-5 text-indigo-500" />
-              {editingTs ? 'Edit Time Sheet Entry' : 'Log New Time Sheet'}
-            </h2>
+            {/* Modal Header */}
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '1.1rem', margin: 0 }}>
+                <span style={{ background: 'rgba(99,102,241,0.12)', color: '#6366f1', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Clock size={16} />
+                </span>
+                {editingTs ? 'Edit Time Sheet Entry' : 'Log New Time Sheet'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="modal-close-btn"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Project</label>
+            {/* Modal Body */}
+            <div className="modal-body" style={{ padding: '1.25rem 1.5rem' }}>
+              <form onSubmit={handleSubmit}>
+
+                {/* Row 1: Project + WBS */}
+                <div className="grid-2-col" style={{ marginBottom: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Project</label>
+                    <select
+                      value={form.project_id}
+                      onChange={(e) => setForm({ ...form, project_id: e.target.value, task_id: '' })}
+                      className="form-select"
+                    >
+                      <option value="">-- All Projects --</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">WBS Discipline</label>
+                    <select
+                      value={form.wbs_id}
+                      onChange={(e) => setForm({ ...form, wbs_id: e.target.value, task_id: '' })}
+                      className="form-select"
+                    >
+                      <option value="">-- All WBS --</option>
+                      {wbsList.map((w) => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 2: Task */}
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">
+                    Select Task <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.78rem' }}>(optional — auto-links to discipline)</span>
+                  </label>
                   <select
-                    value={form.project_id}
-                    onChange={(e) => setForm({ ...form, project_id: e.target.value, task_id: '' })}
-                    className="w-full rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
-                    style={{
-                      backgroundColor: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      color: 'var(--text-primary)',
+                    value={form.task_id}
+                    onChange={(e) => {
+                      const tId = e.target.value;
+                      const selected = tasks.find((t) => Number(t.id) === Number(tId));
+                      setForm({
+                        ...form,
+                        task_id: tId,
+                        project_id: selected ? String(selected.project_id) : form.project_id,
+                        wbs_id: selected && selected.wbs_id ? String(selected.wbs_id) : form.wbs_id,
+                      });
                     }}
+                    className="form-select"
                   >
-                    <option value="">-- All Projects --</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                    <option value="">-- Choose Task --</option>
+                    {availableFormTasks.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>WBS Discipline</label>
-                  <select
-                    value={form.wbs_id}
-                    onChange={(e) => setForm({ ...form, wbs_id: e.target.value, task_id: '' })}
-                    className="w-full rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
-                    style={{
-                      backgroundColor: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    <option value="">-- All WBS --</option>
-                    {wbsList.map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
-                    ))}
-                  </select>
+
+                {/* Row 3: Employee (admin/manager only) */}
+                {!isEmployee && (
+                  <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label className="form-label">Employee <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select
+                      required
+                      value={form.employee_id}
+                      onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="">-- Choose Employee --</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Row 4: Log Date + Working Hours */}
+                <div className="grid-2-col" style={{ marginBottom: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Log Date <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input
+                      type="date"
+                      required
+                      value={form.log_date}
+                      onChange={(e) => setForm({ ...form, log_date: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Working Hours <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max="24"
+                      required
+                      value={form.working_hours}
+                      onChange={(e) => setForm({ ...form, working_hours: Number(e.target.value) })}
+                      className="form-input"
+                      placeholder="e.g. 8"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Select Task (Optional — auto-links to Discipline task)</label>
-                <select
-                  value={form.task_id}
-                  onChange={(e) => {
-                    const tId = e.target.value;
-                    const selected = tasks.find((t) => Number(t.id) === Number(tId));
-                    setForm({
-                      ...form,
-                      task_id: tId,
-                      project_id: selected ? String(selected.project_id) : form.project_id,
-                      wbs_id: selected && selected.wbs_id ? String(selected.wbs_id) : form.wbs_id,
-                    });
-                  }}
-                  className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    border: '1px solid var(--input-border)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="">-- Choose Task --</option>
-                  {availableFormTasks.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {!isEmployee && (
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Employee</label>
-                  <select
-                    required
-                    value={form.employee_id}
-                    onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-                    className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
-                    style={{
-                      backgroundColor: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    <option value="">-- Choose Employee --</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>{emp.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Log Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={form.log_date}
-                    onChange={(e) => setForm({ ...form, log_date: e.target.value })}
-                    className="w-full rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
-                    style={{
-                      backgroundColor: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      color: 'var(--text-primary)',
-                    }}
+                {/* Row 5: Comment */}
+                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                  <label className="form-label">Work Description / Comments</label>
+                  <textarea
+                    rows={2}
+                    value={form.comment}
+                    onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                    className="form-input"
+                    placeholder="Enter work details or progress notes…"
+                    style={{ resize: 'vertical', minHeight: '60px' }}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Working Hours (hrs)</label>
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0.1"
-                    required
-                    value={form.working_hours}
-                    onChange={(e) => setForm({ ...form, working_hours: Number(e.target.value) })}
-                    className="w-full rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
-                    style={{
-                      backgroundColor: 'var(--input-bg)',
-                      border: '1px solid var(--input-border)',
-                      color: 'var(--text-primary)',
-                    }}
-                  />
+
+                {/* Footer Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="btn btn-outline"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn btn-primary"
+                    style={{ minWidth: '140px' }}
+                  >
+                    {isSubmitting ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                        Saving…
+                      </span>
+                    ) : editingTs ? (
+                      'Save Changes'
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Clock size={14} />
+                        Log Time Sheet
+                      </span>
+                    )}
+                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Work Description / Comments</label>
-                <textarea
-                  rows={2}
-                  value={form.comment}
-                  onChange={(e) => setForm({ ...form, comment: e.target.value })}
-                  className="w-full rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    border: '1px solid var(--input-border)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg"
-                >
-                  {isSubmitting ? 'Saving...' : (editingTs ? 'Save Changes' : 'Log Time Sheet')}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}

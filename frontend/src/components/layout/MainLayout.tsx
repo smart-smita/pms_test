@@ -34,7 +34,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ currentPage, onNavigate,
         <main className="page-body">{children}</main>
       </div>
       
-      {/* Mobile Overlay for Sidebar */}
+      {/* Sidebar overlay (tablet/mobile) */}
       {sidebarOpen && (
         <div 
           className="modal-overlay" 
@@ -43,8 +43,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ currentPage, onNavigate,
         />
       )}
 
-      {/* Mobile Bottom Navigation */}
-      <BottomNav currentPage={currentPage} onNavigate={onNavigate} />
+      {/* Bottom Navigation — visible on tablet + mobile (≤1024px) via CSS */}
+      <BottomNav currentPage={currentPage} onNavigate={(page) => { onNavigate(page); setSidebarOpen(false); }} />
     </div>
   );
 };

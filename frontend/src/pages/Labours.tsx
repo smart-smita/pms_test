@@ -141,12 +141,42 @@ export const Labours: React.FC = () => {
 
   const handleCreateOrUpdateLabour = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const nameClean = labourForm.name.trim();
+    const contactClean = labourForm.contact_number.trim();
+    const aadharClean = labourForm.aadhar_id.trim();
+
+    if (!nameClean) {
+      showError('Labour name is required.');
+      return;
+    }
+
+    if (!contactClean) {
+      showError('Contact number is compulsory.');
+      return;
+    }
+
+    if (!/^\d{10}$/.test(contactClean)) {
+      showError('Contact number must be compulsory 10 digits.');
+      return;
+    }
+
+    if (!aadharClean) {
+      showError('Aadhaar ID is compulsory.');
+      return;
+    }
+
+    if (!/^\d{12}$/.test(aadharClean)) {
+      showError('Aadhaar ID must be compulsory 12 digits.');
+      return;
+    }
+
     try {
       let res;
       const payload = {
-        name: labourForm.name,
-        contact_number: labourForm.contact_number,
-        aadhar_id: labourForm.aadhar_id,
+        name: nameClean,
+        contact_number: contactClean,
+        aadhar_id: aadharClean,
         labour_type: labourForm.labour_type,
         contractor_id: labourForm.contractor_id ? Number(labourForm.contractor_id) : null,
       };
@@ -434,8 +464,10 @@ export const Labours: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                setShowAddLabour(!showAddLabour);
-                if (!showAddLabour) {
+                const nextState = !showAddLabour;
+                setShowAddLabour(nextState);
+                if (nextState) {
+                  setShowAddWorkLog(false);
                   setEditingLabour(null);
                   setLabourForm({ name: '', contact_number: '', aadhar_id: '', labour_type: 'direct_labour', contractor_id: '' });
                 }
@@ -450,8 +482,10 @@ export const Labours: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setShowAddWorkLog(!showAddWorkLog);
-              if (!showAddWorkLog) {
+              const nextState = !showAddWorkLog;
+              setShowAddWorkLog(nextState);
+              if (nextState) {
+                setShowAddLabour(false);
                 setEditingWorkLog(null);
                 setWorkLogForm({
                   labour_id: '', project_id: '', wbs_id: '', task_id: '',
@@ -468,120 +502,142 @@ export const Labours: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs-container">
-        <button
-          type="button"
-          onClick={() => setActiveTab('registry')}
-          className={`tab-btn ${activeTab === 'registry' ? 'active' : ''}`}
-        >
-          Labour Registry ({labours.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('work_logs')}
-          className={`tab-btn ${activeTab === 'work_logs' ? 'active' : ''}`}
-        >
-          Labour Work Logs ({workLogs.length})
-        </button>
-      </div>
-
-      {/* Filters & Selection */}
-      <div className="glass-card mb-4 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '0.9rem' }}>
-            <Filter size={16} style={{ color: 'var(--accent-primary)' }} />
-            Filters & Selection
-          </h3>
-          <button
-            type="button"
-            onClick={() => {
-              setSearch('');
-              setSelectedType('');
-              setSelectedProject('');
-              setStartDate('');
-              setEndDate('');
-            }}
-            className="btn btn-outline"
-            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-          >
-            <RotateCcw size={14} />
-            Reset
-          </button>
-        </div>
-
-        <div className="grid-5-col">
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">Search Keyword</label>
-            <input
-              type="text"
-              placeholder="Search by name, project, task..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">Project</label>
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="form-select"
+      {/* Add / Edit Labour Form Card */}
+      {showAddLabour && (
+        <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid var(--accent-primary, #6366f1)' }}>
+          <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
+            <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
+              <Users size={18} style={{ color: 'var(--accent-primary, #6366f1)' }} />
+              {editingLabour ? `Edit Labour / Contractor: ${editingLabour.name}` : 'Register New Labour / Contractor'}
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddLabour(false);
+                setEditingLabour(null);
+              }}
+              className="btn btn-outline"
+              style={{ padding: '0.3rem 0.6rem' }}
             >
-              <option value="">All Projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              <X size={16} />
+            </button>
           </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">Labour Type</label>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="form-select"
-            >
-              <option value="">All Labour Types</option>
-              <option value="direct_labour">Direct Labour</option>
-              <option value="contractor">Contractor</option>
-            </select>
-          </div>
+          <form onSubmit={handleCreateOrUpdateLabour}>
+            <div className="grid-2-col mb-4">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">
+                  Labour / Contractor Name <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter full name or contractor name"
+                  value={labourForm.name}
+                  onChange={(e) => setLabourForm({ ...labourForm, name: e.target.value })}
+                  className="form-input"
+                />
+              </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">From Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="form-input"
-            />
-          </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">
+                  Labour Type <span className="text-danger">*</span>
+                </label>
+                <select
+                  value={labourForm.labour_type}
+                  onChange={(e) =>
+                    setLabourForm({
+                      ...labourForm,
+                      labour_type: e.target.value as 'contractor' | 'direct_labour',
+                    })
+                  }
+                  className="form-select"
+                >
+                  <option value="direct_labour">Direct Labour</option>
+                  <option value="contractor">Contractor (Sub-contractor / Agency)</option>
+                </select>
+              </div>
+            </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">To Date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="form-input"
-            />
-          </div>
+            <div className="grid-3-col mb-4">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">
+                  Contact Number <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={10}
+                  placeholder="Compulsory 10-digit mobile (e.g. 9876543210)"
+                  value={labourForm.contact_number}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setLabourForm({ ...labourForm, contact_number: val });
+                  }}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">
+                  Aadhaar ID (PII Confidential) <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={12}
+                  placeholder="Compulsory 12-digit Aadhaar (e.g. 123456789012)"
+                  value={labourForm.aadhar_id}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    setLabourForm({ ...labourForm, aadhar_id: val });
+                  }}
+                  className="form-input"
+                />
+              </div>
+
+              {labourForm.labour_type === 'direct_labour' && (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Associated Contractor (Optional)</label>
+                  <select
+                    value={labourForm.contractor_id}
+                    onChange={(e) => setLabourForm({ ...labourForm, contractor_id: e.target.value })}
+                    className="form-select"
+                  >
+                    <option value="">-- Direct (No Contractor) --</option>
+                    {contractorsList.map((c) => (
+                      <option key={c.labour_id} value={c.labour_id}>
+                        {c.name} (ID: L{String(c.labour_id).padStart(3, '0')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddLabour(false);
+                  setEditingLabour(null);
+                }}
+                className="btn btn-outline"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                {editingLabour ? 'Update Labour' : 'Register Labour'}
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
-
-      {/* Data Table */}
-      {activeTab === 'registry' ? (
-        <DataTable data={labours} columns={registryColumns} isLoading={loading} exportFilename="Labour_Registry" />
-      ) : (
-        <DataTable data={workLogs} columns={workLogColumns} isLoading={loading} exportFilename="Labour_Work_Logs" />
       )}
 
-      {/* Modal / Card for Work Log */}
+      {/* Add / Edit Task Work Log Form Card */}
       {showAddWorkLog && (
-        <div className="glass-card p-4 mt-4 mb-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid #2563eb' }}>
+          <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
             <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
               <Clock size={18} style={{ color: '#2563eb' }} />
               {editingWorkLog ? 'Edit Labour Work Log' : 'Add Labour Work Log (Task & Date-Wise)'}
@@ -734,8 +790,7 @@ export const Labours: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowAddWorkLog(false)}
-                className="btn"
-                style={{ color: 'var(--text-secondary)' }}
+                className="btn btn-outline"
               >
                 Cancel
               </button>
@@ -746,6 +801,190 @@ export const Labours: React.FC = () => {
           </form>
         </div>
       )}
+
+      {/* Tabs */}
+      <div className="tabs-container">
+        <button
+          type="button"
+          onClick={() => setActiveTab('registry')}
+          className={`tab-btn ${activeTab === 'registry' ? 'active' : ''}`}
+        >
+          Labour Registry ({labours.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('work_logs')}
+          className={`tab-btn ${activeTab === 'work_logs' ? 'active' : ''}`}
+        >
+          Labour Work Logs ({workLogs.length})
+        </button>
+      </div>
+
+      {/* Filters & Selection */}
+      <div className="glass-card mb-4 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '0.9rem' }}>
+            <Filter size={16} style={{ color: 'var(--accent-primary)' }} />
+            Filters & Selection
+          </h3>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setSelectedType('');
+              setSelectedProject('');
+              setStartDate('');
+              setEndDate('');
+            }}
+            className="btn btn-outline"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+          >
+            <RotateCcw size={14} />
+            Reset
+          </button>
+        </div>
+
+        <div className="grid-5-col">
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label text-xs uppercase text-muted">Search Keyword</label>
+            <input
+              type="text"
+              placeholder="Search by name, project, task..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label text-xs uppercase text-muted">Project</label>
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="form-select"
+            >
+              <option value="">All Projects</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label text-xs uppercase text-muted">Labour Type</label>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="form-select"
+            >
+              <option value="">All Labour Types</option>
+              <option value="direct_labour">Direct Labour</option>
+              <option value="contractor">Contractor</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label text-xs uppercase text-muted">From Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label text-xs uppercase text-muted">To Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="form-input"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Data Table */}
+      {activeTab === 'registry' ? (
+        <DataTable data={labours} columns={registryColumns} isLoading={loading} exportFilename="Labour_Registry" />
+      ) : (
+        <DataTable data={workLogs} columns={workLogColumns} isLoading={loading} exportFilename="Labour_Work_Logs" />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h3 className="flex items-center gap-2" style={{ color: '#ef4444', fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>
+                <AlertTriangle size={20} />
+                Delete Labour / Contractor
+              </h3>
+              <button onClick={() => { setDeleteTarget(null); setDeleteDeps(null); }} className="modal-close-btn">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: '1.25rem 0' }}>
+              <p style={{ marginBottom: '1rem', color: 'var(--text-primary)' }}>
+                Are you sure you want to delete worker/contractor <strong>{deleteTarget.name}</strong> (ID: L{String(deleteTarget.labour_id).padStart(3, '0')})?
+              </p>
+              {deleteDeps && (deleteDeps.attendanceCount > 0 || deleteDeps.subWorkersCount > 0) && (
+                <div
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    color: '#f59e0b',
+                    padding: '0.85rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <div className="flex items-start gap-2">
+                    <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Warning: Active Dependencies Detected!</strong>
+                      <ul style={{ listStyleType: 'disc', paddingLeft: '1.25rem', margin: 0 }}>
+                        {deleteDeps.attendanceCount > 0 && <li>{deleteDeps.attendanceCount} work log record(s)</li>}
+                        {deleteDeps.subWorkersCount > 0 && <li>{deleteDeps.subWorkersCount} sub-worker(s) linked to this contractor</li>}
+                      </ul>
+                      <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Force deleting will permanently clean up associated logs and unlink sub-workers.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer flex justify-end gap-2" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteDeps(null); }}
+                className="btn btn-outline"
+              >
+                Cancel
+              </button>
+              {deleteDeps && (deleteDeps.attendanceCount > 0 || deleteDeps.subWorkersCount > 0) ? (
+                <button
+                  onClick={() => handleConfirmDelete(true)}
+                  className="btn"
+                  style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                >
+                  Force Delete All
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleConfirmDelete(false)}
+                  className="btn"
+                  style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                >
+                  Confirm Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

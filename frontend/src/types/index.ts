@@ -68,6 +68,7 @@ export interface Task {
   target_time?: string;
   status: 'pending' | 'in-progress' | 'completed' | 'delayed' | 'on-hold' | 'cancelled';
   productivity_status?: 'on-time' | 'delayed' | 'extra-hours-logged' | 'exceeding-estimate' | 'completed';
+  allocation_status?: string;
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
   assigned_labours?: { labour_id: number; name: string; labour_type: string }[];
 }
@@ -125,6 +126,7 @@ export interface ProjectWBS {
   actual_hours?: number;
   note?: string;
   status: number | string;
+  completion_percentage?: number;
 }
 
 export interface DashboardMetrics {

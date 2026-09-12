@@ -106,9 +106,7 @@ export class TimesheetService {
       const assignedEmps = await this.taskRepo.getAssignedEmployees(finalTaskId);
       if (!assignedEmps.some((e) => e.employee_id === data.employee_id)) {
         const existingEmpIds = assignedEmps.map((e) => e.employee_id);
-        const assignedLabours = await this.taskRepo.getAssignedLabours(finalTaskId);
-        const existingLabourIds = assignedLabours.map((l) => l.labour_id);
-        await this.taskRepo.assignWorkers(finalTaskId, [...existingEmpIds, data.employee_id], existingLabourIds);
+        await this.taskRepo.assignWorkers(finalTaskId, [...existingEmpIds, data.employee_id], [], projectId, wbsId || undefined);
       }
 
       wbsId = resolvedWbsId;
@@ -122,9 +120,7 @@ export class TimesheetService {
       const assignedEmps = await this.taskRepo.getAssignedEmployees(finalTaskId);
       if (!assignedEmps.some((e) => e.employee_id === data.employee_id)) {
         const existingEmpIds = assignedEmps.map((e) => e.employee_id);
-        const assignedLabours = await this.taskRepo.getAssignedLabours(finalTaskId);
-        const existingLabourIds = assignedLabours.map((l) => l.labour_id);
-        await this.taskRepo.assignWorkers(finalTaskId, [...existingEmpIds, data.employee_id], existingLabourIds);
+        await this.taskRepo.assignWorkers(finalTaskId, [...existingEmpIds, data.employee_id], [], projectId, wbsId || undefined);
       }
     }
 

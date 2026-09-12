@@ -212,7 +212,7 @@ export function DataTable<T extends Record<string, any>>({
         {/* Page Size Selector & Export */}
         <div className="datatable-toolbar-right">
           <div className="datatable-page-size">
-            <span>Show:</span>
+            <span className="datatable-show-label">Show:</span>
             <select
               className="form-select datatable-page-select"
               value={pageSize}
@@ -227,11 +227,11 @@ export function DataTable<T extends Record<string, any>>({
                 </option>
               ))}
             </select>
-            <span>entries</span>
+            <span className="datatable-entries-label">entries</span>
           </div>
 
-          <Button variant="secondary" onClick={handleExportCSV} style={{ height: '36px', padding: '0 0.85rem' }}>
-            <Download size={15} /> Export CSV
+          <Button variant="secondary" onClick={handleExportCSV} style={{ height: '36px', padding: '0 0.85rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <Download size={15} /> <span className="datatable-export-label">Export CSV</span>
           </Button>
         </div>
       </div>
@@ -334,19 +334,23 @@ export function DataTable<T extends Record<string, any>>({
         )}
       </div>
 
-      {/* Footer Info & Numbered Pagination */}
+      {/* Footer: Records Count + Pagination */}
       <div className="datatable-footer">
+        {/* Records count — always visible */}
         <div className="datatable-info">
-          Showing {fromRecord} to {toRecord} of {totalRecords} records
+          Showing <strong>{fromRecord}</strong> to <strong>{toRecord}</strong> of <strong>{totalRecords}</strong> records
         </div>
 
+        {/* Pagination controls */}
         <div className="datatable-pagination-controls">
           <button
             className="datatable-page-btn nav-btn"
             disabled={safeCurrentPage === 1 || isLoading}
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            aria-label="Previous page"
           >
-            <ChevronLeft size={16} /> Previous
+            <ChevronLeft size={15} />
+            <span className="datatable-nav-label">Previous</span>
           </button>
 
           <div className="datatable-page-numbers">{renderPaginationButtons()}</div>
@@ -355,8 +359,10 @@ export function DataTable<T extends Record<string, any>>({
             className="datatable-page-btn nav-btn"
             disabled={safeCurrentPage >= totalPages || isLoading}
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            aria-label="Next page"
           >
-            Next <ChevronRight size={16} />
+            <span className="datatable-nav-label">Next</span>
+            <ChevronRight size={15} />
           </button>
         </div>
       </div>

@@ -10,6 +10,7 @@ router.use(authenticateJwt);
 
 router.get('/', requirePermission('tasks', 'view'), controller.getAll);
 router.get('/:id', requirePermission('tasks', 'view'), controller.getById);
+router.get('/:id/allocations', requirePermission('tasks', 'view'), controller.getAllocations);
 router.post('/', requirePermission('tasks', 'create'), controller.create);
 router.put('/:id', requirePermission('tasks', 'update'), controller.update);
 router.patch('/:id/status', requirePermission('tasks', 'update'), controller.updateStatus);

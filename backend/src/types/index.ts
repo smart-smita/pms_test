@@ -62,6 +62,17 @@ export interface ProjectRow {
   progress_percentage?: number;
   task_count?: number;
   completed_task_count?: number;
+  total_planned_hours?: number;
+  total_actual_hours?: number;
+  total_remaining_hours?: number;
+  completion_percentage?: number;
+  total_variance?: number;
+  budget_amount?: number;
+  actual_cost?: number;
+  paid_amount?: number;
+  pending_amount?: number;
+  remaining_budget?: number;
+  budget_variance?: number;
 }
 
 export interface TaskRow {
@@ -71,12 +82,21 @@ export interface TaskRow {
   wbs_name?: string;
   project_name?: string;
   task_name: string;
+  task_address?: string;
+  latitude?: number;
+  longitude?: number;
   description?: string;
   required_worker_count: number;
   assigned_worker_count?: number;
   is_understaffed?: boolean;
   estimated_hours: number;
   actual_hours?: number;
+  remaining_hours?: number;
+  variance?: number;
+  completion_percentage?: number;
+  allocation_status?: 'Within Allocation' | 'Near Limit' | 'Hours Exceeded';
+  budget_amount?: number;
+  actual_cost?: number;
   start_date?: string;
   start_time?: string;
   target_date?: string;
@@ -138,8 +158,14 @@ export interface ProjectWBSRow {
   start_date?: string;
   end_date?: string;
   total_hours?: number;
+  actual_hours?: number;
+  remaining_hours?: number;
+  completion_percentage?: number;
+  variance?: number;
+  budget_amount?: number;
+  actual_cost?: number;
   note?: string;
-  status: number;
+  status: number | string;
   created_at?: Date;
   updated_at?: Date;
 }

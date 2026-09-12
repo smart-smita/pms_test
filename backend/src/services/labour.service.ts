@@ -16,27 +16,37 @@ export class LabourService {
   async createLabour(data: { name: string; contact_number?: string; aadhar_id?: string; labour_type?: 'contractor' | 'direct_labour' }): Promise<LabourRow> {
     if (!data.name || !data.name.trim()) throw new Error('Labour name is required');
 
-    if (data.contact_number && data.contact_number.trim()) {
-      const existingContact = await this.labourRepo.findByContact(data.contact_number);
-      if (existingContact) {
-        const err: any = new Error(`Labour with contact number '${data.contact_number}' already exists (${existingContact.name}).`);
-        err.existingLabour = existingContact;
-        err.statusCode = 409;
-        throw err;
-      }
+    const cleanContact = data.contact_number ? data.contact_number.trim() : '';
+    if (!cleanContact || !/^\d{10}$/.test(cleanContact)) {
+      throw new Error('Contact number is required and must be exactly 10 digits.');
     }
 
-    if (data.aadhar_id && data.aadhar_id.trim()) {
-      const existingAadhar = await this.labourRepo.findByAadhar(data.aadhar_id);
-      if (existingAadhar) {
-        const err: any = new Error(`Labour with Aadhaar ID '${data.aadhar_id}' already exists (${existingAadhar.name}).`);
-        err.existingLabour = existingAadhar;
-        err.statusCode = 409;
-        throw err;
-      }
+    const cleanAadhar = data.aadhar_id ? data.aadhar_id.trim() : '';
+    if (!cleanAadhar || !/^\d{12}$/.test(cleanAadhar)) {
+      throw new Error('Aadhaar ID is required and must be exactly 12 digits.');
     }
 
-    const id = await this.labourRepo.create(data);
+    const existingContact = await this.labourRepo.findByContact(cleanContact);
+    if (existingContact) {
+      const err: any = new Error(`Labour with contact number '${cleanContact}' already exists (${existingContact.name}).`);
+      err.existingLabour = existingContact;
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const existingAadhar = await this.labourRepo.findByAadhar(cleanAadhar);
+    if (existingAadhar) {
+      const err: any = new Error(`Labour with Aadhaar ID '${cleanAadhar}' already exists (${existingAadhar.name}).`);
+      err.existingLabour = existingAadhar;
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const id = await this.labourRepo.create({
+      ...data,
+      contact_number: cleanContact,
+      aadhar_id: cleanAadhar,
+    });
     return (await this.labourRepo.findById(id))!;
   }
 
@@ -44,27 +54,45 @@ export class LabourService {
     const labour = await this.labourRepo.findById(id);
     if (!labour) throw new Error('Labour record not found');
 
-    if (data.contact_number && data.contact_number.trim()) {
-      const existingContact = await this.labourRepo.findByContact(data.contact_number, id);
+    if (data.name !== undefined && (!data.name || !data.name.trim())) {
+      throw new Error('Labour name is required');
+    }
+
+    let cleanContact: string | undefined = undefined;
+    if (data.contact_number !== undefined) {
+      cleanContact = data.contact_number.trim();
+      if (!cleanContact || !/^\d{10}$/.test(cleanContact)) {
+        throw new Error('Contact number is required and must be exactly 10 digits.');
+      }
+      const existingContact = await this.labourRepo.findByContact(cleanContact, id);
       if (existingContact) {
-        const err: any = new Error(`Another labour with contact number '${data.contact_number}' already exists (${existingContact.name}).`);
+        const err: any = new Error(`Another labour with contact number '${cleanContact}' already exists (${existingContact.name}).`);
         err.existingLabour = existingContact;
         err.statusCode = 409;
         throw err;
       }
     }
 
-    if (data.aadhar_id && data.aadhar_id.trim()) {
-      const existingAadhar = await this.labourRepo.findByAadhar(data.aadhar_id, id);
+    let cleanAadhar: string | undefined = undefined;
+    if (data.aadhar_id !== undefined) {
+      cleanAadhar = data.aadhar_id.trim();
+      if (!cleanAadhar || !/^\d{12}$/.test(cleanAadhar)) {
+        throw new Error('Aadhaar ID is required and must be exactly 12 digits.');
+      }
+      const existingAadhar = await this.labourRepo.findByAadhar(cleanAadhar, id);
       if (existingAadhar) {
-        const err: any = new Error(`Another labour with Aadhaar ID '${data.aadhar_id}' already exists (${existingAadhar.name}).`);
+        const err: any = new Error(`Another labour with Aadhaar ID '${cleanAadhar}' already exists (${existingAadhar.name}).`);
         err.existingLabour = existingAadhar;
         err.statusCode = 409;
         throw err;
       }
     }
 
-    await this.labourRepo.update(id, data);
+    await this.labourRepo.update(id, {
+      ...data,
+      ...(cleanContact !== undefined ? { contact_number: cleanContact } : {}),
+      ...(cleanAadhar !== undefined ? { aadhar_id: cleanAadhar } : {}),
+    });
     return (await this.labourRepo.findById(id))!;
   }
 

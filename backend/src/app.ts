@@ -8,20 +8,35 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
-// Middlewares
-app.use(cors({ origin: true, credentials: true }));
+// CORS — allow configured origin(s) in production
+const allowedOrigins = env.CORS_ORIGIN
+  ? env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : ['http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Test DB Connection
+// DB connection + auto-migration
 testDbConnection();
 
 // Health Check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), env: env.NODE_ENV });
 });
 
-// API Routes /api/v1
+// API Routes
 app.use('/api/v1', apiRoutes);
 
 // Global Error Handler
@@ -32,10 +47,9 @@ const PORT = env.PORT || 5000;
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, async () => {
     await migrate();
-    console.log(`🚀 Backend REST API running on http://localhost:${PORT}`);
-    console.log(`📍 API Base URL: http://localhost:${PORT}/api/v1`);
+    console.log(`🚀 Backend running in ${env.NODE_ENV} mode on port ${PORT}`);
+    console.log(`📍 API: /api/v1  |  Health: /health`);
   });
 }
 
-// Trigger hot reload for migration execution
 export default app;

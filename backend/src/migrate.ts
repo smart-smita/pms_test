@@ -214,6 +214,33 @@ export async function migrate() {
       `);
 
       console.log('Created labours, labour_work_logs, labour_payments, and timesheets tables.');
+
+      // NEW Schema Migrations for Addresses & Coordinates
+      await dbPool.query(`ALTER TABLE tasks ADD COLUMN task_address TEXT`).catch(() => {});
+      await dbPool.query(`ALTER TABLE tasks ADD COLUMN latitude DECIMAL(10,8)`).catch(() => {});
+      await dbPool.query(`ALTER TABLE tasks ADD COLUMN longitude DECIMAL(11,8)`).catch(() => {});
+
+      await dbPool.query(`ALTER TABLE labour_work_logs ADD COLUMN in_address TEXT`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_work_logs ADD COLUMN out_address TEXT`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_work_logs ADD COLUMN in_latitude DECIMAL(10,8)`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_work_logs ADD COLUMN in_longitude DECIMAL(11,8)`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_work_logs ADD COLUMN out_latitude DECIMAL(10,8)`).catch(() => {});
+      await dbPool.query(`ALTER TABLE labour_work_logs ADD COLUMN out_longitude DECIMAL(11,8)`).catch(() => {});
+
+      // Backfill existing historical labour_work_logs with project addresses
+      try {
+        await dbPool.query(`
+          UPDATE labour_work_logs wl
+          JOIN projects p ON wl.project_id = p.project_id
+          SET wl.in_address = p.project_address, wl.out_address = p.project_address,
+              wl.in_latitude = p.latitude, wl.out_latitude = p.latitude,
+              wl.in_longitude = p.longitude, wl.out_longitude = p.longitude
+          WHERE wl.in_address IS NULL
+        `);
+      } catch(err: any) {
+        console.warn('Backfill issue:', err.message);
+      }
+
     } catch (err: any) {
       console.warn('Table migration warning:', err.message);
     }
@@ -332,7 +359,7 @@ export async function migrate() {
 
     console.log('Seeded role_permissions! ACL Migration COMPLETE.');
 
-    // 9. Schema extensions for Employees & Attendance
+    // 9. Schema extensions for Employees & Attendance & Budgets
     const alterQueries = [
       `ALTER TABLE employees ADD COLUMN reporting_to_id INT DEFAULT NULL`,
       `ALTER TABLE employees ADD COLUMN assigned_project_id INT DEFAULT NULL`,
@@ -343,6 +370,9 @@ export async function migrate() {
       `ALTER TABLE attendance_logs ADD COLUMN in_status ENUM('inside', 'outside') DEFAULT 'inside'`,
       `ALTER TABLE attendance_logs ADD COLUMN out_status ENUM('inside', 'outside') DEFAULT 'inside'`,
       `ALTER TABLE attendance_logs MODIFY COLUMN status ENUM('open', 'completed', 'outside_area', 'missing_checkout') NOT NULL DEFAULT 'open'`,
+      `ALTER TABLE projects ADD COLUMN budget_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE project_wbs ADD COLUMN budget_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE tasks ADD COLUMN budget_amount DECIMAL(15,2) DEFAULT 0.00`,
     ];
 
     for (const query of alterQueries) {

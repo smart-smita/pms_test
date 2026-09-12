@@ -21,6 +21,14 @@ export class ReportService {
     return await this.reportRepo.getEmployeeAttendanceReport2(filters);
   }
 
+  async getEmployeeAttendanceDayWiseReport2(filters: any) {
+    return await this.reportRepo.getEmployeeAttendanceDayWiseReport2(filters);
+  }
+
+  async getEmployeeAttendanceSummaryMatrix(filters: any) {
+    return await this.reportRepo.getEmployeeAttendanceSummaryMatrix(filters);
+  }
+
   async getEmployeeAttendanceReport3(filters: any) {
     return await this.reportRepo.getEmployeeAttendanceReport3(filters);
   }
@@ -47,6 +55,14 @@ export class ReportService {
 
   async getProjectWorkReport(projectId?: number, managerId?: number, employeeId?: number, startDate?: string, endDate?: string) {
     return await this.reportRepo.getProjectWorkReport(projectId, managerId, employeeId, startDate, endDate);
+  }
+
+  async getProjectBudgetReport(filters?: any) {
+    return await this.reportRepo.getProjectBudgetReport(filters);
+  }
+
+  async getProjectSummaryReport(filters?: any) {
+    return await this.reportRepo.getProjectSummaryReport(filters);
   }
 
   async getPaymentReport(type: 'employee' | 'daily' | 'project' | 'task', startDate?: string, endDate?: string, employeeId?: number) {
