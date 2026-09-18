@@ -66,10 +66,19 @@ export class ReportRepository {
 
   // 3. Employee Attendance Report 1 – Day Wise Hrs & Addresses
   async getEmployeeAttendanceReport1(filters: any): Promise<any[]> {
+    const joinConditions: string[] = [
+      `al.employee_id = e.employee_id`,
+      `(al.is_deleted = 0 OR al.is_deleted IS NULL)`
+    ];
+    const whereParams: any[] = [];
+    
+    if (filters.start_date) { joinConditions.push(`al.attendance_date >= ?`); whereParams.push(filters.start_date); }
+    if (filters.end_date) { joinConditions.push(`al.attendance_date <= ?`); whereParams.push(filters.end_date); }
+
     let sql = `
       SELECT 
         al.attendance_id,
-        al.employee_id,
+        e.employee_id,
         DATE_FORMAT(al.attendance_date, '%Y-%m-%d') AS attendance_date,
         e.employee_code,
         e.name AS employee_name,
@@ -82,29 +91,110 @@ export class ReportRepository {
         COALESCE(p.project_address, '') AS project_address,
         al.total_working_hours,
         al.status
-      FROM attendance_logs al
-      JOIN employees e ON al.employee_id = e.employee_id
+      FROM employees e
+      LEFT JOIN attendance_logs al ON ${joinConditions.join(' AND ')}
       LEFT JOIN tasks t ON al.task_id = t.task_id
       LEFT JOIN projects p ON p.project_id = COALESCE(t.project_id, e.assigned_project_id)
-      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
+      WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
     `;
-    const params: any[] = [];
-    if (filters.employee_id) { sql += ` AND al.employee_id = ?`; params.push(filters.employee_id); }
+
+    if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
       sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(filters.manager_id, filters.manager_id);
+      whereParams.push(filters.manager_id, filters.manager_id);
     }
-    if (filters.project_id) { sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; params.push(filters.project_id, filters.project_id); }
-    if (filters.start_date) { sql += ` AND al.attendance_date >= ?`; params.push(filters.start_date); }
-    if (filters.end_date) { sql += ` AND al.attendance_date <= ?`; params.push(filters.end_date); }
+    if (filters.project_id) { 
+      sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
+      whereParams.push(filters.project_id, filters.project_id); 
+    }
 
-    sql += ` ORDER BY al.attendance_date DESC, al.check_in_time DESC`;
-    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+    sql += ` ORDER BY al.attendance_date DESC, al.check_in_time DESC, e.name ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, whereParams);
+
+    // Fetch labour details independently based on task_assignments
+    let labourSql = `
+      SELECT 
+        ta.employee_id,
+        DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS attendance_date,
+        CONCAT('[', GROUP_CONCAT(
+          JSON_OBJECT(
+            'labour_name', l.name,
+            'labour_type', l.labour_type,
+            'amount', wl.amount,
+            'payment_status', wl.payment_status
+          )
+        ), ']') AS labour_details
+      FROM labour_work_logs wl
+      JOIN labours l ON wl.labour_id = l.labour_id
+      JOIN task_assignments ta ON wl.task_id = ta.task_id
+      JOIN employees e ON ta.employee_id = e.employee_id
+      WHERE (wl.is_deleted = 0 OR wl.is_deleted IS NULL)
+        AND (e.is_deleted = 0 OR e.is_deleted IS NULL)
+    `;
+    const labourParams: any[] = [];
+    if (filters.start_date) { labourSql += ` AND wl.work_date >= ?`; labourParams.push(filters.start_date); }
+    if (filters.end_date) { labourSql += ` AND wl.work_date <= ?`; labourParams.push(filters.end_date); }
+    if (filters.employee_id) { labourSql += ` AND ta.employee_id = ?`; labourParams.push(filters.employee_id); }
+    if (filters.manager_id) {
+      labourSql += ` AND (ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
+      labourParams.push(filters.manager_id, filters.manager_id);
+    }
+    if (filters.project_id) {
+      labourSql += ` AND (wl.project_id = ? OR e.assigned_project_id = ?)`;
+      labourParams.push(filters.project_id, filters.project_id);
+    }
+    labourSql += ` GROUP BY ta.employee_id, wl.work_date`;
+    
+    const [labourRows] = await dbPool.execute<RowDataPacket[]>(labourSql, labourParams);
+
+    // Merge labour details into main rows
+    const labourMap = new Map<string, string>();
+    labourRows.forEach(lr => {
+      labourMap.set(`${lr.employee_id}_${lr.attendance_date}`, lr.labour_details);
+    });
+
+    const existingDates = new Set<string>();
+    rows.forEach(r => {
+      if (r.attendance_date) {
+        existingDates.add(`${r.employee_id}_${r.attendance_date}`);
+        r.labour_details = labourMap.get(`${r.employee_id}_${r.attendance_date}`) || null;
+      }
+    });
+
+    labourRows.forEach(lr => {
+      const key = `${lr.employee_id}_${lr.attendance_date}`;
+      if (!existingDates.has(key)) {
+        const empBase = rows.find(r => r.employee_id === lr.employee_id);
+        if (empBase) {
+          rows.push({
+            ...empBase,
+            attendance_date: lr.attendance_date,
+            in_time: null,
+            out_time: null,
+            in_time_short: null,
+            out_time_short: null,
+            total_working_hours: 0,
+            status: null,
+            labour_details: lr.labour_details
+          });
+        }
+      }
+    });
+
     return rows;
   }
 
   // 4. Employee Attendance Report 2 – Day Wise In/Out & Hours
   async getEmployeeAttendanceReport2(filters: any): Promise<any[]> {
+    const joinConditions: string[] = [
+      `al.employee_id = e.employee_id`,
+      `(al.is_deleted = 0 OR al.is_deleted IS NULL)`
+    ];
+    const whereParams: any[] = [];
+    
+    if (filters.start_date) { joinConditions.push(`al.attendance_date >= ?`); whereParams.push(filters.start_date); }
+    if (filters.end_date) { joinConditions.push(`al.attendance_date <= ?`); whereParams.push(filters.end_date); }
+
     let sql = `
       SELECT 
         al.attendance_id,
@@ -114,28 +204,38 @@ export class ReportRepository {
         DATE_FORMAT(al.check_in_time, '%h:%i:%s %p') AS in_time,
         DATE_FORMAT(al.check_out_time, '%h:%i:%s %p') AS out_time,
         al.total_working_hours
-      FROM attendance_logs al
-      JOIN employees e ON al.employee_id = e.employee_id
+      FROM employees e
+      LEFT JOIN attendance_logs al ON ${joinConditions.join(' AND ')}
       LEFT JOIN tasks t ON al.task_id = t.task_id
-      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
+      WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
     `;
-    const params: any[] = [];
-    if (filters.employee_id) { sql += ` AND al.employee_id = ?`; params.push(filters.employee_id); }
+
+    if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
       sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(filters.manager_id, filters.manager_id);
+      whereParams.push(filters.manager_id, filters.manager_id);
     }
-    if (filters.project_id) { sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; params.push(filters.project_id, filters.project_id); }
-    if (filters.start_date) { sql += ` AND al.attendance_date >= ?`; params.push(filters.start_date); }
-    if (filters.end_date) { sql += ` AND al.attendance_date <= ?`; params.push(filters.end_date); }
+    if (filters.project_id) { 
+      sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
+      whereParams.push(filters.project_id, filters.project_id); 
+    }
 
     sql += ` ORDER BY al.attendance_date DESC, e.name ASC`;
-    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, whereParams);
     return rows;
   }
 
   // 5. Employee Attendance Report 3 – Summary
   async getEmployeeAttendanceReport3(filters: any): Promise<any[]> {
+    const joinConditions: string[] = [
+      `al.employee_id = e.employee_id`,
+      `(al.is_deleted = 0 OR al.is_deleted IS NULL)`
+    ];
+    const whereParams: any[] = [];
+    
+    if (filters.start_date) { joinConditions.push(`al.attendance_date >= ?`); whereParams.push(filters.start_date); }
+    if (filters.end_date) { joinConditions.push(`al.attendance_date <= ?`); whereParams.push(filters.end_date); }
+
     let sql = `
       SELECT 
         e.employee_id,
@@ -145,22 +245,23 @@ export class ReportRepository {
         COALESCE(SUM(al.total_working_hours), 0) AS total_working_hours,
         ROUND(COALESCE(AVG(al.total_working_hours), 0), 2) AS avg_hours_per_day
       FROM employees e
-      LEFT JOIN attendance_logs al ON e.employee_id = al.employee_id AND (al.is_deleted = 0 OR al.is_deleted IS NULL)
+      LEFT JOIN attendance_logs al ON ${joinConditions.join(' AND ')}
       LEFT JOIN tasks t ON al.task_id = t.task_id
       WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
     `;
-    const params: any[] = [];
-    if (filters.employee_id) { sql += ` AND e.employee_id = ?`; params.push(filters.employee_id); }
+
+    if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
       sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(filters.manager_id, filters.manager_id);
+      whereParams.push(filters.manager_id, filters.manager_id);
     }
-    if (filters.project_id) { sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; params.push(filters.project_id, filters.project_id); }
-    if (filters.start_date) { sql += ` AND al.attendance_date >= ?`; params.push(filters.start_date); }
-    if (filters.end_date) { sql += ` AND al.attendance_date <= ?`; params.push(filters.end_date); }
+    if (filters.project_id) { 
+      sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
+      whereParams.push(filters.project_id, filters.project_id); 
+    }
 
     sql += ` GROUP BY e.employee_id, e.employee_code, e.name ORDER BY e.name ASC`;
-    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, whereParams);
     return rows;
   }
 
@@ -384,10 +485,19 @@ export class ReportRepository {
 
   // 11. Employee Attendance Day Wise Report View 2 – Matrix (In/Out + Hrs per date)
   async getEmployeeAttendanceDayWiseReport2(filters: any): Promise<any[]> {
+    const joinConditions: string[] = [
+      `al.employee_id = e.employee_id`,
+      `(al.is_deleted = 0 OR al.is_deleted IS NULL)`
+    ];
+    const whereParams: any[] = [];
+    
+    if (filters.start_date) { joinConditions.push(`al.attendance_date >= ?`); whereParams.push(filters.start_date); }
+    if (filters.end_date) { joinConditions.push(`al.attendance_date <= ?`); whereParams.push(filters.end_date); }
+
     let sql = `
       SELECT 
         al.attendance_id,
-        al.employee_id,
+        e.employee_id,
         DATE_FORMAT(al.attendance_date, '%Y-%m-%d') AS attendance_date,
         e.employee_code,
         e.name AS employee_name,
@@ -398,23 +508,26 @@ export class ReportRepository {
         al.total_working_hours,
         al.status,
         COALESCE(p.project_address, '') AS project_address
-      FROM attendance_logs al
-      JOIN employees e ON al.employee_id = e.employee_id
+      FROM employees e
+      LEFT JOIN attendance_logs al ON ${joinConditions.join(' AND ')}
       LEFT JOIN tasks t ON al.task_id = t.task_id
       LEFT JOIN projects p ON p.project_id = COALESCE(t.project_id, e.assigned_project_id)
-      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
+      WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
     `;
-    const params: any[] = [];
-    if (filters.employee_id) { sql += ` AND al.employee_id = ?`; params.push(filters.employee_id); }
+
+    if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
       sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(filters.manager_id, filters.manager_id);
+      whereParams.push(filters.manager_id, filters.manager_id);
     }
-    if (filters.start_date) { sql += ` AND al.attendance_date >= ?`; params.push(filters.start_date); }
-    if (filters.end_date) { sql += ` AND al.attendance_date <= ?`; params.push(filters.end_date); }
+    // We didn't have project filter here before, adding it for consistency
+    if (filters.project_id) { 
+      sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
+      whereParams.push(filters.project_id, filters.project_id); 
+    }
 
-    sql += ` ORDER BY al.attendance_date ASC, al.employee_id ASC, al.check_in_time ASC`;
-    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+    sql += ` ORDER BY e.name ASC, al.attendance_date ASC, al.check_in_time ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, whereParams);
     return rows;
   }
 

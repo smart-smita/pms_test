@@ -10,19 +10,19 @@
   --border-focus: #4f46e5;
 
   /* Inputs — solid background so native select is legible */
-  --input-bg:        #1a2236;
-  --input-bg-solid:  #1a2236;
-  --input-border:    rgba(255, 255, 255, 0.18);
+  --input-bg:        #1e293b;
+  --input-bg-solid:  #1e293b;
+  --input-border:    rgba(255, 255, 255, 0.12);
   --input-text:      #f8fafc;
-  --input-placeholder: #475569;
+  --input-placeholder: #94a3b8;
   /* Option list (dropdown panel) */
-  --select-option-bg:     #1e2a3e;
-  --select-option-color:  #f1f5f9;
-  --select-option-hover:  #2d3d5a;
+  --select-option-bg:     #1e293b;
+  --select-option-color:  #f8fafc;
+  --select-option-hover:  #334155;
 
   --text-primary:   #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted:     #475569;
+  --text-secondary: #cbd5e1;
+  --text-muted:     #94a3b8;
 
   --accent-primary: #4f46e5;
   --accent-hover:   #4338ca;
@@ -615,10 +615,16 @@ select.form-input option {
 .form-input:disabled,
 .form-select:disabled,
 textarea.form-input:disabled {
-  opacity: 0.55;
+  opacity: 0.85;
   cursor: not-allowed;
-  background: var(--input-bg-solid);
+  background: rgba(255, 255, 255, 0.05);
   -webkit-text-fill-color: var(--text-muted);
+}
+
+[data-theme="light"] .form-input:disabled,
+[data-theme="light"] .form-select:disabled,
+[data-theme="light"] textarea.form-input:disabled {
+  background: #f1f5f9;
 }
 
 /* Modals */

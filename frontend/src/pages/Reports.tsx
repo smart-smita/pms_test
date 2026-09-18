@@ -647,12 +647,14 @@ export const Reports: React.FC = () => {
     }
     const rows: string[][] = [];
     const dateHeaders = dateRange.map(formatDateHeader);
-    const fieldRows: [string, 'in_time_short' | 'out_time_short' | 'total_working_hours' | 'in_address' | 'out_address' | 'project_address'][] = [
+    const fieldRows: [string, 'in_time_short' | 'out_time_short' | 'total_working_hours' | 'in_address' | 'out_address' | 'project_address' | 'labour' | 'labour_total'][] = [
       ['In Time', 'in_time_short'],
       ['Out Time', 'out_time_short'],
       ['Working Hrs', 'total_working_hours'],
       ['In Address (Site)', 'project_address'],
       ['Out Address (Site)', 'project_address'],
+      ['Labour', 'labour'],
+      ['Labour Total', 'labour_total'],
     ];
 
     // Header row
@@ -665,8 +667,26 @@ export const Reports: React.FC = () => {
         const row = idx === 0 ? [sec.employee_name, sec.employee_code, label] : ['', '', label];
         dateRange.forEach((dt) => {
           const recs = sec.dates.get(dt) || [];
-          let cell = joinCellValues(recs, key);
-          if (cell.includes('\n')) cell = cell.replace(/\n/g, ' | ');
+          let cell = '-';
+
+          if (key === 'labour' || key === 'labour_total') {
+            const allLabours = recs.flatMap((r: any) => {
+              try {
+                return JSON.parse(r.labour_details || '[]') || [];
+              } catch (e) { return []; }
+            });
+            if (allLabours.length > 0) {
+              if (key === 'labour') {
+                cell = allLabours.map((l: any) => `${l.labour_name} (${l.labour_type === 'contractor' ? 'Contractor' : 'Direct'}) - ₹${Number(l.amount || 0).toFixed(2)} [${l.payment_status || 'pending'}]`).join(' | ');
+              } else if (key === 'labour_total') {
+                const total = allLabours.reduce((sum: number, l: any) => sum + Number(l.amount || 0), 0);
+                cell = `₹${total.toFixed(2)}`;
+              }
+            }
+          } else {
+            cell = joinCellValues(recs, key as any);
+            if (cell.includes('\n')) cell = cell.replace(/\n/g, ' | ');
+          }
           row.push(cell);
         });
         rows.push(row);
@@ -1005,6 +1025,8 @@ export const Reports: React.FC = () => {
                               { label: 'Hrs', key: 'total_working_hours', dataKey: 'total_working_hours' },
                               { label: 'In\nAddress', key: 'in_address_row', dataKey: 'project_address' },
                               { label: 'Out\nAddress', key: 'out_address_row', dataKey: 'project_address' },
+                              { label: 'Labour', key: 'labour', dataKey: 'labour' },
+                              { label: 'Labour\nTotal', key: 'labour_total', dataKey: 'labour_total' },
                             ].map((rowDef) => (
                               <tr key={rowDef.key} style={{ background: 'var(--bg-card)' }}>
                                 <td style={{
@@ -1023,9 +1045,38 @@ export const Reports: React.FC = () => {
                                 </td>
                                 {dateRange.map((dt) => {
                                   const recs = sec.dates.get(dt) || [];
-                                  let val = joinCellValues(recs, rowDef.dataKey as any);
+                                  let val: React.ReactNode = '-';
+                                  let isDash = true;
                                   const isHrs = rowDef.dataKey === 'total_working_hours';
-                                  const isDash = val === '-';
+                                  
+                                  if (rowDef.dataKey === 'labour' || rowDef.dataKey === 'labour_total') {
+                                    const allLabours = recs.flatMap((r: any) => {
+                                      try {
+                                        return JSON.parse(r.labour_details || '[]') || [];
+                                      } catch (e) { return []; }
+                                    });
+                                    if (allLabours.length > 0) {
+                                      isDash = false;
+                                      if (rowDef.dataKey === 'labour') {
+                                        val = (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            {allLabours.map((l: any, i: number) => (
+                                              <div key={i} style={{ whiteSpace: 'nowrap' }}>
+                                                {l.labour_name} ({l.labour_type === 'contractor' ? 'Contractor' : 'Direct'}) - ₹{Number(l.amount || 0).toFixed(2)} 
+                                                <span style={{ fontSize: '0.75rem', opacity: 0.8, marginLeft: '4px' }}>[{l.payment_status || 'pending'}]</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      } else if (rowDef.dataKey === 'labour_total') {
+                                        const total = allLabours.reduce((sum: number, l: any) => sum + Number(l.amount || 0), 0);
+                                        val = <span style={{ fontWeight: 700, color: '#10b981' }}>₹{total.toFixed(2)}</span>;
+                                      }
+                                    }
+                                  } else {
+                                    val = joinCellValues(recs, rowDef.dataKey as any);
+                                    isDash = val === '-';
+                                  }
                                   
                                   return (
                                     <td key={dt} style={{ 
@@ -1035,7 +1086,7 @@ export const Reports: React.FC = () => {
                                       color: isDash ? 'var(--text-muted)' : (isHrs ? 'var(--text-primary)' : 'var(--text-secondary)'),
                                       fontWeight: isDash ? 'normal' : (isHrs ? 600 : 400),
                                       verticalAlign: 'top',
-                                      whiteSpace: 'pre-line',
+                                      whiteSpace: rowDef.dataKey === 'labour' ? 'normal' : 'pre-line',
                                       fontSize: '0.8rem',
                                       background: 'var(--bg-card)'
                                     }}>

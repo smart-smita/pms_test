@@ -965,7 +965,7 @@ export const ProjectWork: React.FC = () => {
                     readOnly
                     value={selectedProject ? `${selectedProject.project_code || `P0${selectedProject.project_id}`} ${selectedProject.project_name}` : ''}
                     className="form-input"
-                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-color)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
+                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
                   />
                 </div>
                 {/* WBS Name */}
@@ -977,7 +977,7 @@ export const ProjectWork: React.FC = () => {
                     readOnly
                     value={timesheetWbs.wbs_name || ''}
                     className="form-input"
-                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-color)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
+                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
                   />
                 </div>
 

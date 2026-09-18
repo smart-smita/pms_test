@@ -96,21 +96,29 @@ export const Tasks: React.FC = () => {
   });
 
   // Labour Allocation Form State
-  const [allocationForm, setAllocationForm] = useState({
+  const [allocationForm, setAllocationForm] = useState<{
+    work_log_id?: number;
+    work_date: string;
+    labour_id: string;
+    amount: string;
+    payment_status: string;
+    work_description: string;
+  }>({
     work_date: '',
     labour_id: '',
     amount: '',
-    payment_status: 'Paid',
+    payment_status: 'paid',
     work_description: ''
   });
   const [editingAllocIndex, setEditingAllocIndex] = useState<number | null>(null);
 
   const resetAllocationForm = () => {
     setAllocationForm({
+      work_log_id: undefined,
       work_date: startDate || new Date().toISOString().split('T')[0],
       labour_id: '',
       amount: '',
-      payment_status: 'Paid',
+      payment_status: 'paid',
       work_description: ''
     });
     setEditingAllocIndex(null);
@@ -216,14 +224,14 @@ export const Tasks: React.FC = () => {
             work_date: a.work_date ? a.work_date.split('T')[0] : '',
             amount: a.amount || '',
             work_description: a.work_description || '',
-            payment_status: a.payment_status || 'Paid',
+            payment_status: a.payment_status?.toLowerCase() || 'pending',
           })) || res.data.map((a: any) => ({
             work_log_id: a.work_log_id,
             labour_id: a.labour_id || '',
             work_date: a.work_date ? a.work_date.split('T')[0] : '',
             amount: a.amount || '',
             work_description: a.work_description || '',
-            payment_status: a.payment_status || 'Paid',
+            payment_status: a.payment_status?.toLowerCase() || 'pending',
           })) || []
         );
         resetAllocationForm();
@@ -678,26 +686,30 @@ export const Tasks: React.FC = () => {
               </Button>
 
               {/* Log Timesheet Button (Calendar Icon) */}
-              <Button
-                variant="secondary"
-                onClick={() => openLogTimesheetModal(row)}
-                style={{ padding: '0.35rem 0.6rem', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
-                title="Log Timesheet"
-              >
-                <Calendar size={14} /> Log Time
-              </Button>
+              {row.status !== 'completed' && row.status !== 'cancelled' && (
+                <Button
+                  variant="secondary"
+                  onClick={() => openLogTimesheetModal(row)}
+                  style={{ padding: '0.35rem 0.6rem', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+                  title="Log Timesheet"
+                >
+                  <Calendar size={14} /> Log Time
+                </Button>
+              )}
 
-              {isAdmin && (
+              {isAdmin && row.status !== 'completed' && row.status !== 'cancelled' && (
                 <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.6rem' }}>
                   <Edit size={14} /> Edit
                 </Button>
               )}
 
-              <Button variant="secondary" onClick={() => openStatusModal(row)} style={{ padding: '0.35rem 0.6rem' }}>
-                <RefreshCw size={14} /> Status
-              </Button>
+              {row.status !== 'completed' && row.status !== 'cancelled' && (
+                <Button variant="secondary" onClick={() => openStatusModal(row)} style={{ padding: '0.35rem 0.6rem' }}>
+                  <RefreshCw size={14} /> Status
+                </Button>
+              )}
 
-              {isAdmin && (
+              {isAdmin && row.status !== 'completed' && row.status !== 'cancelled' && (
                 <Button
                   variant="secondary"
                   onClick={() => handleDelete(row.task_id, row.task_name)}
@@ -1038,8 +1050,8 @@ export const Tasks: React.FC = () => {
                       onChange={(e) => setAllocationForm({ ...allocationForm, payment_status: e.target.value })}
                       style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
                     >
-                      <option value="Paid">Paid</option>
-                      <option value="Pending">Pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="pending">Pending</option>
                     </select>
                   </div>
                   <div>
@@ -1061,7 +1073,7 @@ export const Tasks: React.FC = () => {
                         onClick={() => {
                           if (editingAllocIndex !== null) {
                             const newAlloc = [...allocations];
-                            newAlloc[editingAllocIndex] = { ...allocationForm };
+                            newAlloc[editingAllocIndex] = { ...allocations[editingAllocIndex], ...allocationForm };
                             setAllocations(newAlloc);
                           } else {
                             setAllocations([...allocations, { ...allocationForm }]);
@@ -1077,17 +1089,17 @@ export const Tasks: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
                 <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: '#7dd3fc', color: '#0f172a', fontSize: '0.8rem', textAlign: 'left' }}>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Date</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Labour / Contractor</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Type</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Amount (₹)</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Payment Status</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Remarks</th>
-                      <th style={{ padding: '0.75rem', borderBottom: '1px solid #cbd5e1', width: '70px', textAlign: 'center' }}>Action</th>
+                    <tr style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem', textAlign: 'left' }}>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Date</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Labour / Contractor</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Type</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Amount (₹)</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Payment Status</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Remarks</th>
+                      <th style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', width: '70px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1101,32 +1113,32 @@ export const Tasks: React.FC = () => {
                       allocations.map((alloc, idx) => {
                         const labour = labours.find(l => l.labour_id === Number(alloc.labour_id));
                         return (
-                          <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
-                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', color: '#475569' }}>
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                               {alloc.work_date ? new Date(alloc.work_date).toLocaleDateString('en-GB') : '-'}
                             </td>
-                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0' }}>
-                              <div style={{ fontWeight: 600, color: '#334155' }}>{labour?.name || 'Unknown'}</div>
-                              <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>(L{String(labour?.labour_id).padStart(3, '0')})</div>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{labour?.name || 'Unknown'}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(L{String(labour?.labour_id).padStart(3, '0')})</div>
                             </td>
-                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
                               {labour?.labour_type === 'contractor' ? (
                                 <span style={{ background: '#fef3c7', color: '#d97706', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Contractor</span>
                               ) : (
                                 <span style={{ background: '#4f46e5', color: 'white', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Direct Labour</span>
                               )}
                             </td>
-                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', fontWeight: 500, color: '#334155' }}>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', fontWeight: 500, color: 'var(--text-primary)' }}>
                               ₹{Number(alloc.amount).toFixed(2)}
                             </td>
-                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
                               {alloc.payment_status?.toLowerCase() === 'paid' ? (
                                 <span style={{ background: '#22c55e', color: 'white', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Paid</span>
                               ) : (
-                                <span style={{ background: '#f1f5f9', color: '#64748b', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>{alloc.payment_status || 'Pending'}</span>
+                                <span style={{ background: 'var(--bg-primary)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>{alloc.payment_status || 'Pending'}</span>
                               )}
                             </td>
-                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', color: '#475569' }}>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                               {alloc.work_description || '-'}
                             </td>
                             <td style={{ padding: '0.75rem', textAlign: 'center', display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
@@ -1134,10 +1146,11 @@ export const Tasks: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   setAllocationForm({
+                                    work_log_id: alloc.work_log_id,
                                     work_date: alloc.work_date,
                                     labour_id: alloc.labour_id.toString(),
                                     amount: alloc.amount.toString(),
-                                    payment_status: alloc.payment_status || 'Pending',
+                                    payment_status: alloc.payment_status?.toLowerCase() || 'pending',
                                     work_description: alloc.work_description || ''
                                   });
                                   setEditingAllocIndex(idx);
@@ -1167,12 +1180,12 @@ export const Tasks: React.FC = () => {
                     )}
                   </tbody>
                   {allocations.length > 0 && (
-                    <tfoot style={{ background: '#f8fafc', fontWeight: 600 }}>
+                    <tfoot style={{ background: 'var(--bg-secondary)', fontWeight: 600 }}>
                       <tr>
-                        <td colSpan={3} style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', textAlign: 'right', color: '#64748b' }}>
+                        <td colSpan={3} style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', textAlign: 'right', color: 'var(--text-secondary)' }}>
                           Total Summary:
                         </td>
-                        <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', color: '#334155' }}>
+                        <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
                           ₹{allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0).toFixed(2)}
                         </td>
                         <td colSpan={3} style={{ padding: '0.75rem' }}>

@@ -168,7 +168,7 @@ export const LabourCombobox: React.FC<LabourComboboxProps> = ({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                    color: isSelected ? '#6366f1' : 'var(--text-color, #1e293b)',
+                    color: isSelected ? '#6366f1' : 'var(--text-primary)',
                     fontWeight: isSelected ? 600 : 400,
                   }}
                 >

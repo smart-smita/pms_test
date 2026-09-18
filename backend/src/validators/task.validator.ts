@@ -19,6 +19,7 @@ export const createTaskSchema = z.object({
     work_date: z.string(),
     amount: z.number().nonnegative().optional(),
     work_description: z.string().optional(),
+    payment_status: z.string().optional(),
   })).optional(),
 });
 
@@ -40,6 +41,7 @@ export const updateTaskSchema = z.object({
     work_date: z.string(),
     amount: z.number().nonnegative().optional(),
     work_description: z.string().optional(),
+    payment_status: z.string().optional(),
   })).optional(),
 });
 
