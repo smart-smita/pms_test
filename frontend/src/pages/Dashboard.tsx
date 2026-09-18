@@ -10,7 +10,7 @@ import {
   Users, UserCheck, MapPin, Clock, FolderKanban, 
   IndianRupee, UserPlus, FolderPlus, FilePlus, Receipt, CheckSquare 
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, BarChart, Bar, Legend, YAxis } from 'recharts';
 
 interface DashboardProps {
   onNavigate?: (page: string) => void;
@@ -22,11 +22,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const [metrics, setMetrics] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const fetchMetrics = async () => {
     setIsLoading(true);
     setMetrics(null); // Clear previous cached state
-    const res = await apiRequest<any>('/dashboard/metrics');
+    const res = await apiRequest<any>(`/dashboard/metrics?date=${selectedDate}`);
     if (res.success && res.data) {
       setMetrics(res.data);
     }
@@ -35,7 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     fetchMetrics();
-  }, [user?.employee_id, user?.role_name]);
+  }, [user?.employee_id, user?.role_name, selectedDate]);
 
   if (isLoading) return <LoadingSpinner />;
   if (!metrics) return <div style={{ color: 'var(--text-primary)', padding: '2rem' }}>Failed to load dashboard metrics.</div>;
@@ -106,8 +107,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <Badge variant="info">Role: Employee / Staff</Badge>
             </p>
           </div>
-          <div style={{ background: 'rgba(150,150,150,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-            📅 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          <div style={{ background: 'rgba(150,150,150,0.1)', padding: '0.25rem 1rem', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            📅 <input 
+                 type="date" 
+                 value={selectedDate} 
+                 onChange={e => setSelectedDate(e.target.value)} 
+                 style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem' }} 
+               />
           </div>
         </div>
 
@@ -229,8 +235,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <h1 className="page-title">Executive Dashboard</h1>
           <p className="page-subtitle">Welcome back, {user?.name || 'Administrator'} 👋</p>
         </div>
-        <div style={{ background: 'rgba(150,150,150,0.1)', padding: '0.5rem 1rem', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-          📅 {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+        <div style={{ background: 'rgba(150,150,150,0.1)', padding: '0.25rem 1rem', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          📅 <input 
+               type="date" 
+               value={selectedDate} 
+               onChange={e => setSelectedDate(e.target.value)} 
+               style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem' }} 
+             />
         </div>
       </div>
 

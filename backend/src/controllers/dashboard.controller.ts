@@ -9,10 +9,11 @@ export class DashboardController {
     try {
       const user = (req as any).user;
 
+      const targetDate = req.query.date as string | undefined;
       const loggedInEmployeeId = user?.employee_id || user?.id || user?.userId;
 
       if (user && user.role_name === 'Employee') {
-        const metrics = await this.dashboardService.getEmployeeDashboardMetrics(loggedInEmployeeId);
+        const metrics = await this.dashboardService.getEmployeeDashboardMetrics(loggedInEmployeeId, targetDate);
         return sendSuccess(res, 'Employee dashboard metrics retrieved successfully', metrics);
       }
 
@@ -22,7 +23,7 @@ export class DashboardController {
         managerId = loggedInEmployeeId;
       }
 
-      const metrics = await this.dashboardService.getExecutiveDashboardMetrics(managerId);
+      const metrics = await this.dashboardService.getExecutiveDashboardMetrics(managerId, undefined, targetDate);
       return sendSuccess(res, 'Executive dashboard metrics retrieved successfully', metrics);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to fetch dashboard metrics', [], 500);

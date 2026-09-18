@@ -2,8 +2,8 @@ import { RowDataPacket } from 'mysql2';
 import { dbPool } from '../config/db';
 
 export class DashboardService {
-  async getExecutiveDashboardMetrics(managerId?: number, employeeId?: number) {
-    const today = new Date().toISOString().split('T')[0];
+  async getExecutiveDashboardMetrics(managerId?: number, employeeId?: number, targetDate?: string) {
+    const today = targetDate || new Date().toISOString().split('T')[0];
     
     // Construct scope filters
     let empScope = '1=1';
@@ -42,10 +42,14 @@ export class DashboardService {
       WHERE a.attendance_date = ? AND ${empScope}
     `, [today]);
 
-    // 3. Today's worker cost calculation (Deprecated for employees)
+    // 3. Today's worker cost calculation based on logged hours and employee hourly rate
     const [costRows] = await dbPool.execute<RowDataPacket[]>(`
-      SELECT 0 AS total_cost_today
-    `);
+      SELECT 
+        COALESCE(SUM(a.total_working_hours * COALESCE(e.hourly_rate, 0)), 0) AS total_cost_today
+      FROM attendance_logs a
+      JOIN employees e ON a.employee_id = e.employee_id
+      WHERE a.attendance_date = ? AND ${empScope}
+    `, [today]);
 
     // 4. Project metrics
     const [prjRows] = await dbPool.execute<RowDataPacket[]>(`
@@ -101,12 +105,13 @@ export class DashboardService {
       LEFT JOIN roles r ON e.role_id = r.role_id
       LEFT JOIN tasks t ON al.task_id = t.task_id 
       LEFT JOIN projects p ON t.project_id = p.project_id 
-      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL)
+      WHERE (al.is_deleted = 0 OR al.is_deleted IS NULL) 
+        AND al.attendance_date = ?
       ORDER BY 
         (CASE WHEN al.status = 'open' THEN 1 ELSE 2 END) ASC,
         al.check_in_time DESC 
       LIMIT 5
-    `);
+    `, [today]);
 
     const totalEmps = Number(empRows[0]?.total_employees || 0);
     const presentToday = Number(attRows[0]?.present_today || 0);
@@ -122,8 +127,10 @@ export class DashboardService {
 
     // 8. Generate 7-day historical chart data (Daily Working Hours)
     const project_progress_history = [];
+    const baseDate = targetDate ? new Date(targetDate + 'T12:00:00Z') : new Date();
+    
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(baseDate);
       d.setDate(d.getDate() - i);
       const formattedDate = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
       const shortDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -139,6 +146,23 @@ export class DashboardService {
         progress: Number(historyRows[0]?.daily_hours || 0)
       });
     }
+
+    // 9. Task Hours Comparison (Plan vs Actual)
+    const [taskHoursRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT 
+        t.task_id,
+        t.task_name,
+        t.start_date,
+        t.target_date,
+        COALESCE(t.estimated_hours, 0) AS plan_hours,
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE task_id = t.task_id), 0) +
+        COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+        t.status
+      FROM tasks t
+      WHERE ${taskScope} AND t.is_deleted = 0
+      ORDER BY t.start_date DESC, t.task_id DESC
+      LIMIT 15
+    `);
 
     return {
       employees: {
@@ -169,12 +193,13 @@ export class DashboardService {
       },
       recent_tasks: recentTasksRows,
       live_attendance: liveAttendanceRows,
+      task_hours_comparison: taskHoursRows,
     };
   }
 
-  async getEmployeeDashboardMetrics(employeeId: number) {
+  async getEmployeeDashboardMetrics(employeeId: number, targetDate?: string) {
     const pad = (n: number) => n.toString().padStart(2, '0');
-    const now = new Date();
+    const now = targetDate ? new Date(targetDate + 'T12:00:00Z') : new Date();
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
     // 1. Employee Info
@@ -207,19 +232,19 @@ export class DashboardService {
       WHERE employee_id = ? AND status != 'outside_area'
     `, [today, today, employeeId]);
 
-    // Week hours
+    // Week hours (ending at targetDate)
     const [weekRows] = await dbPool.execute<RowDataPacket[]>(`
       SELECT COALESCE(SUM(total_working_hours), 0) AS hours_week
       FROM attendance_logs
-      WHERE employee_id = ? AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    `, [employeeId]);
+      WHERE employee_id = ? AND attendance_date >= DATE_SUB(?, INTERVAL 7 DAY) AND attendance_date <= ?
+    `, [employeeId, today, today]);
 
-    // Month hours
+    // Month hours (for the month of targetDate)
     const [monthRows] = await dbPool.execute<RowDataPacket[]>(`
       SELECT COALESCE(SUM(total_working_hours), 0) AS hours_month
       FROM attendance_logs
-      WHERE employee_id = ? AND MONTH(attendance_date) = MONTH(CURDATE()) AND YEAR(attendance_date) = YEAR(CURDATE())
-    `, [employeeId]);
+      WHERE employee_id = ? AND MONTH(attendance_date) = MONTH(?) AND YEAR(attendance_date) = YEAR(?)
+    `, [employeeId, today, today]);
 
     // 4. Assigned Projects
     const [prjRows] = await dbPool.execute<RowDataPacket[]>(`
@@ -233,7 +258,7 @@ export class DashboardService {
     // 5. 7-Day History Chart
     const hoursHistory = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
+      const d = new Date(now);
       d.setDate(d.getDate() - i);
       const formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       const shortDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -250,7 +275,25 @@ export class DashboardService {
       });
     }
 
-    // 6. My Activity / My Details Table
+    // 6. Task Hours Comparison (Plan vs Actual) for Employee
+    const [taskHoursRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT 
+        t.task_id,
+        t.task_name,
+        t.start_date,
+        t.target_date,
+        COALESCE(t.estimated_hours, 0) AS plan_hours,
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE task_id = t.task_id), 0) +
+        COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+        t.status
+      FROM tasks t
+      JOIN task_assignments ta ON t.task_id = ta.task_id
+      WHERE ta.employee_id = ? AND t.is_deleted = 0
+      ORDER BY t.start_date DESC, t.task_id DESC
+      LIMIT 15
+    `, [employeeId]);
+
+    // 7. My Activity / My Details Table
     const [activityRows] = await dbPool.execute<RowDataPacket[]>(`
       SELECT 
         t.task_id,
@@ -267,7 +310,7 @@ export class DashboardService {
         COALESCE(SUM(al.total_working_hours), 0) AS logged_hours,
         (
           SELECT status FROM attendance_logs 
-          WHERE employee_id = ta.employee_id AND task_id = t.task_id 
+          WHERE employee_id = ta.employee_id AND task_id = t.task_id AND attendance_date <= ?
           ORDER BY check_in_time DESC LIMIT 1
         ) AS latest_attendance_status
       FROM tasks t
@@ -275,11 +318,11 @@ export class DashboardService {
       LEFT JOIN projects p ON t.project_id = p.project_id
       LEFT JOIN project_wbs pw ON t.wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
-      LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.employee_id = ta.employee_id
+      LEFT JOIN attendance_logs al ON t.task_id = al.task_id AND al.employee_id = ta.employee_id AND al.attendance_date <= ?
       WHERE ta.employee_id = ?
       GROUP BY t.task_id
       ORDER BY t.task_id DESC
-    `, [employeeId]);
+    `, [today, today, employeeId]);
 
     const totalTasks = Number(taskRows[0]?.total_tasks || 0);
     const completedTasks = Number(taskRows[0]?.completed_tasks || 0);
@@ -314,6 +357,7 @@ export class DashboardService {
       },
       charts: {
         hours_history: hoursHistory,
+        task_hours_comparison: taskHoursRows,
       },
       my_activity_details: activityRows,
     };

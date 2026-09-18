@@ -18,6 +18,7 @@ import { ProjectWork } from './pages/ProjectWork';
 import { Timesheets } from './pages/Timesheets';
 import { Settings } from './pages/Settings';
 import { Support } from './pages/Support';
+import { GanttChartPage } from './pages/GanttChartPage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { RequirePermission } from './components/common/RequirePermission';
 
@@ -70,6 +71,8 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="projects" action="view" fallback={fallback}><ProjectWork /></RequirePermission>;
       case 'tasks': 
         return <RequirePermission module="tasks" action="view" fallback={fallback}><Tasks /></RequirePermission>;
+      case 'gantt-chart':
+        return <RequirePermission module="tasks" action="view" fallback={fallback}><GanttChartPage /></RequirePermission>;
       case 'timesheets':
         return <RequirePermission module="timesheets" action="view" fallback={fallback}><Timesheets /></RequirePermission>;
       case 'attendance':
