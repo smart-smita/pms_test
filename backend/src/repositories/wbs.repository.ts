@@ -40,7 +40,7 @@ export class WbsRepository {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT pw.*, w.wbs_code, w.wbs_name,
               COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id)), 0) +
-              COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+              COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS logged_actual_hours,
               COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost
        FROM project_wbs pw
        JOIN work_breakdown_structures w ON pw.wbs_id = w.id
@@ -51,7 +51,9 @@ export class WbsRepository {
 
     return rows.map((r: any) => {
       const plannedHrs = Number(r.total_hours || 0);
-      const actualHrs = Number(r.actual_hours || 0);
+      const loggedHrs = Number(r.logged_actual_hours || 0);
+      const storedHrs = Number(r.actual_hours || 0);
+      const actualHrs = Math.max(loggedHrs, storedHrs);
       const remainingHrs = Math.max(plannedHrs - actualHrs, 0);
       const varianceHrs = actualHrs - plannedHrs;
       const compPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 10000) / 100, 100) : 0;
@@ -77,7 +79,7 @@ export class WbsRepository {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT pw.*, w.wbs_code, w.wbs_name,
               COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id)), 0) +
-              COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+              COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS logged_actual_hours,
               COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost
        FROM project_wbs pw
        JOIN work_breakdown_structures w ON pw.wbs_id = w.id
@@ -87,7 +89,9 @@ export class WbsRepository {
     if (!rows[0]) return null;
     const r: any = rows[0];
     const plannedHrs = Number(r.total_hours || 0);
-    const actualHrs = Number(r.actual_hours || 0);
+    const loggedHrs = Number(r.logged_actual_hours || 0);
+    const storedHrs = Number(r.actual_hours || 0);
+    const actualHrs = Math.max(loggedHrs, storedHrs);
     const remainingHrs = Math.max(plannedHrs - actualHrs, 0);
     const varianceHrs = actualHrs - plannedHrs;
     const compPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 10000) / 100, 100) : 0;
@@ -121,18 +125,24 @@ export class WbsRepository {
     start_date?: string;
     end_date?: string;
     total_hours?: number;
+    actual_start_date?: string;
+    actual_end_date?: string;
+    actual_hours?: number;
     note?: string;
   }): Promise<number> {
     const db = connection || dbPool;
     const [result] = await db.execute(
-      `INSERT INTO project_wbs (project_id, wbs_id, start_date, end_date, total_hours, note)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO project_wbs (project_id, wbs_id, start_date, end_date, total_hours, actual_start_date, actual_end_date, actual_hours, note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.project_id,
         data.wbs_id,
         data.start_date || null,
         data.end_date || null,
         data.total_hours || 0,
+        data.actual_start_date || null,
+        data.actual_end_date || null,
+        data.actual_hours || 0,
         data.note || null
       ]
     );
@@ -147,6 +157,9 @@ export class WbsRepository {
     if (data.start_date !== undefined) { fields.push('start_date = ?'); params.push(data.start_date || null); }
     if (data.end_date !== undefined) { fields.push('end_date = ?'); params.push(data.end_date || null); }
     if (data.total_hours !== undefined) { fields.push('total_hours = ?'); params.push(data.total_hours); }
+    if (data.actual_start_date !== undefined) { fields.push('actual_start_date = ?'); params.push(data.actual_start_date || null); }
+    if (data.actual_end_date !== undefined) { fields.push('actual_end_date = ?'); params.push(data.actual_end_date || null); }
+    if (data.actual_hours !== undefined) { fields.push('actual_hours = ?'); params.push(data.actual_hours || 0); }
     if (data.note !== undefined) { fields.push('note = ?'); params.push(data.note || null); }
 
     if (fields.length === 0) return false;

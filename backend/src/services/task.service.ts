@@ -35,6 +35,14 @@ export class TaskService {
       }
     }
 
+    // Check for duplicate task name under the same project and WBS
+    if (data.task_name) {
+      const existing = await this.taskRepo.findByNameAndProjectWbs(data.project_id, data.wbs_id, data.task_name);
+      if (existing) {
+        return existing;
+      }
+    }
+
     const assignedEmployeeIds = data.assigned_employee_ids || [];
     if (assignedEmployeeIds.length > 1) {
       throw new Error('A task can be assigned to ONLY ONE employee');

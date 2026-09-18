@@ -34,6 +34,19 @@ export async function apiRequest<T = any>(
       }));
     }
 
+    if (!res.ok && json.errors && Array.isArray(json.errors)) {
+      const details = json.errors
+        .filter((e: any) => e.message)
+        .map((e: any) => {
+          const pathStr = e.path ? e.path.join('.') : '';
+          return pathStr ? `[${pathStr}] ${e.message}` : e.message;
+        })
+        .join(' | ');
+      if (details) {
+        json.message = `${json.message || 'Validation Error'}: ${details}`;
+      }
+    }
+
     return json;
   } catch (error: any) {
     return {

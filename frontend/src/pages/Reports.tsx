@@ -86,6 +86,35 @@ export const Reports: React.FC = () => {
     loadOptions();
   }, [isAdmin, user?.role_name]);
 
+  const [projectDisciplines, setProjectDisciplines] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (labProjectId) {
+      apiRequest<any[]>(`/projects/${labProjectId}/wbs`).then((res) => {
+        if (res.success && res.data) {
+          setProjectDisciplines(res.data);
+        } else {
+          setProjectDisciplines([]);
+        }
+      });
+    } else {
+      setProjectDisciplines(disciplines);
+    }
+  }, [labProjectId, disciplines]);
+
+  const filteredReportDisciplines = useMemo(() => {
+    return projectDisciplines;
+  }, [projectDisciplines]);
+
+  const filteredReportTasks = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter((t) => {
+      if (labProjectId && Number(t.project_id) !== Number(labProjectId)) return false;
+      if (labDisciplineId && Number(t.wbs_id) !== Number(labDisciplineId)) return false;
+      return true;
+    });
+  }, [tasks, labProjectId, labDisciplineId]);
+
   const fetchReportData = async () => {
     setIsLoading(true);
     let endpoint = '';
@@ -1822,26 +1851,33 @@ export const Reports: React.FC = () => {
           <FormSelect
             label="Project"
             value={labProjectId}
-            onChange={(e) => setLabProjectId(e.target.value)}
+            onChange={(e) => {
+              setLabProjectId(e.target.value);
+              setLabDisciplineId('');
+              setLabTaskId('');
+            }}
             options={[{ value: '', label: 'All Projects' }, ...projects.map(p => ({ value: p.project_id.toString(), label: p.project_name }))]}
           />
           <FormSelect
             label="Discipline"
             value={labDisciplineId}
-            onChange={(e) => setLabDisciplineId(e.target.value)}
-            options={[{ value: '', label: 'All Disciplines' }, ...disciplines.map(d => ({ value: d.id?.toString() || d.wbs_id?.toString() || '', label: d.wbs_name }))]}
+            onChange={(e) => {
+              setLabDisciplineId(e.target.value);
+              setLabTaskId('');
+            }}
+            options={[{ value: '', label: 'All Disciplines' }, ...filteredReportDisciplines.map(d => ({ value: d.id?.toString() || d.wbs_id?.toString() || '', label: d.wbs_name }))]}
           />
           <FormSelect
             label="Task"
             value={labTaskId}
             onChange={(e) => setLabTaskId(e.target.value)}
-            options={[{ value: '', label: 'All Tasks' }, ...tasks.map(t => ({ value: t.task_id.toString(), label: t.task_name }))]}
+            options={[{ value: '', label: 'All Tasks' }, ...filteredReportTasks.map(t => ({ value: t.task_id.toString(), label: t.task_name }))]}
           />
           <FormSelect
             label="Labour / Contractor"
             value={labLabourId}
             onChange={(e) => setLabLabourId(e.target.value)}
-            options={[{ value: '', label: 'All Labours' }, ...labours.map(l => ({ value: l.labour_id.toString(), label: `${l.name} (${l.labour_type})` }))]}
+            options={[{ value: '', label: 'All Labours' }, ...labours.map(l => ({ value: l.labour_id.toString(), label: `${l.name} (${l.labour_type === 'contractor' ? 'Contractor' : 'Direct Labour'})` }))]}
           />
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <Button variant="secondary" onClick={handleLabReset}>Reset</Button>

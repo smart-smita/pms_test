@@ -39,7 +39,7 @@ export const Employees: React.FC = () => {
   const [assignedProjectId, setAssignedProjectId] = useState<number | ''>('');
   const [assignedWbsId, setAssignedWbsId] = useState<number | ''>('');
   const [projectOptions, setProjectOptions] = useState<{ id: number; name: string }[]>([]);
-  const [wbsOptions, setWbsOptions] = useState<{ id: number; name: string }[]>([]);
+  const [wbsOptions, setWbsOptions] = useState<{ id: number; name: string; project_id?: number }[]>([]);
   const [hourlyRate, setHourlyRate] = useState<number>(25.0);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -62,10 +62,30 @@ export const Employees: React.FC = () => {
     }
     const wbsRes = await apiRequest<any[]>('/wbs');
     if (wbsRes.success && wbsRes.data) {
-      setWbsOptions(wbsRes.data.map((w: any) => ({ id: w.id, name: w.wbs_name })));
+      setWbsOptions(wbsRes.data.map((w: any) => ({ id: w.id, name: w.wbs_name, project_id: w.project_id })));
     }
     setIsLoading(false);
   };
+
+  const [modalWbsList, setModalWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
+
+  useEffect(() => {
+    if (assignedProjectId) {
+      apiRequest<any[]>(`/projects/${assignedProjectId}/wbs`).then((res) => {
+        if (res.success && res.data) {
+          setModalWbsList(res.data.map((w: any) => ({
+            id: w.id || w.wbs_id,
+            name: w.wbs_name,
+            project_id: Number(assignedProjectId),
+          })));
+        } else {
+          setModalWbsList([]);
+        }
+      });
+    } else {
+      setModalWbsList(wbsOptions);
+    }
+  }, [assignedProjectId, wbsOptions]);
 
   useEffect(() => {
     fetchEmployees();
@@ -579,7 +599,12 @@ export const Employees: React.FC = () => {
             <FormSelect
               label="Assigned Project"
               value={assignedProjectId}
-              onChange={(e) => setAssignedProjectId(e.target.value ? parseInt(e.target.value, 10) : '')}
+              onChange={(e) => {
+                const newPid = e.target.value ? parseInt(e.target.value, 10) : '';
+                const isWbsValid = assignedWbsId && wbsOptions.some((w) => String(w.id) === String(assignedWbsId) && (!w.project_id || !newPid || Number(w.project_id) === Number(newPid)));
+                setAssignedProjectId(newPid);
+                if (!isWbsValid) setAssignedWbsId('');
+              }}
               options={[
                 { value: '', label: '-- None --' },
                 ...projectOptions.map((p) => ({ value: p.id, label: p.name })),
@@ -593,7 +618,7 @@ export const Employees: React.FC = () => {
               onChange={(e) => setAssignedWbsId(e.target.value ? parseInt(e.target.value, 10) : '')}
               options={[
                 { value: '', label: '-- None --' },
-                ...wbsOptions.map((w) => ({ value: w.id, label: w.name })),
+                ...modalWbsList.map((w) => ({ value: w.id, label: w.name })),
               ]}
               error={formErrors.assigned_wbs_id}
             />

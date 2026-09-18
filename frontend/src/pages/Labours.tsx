@@ -48,6 +48,8 @@ export const Labours: React.FC = () => {
   const [workLogs, setWorkLogs] = useState<LabourWorkLog[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const contractorsList = labours.filter(l => l.labour_type === 'contractor');
+
   // Filters
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('');
@@ -130,7 +132,25 @@ export const Labours: React.FC = () => {
     }
   };
 
-  const contractorsList = labours.filter((l) => l.labour_type === 'contractor');
+  const [modalWbsList, setModalWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
+
+  useEffect(() => {
+    if (workLogForm.project_id) {
+      apiService.get<any[]>(`/projects/${workLogForm.project_id}/wbs`).then((res) => {
+        if (res.success && res.data) {
+          setModalWbsList(res.data.map((w: any) => ({
+            id: w.id || w.wbs_id,
+            name: w.wbs_name,
+            project_id: Number(workLogForm.project_id),
+          })));
+        } else {
+          setModalWbsList([]);
+        }
+      });
+    } else {
+      setModalWbsList(wbsList);
+    }
+  }, [workLogForm.project_id, wbsList]);
 
   // Filter tasks based on selected project/wbs in form
   const filteredFormTasks = tasks.filter((t) => {
@@ -694,7 +714,7 @@ export const Labours: React.FC = () => {
                   className="form-select"
                 >
                   <option value="">Select WBS Discipline</option>
-                  {wbsList.map((w) => (
+                  {modalWbsList.map((w) => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>

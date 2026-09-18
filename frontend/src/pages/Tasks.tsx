@@ -14,6 +14,7 @@ import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw } from 
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { LogHistoryModal } from '../components/common/LogHistoryModal';
+import { LabourCombobox } from '../components/common/LabourCombobox';
 
 export const Tasks: React.FC = () => {
   const { user } = useAuth();
@@ -84,6 +85,36 @@ export const Tasks: React.FC = () => {
     comment: '',
   });
   const [isLoggingTimesheet, setIsLoggingTimesheet] = useState(false);
+
+  // Labour Creation Modal State
+  const [isCreateLabourModalOpen, setIsCreateLabourModalOpen] = useState(false);
+  const [createLabourForm, setCreateLabourForm] = useState({
+    name: '',
+    contact_number: '',
+    aadhar_id: '',
+    labour_type: 'direct_labour' as 'direct_labour' | 'contractor'
+  });
+
+  // Labour Allocation Form State
+  const [allocationForm, setAllocationForm] = useState({
+    work_date: '',
+    labour_id: '',
+    amount: '',
+    payment_status: 'Paid',
+    work_description: ''
+  });
+  const [editingAllocIndex, setEditingAllocIndex] = useState<number | null>(null);
+
+  const resetAllocationForm = () => {
+    setAllocationForm({
+      work_date: startDate || new Date().toISOString().split('T')[0],
+      labour_id: '',
+      amount: '',
+      payment_status: 'Paid',
+      work_description: ''
+    });
+    setEditingAllocIndex(null);
+  };
 
   // Errors
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -177,13 +208,25 @@ export const Tasks: React.FC = () => {
     setAllocations([]);
     apiService.get<any[]>(`/tasks/${t.task_id}/allocations`).then(res => {
       if (res.success && res.data) {
-        setAllocations(res.data.map(d => ({
-          work_log_id: d.work_log_id,
-          labour_id: d.labour_id,
-          work_date: d.work_date ? d.work_date.split('T')[0] : '',
-          amount: d.amount || '',
-          work_description: d.work_description || ''
-        })));
+        const task = t;
+        setAllocations(
+          task.allocations?.map((a: any) => ({
+            work_log_id: a.work_log_id,
+            labour_id: a.labour_id || '',
+            work_date: a.work_date ? a.work_date.split('T')[0] : '',
+            amount: a.amount || '',
+            work_description: a.work_description || '',
+            payment_status: a.payment_status || 'Paid',
+          })) || res.data.map((a: any) => ({
+            work_log_id: a.work_log_id,
+            labour_id: a.labour_id || '',
+            work_date: a.work_date ? a.work_date.split('T')[0] : '',
+            amount: a.amount || '',
+            work_description: a.work_description || '',
+            payment_status: a.payment_status || 'Paid',
+          })) || []
+        );
+        resetAllocationForm();
       }
     }).catch(console.error);
 
@@ -266,6 +309,45 @@ export const Tasks: React.FC = () => {
     }
   };
 
+  const handleInitiateCreateLabour = (name: string, type: 'direct_labour' | 'contractor') => {
+    setCreateLabourForm({ name, labour_type: type, contact_number: '', aadhar_id: '' });
+    setIsCreateLabourModalOpen(true);
+  };
+
+  const handleCreateLabourSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createLabourForm.name.trim() || !createLabourForm.contact_number.trim()) {
+      showError('Name and Contact Number are required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await apiService.post<any>('/labours', {
+        ...createLabourForm,
+        status: 'active'
+      });
+      if (res.success && res.data) {
+        showSuccess('Labour created successfully.');
+        const newLabour = {
+          labour_id: res.data.labour_id,
+          name: res.data.name,
+          labour_type: res.data.labour_type,
+          sub_worker_count: 0
+        };
+        setLabours([...labours, newLabour]);
+        setAllocationForm({ ...allocationForm, labour_id: String(newLabour.labour_id) });
+        setIsCreateLabourModalOpen(false);
+      } else {
+        showError(res.message || 'Failed to create labour.');
+      }
+    } catch (err: any) {
+      showError(err.message || 'An error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors({});
@@ -305,6 +387,7 @@ export const Tasks: React.FC = () => {
       assigned_employee_ids: assignedEmployeeId ? [Number(assignedEmployeeId)] : [],
       allocations: allocations.map(a => ({
         ...a,
+        labour_id: typeof a.labour_id === 'string' ? parseInt(a.labour_id, 10) || 0 : a.labour_id,
         amount: typeof a.amount === 'string' ? parseFloat(a.amount) || 0 : a.amount
       })),
       task_address: taskAddress,
@@ -731,7 +814,8 @@ export const Tasks: React.FC = () => {
             onChange={(e) => {
               const pid = parseInt(e.target.value, 10) || 0;
               setProjectId(pid);
-              setFormErrors((prev) => ({ ...prev, project_id: '' }));
+              setWbsId(0);
+              setFormErrors((prev) => ({ ...prev, project_id: '', wbs_id: '' }));
               // Auto-fill address and GPS from selected project
               if (!editingTask) {
                 const proj = projects.find(p => p.project_id === pid);
@@ -785,142 +869,7 @@ export const Tasks: React.FC = () => {
             required
           />
 
-          <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Labour / Contractor Allocations</span>
-              <Button type="button" variant="secondary" onClick={() => setAllocations([...allocations, { labour_id: '', work_date: new Date().toISOString().split('T')[0], amount: '', work_description: '' }])} style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}>
-                <Plus size={14} /> Add Allocation
-              </Button>
-            </label>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="minimal-table" style={{ width: '100%', minWidth: '600px' }}>
-                <thead>
-                  <tr style={{ background: 'var(--input-bg-solid)', fontSize: '0.8rem' }}>
-                    <th style={{ padding: '0.5rem' }}>Work Date</th>
-                    <th style={{ padding: '0.5rem' }}>Labour / Contractor</th>
-                    <th style={{ padding: '0.5rem', width: '100px' }}>Amount</th>
-                    <th style={{ padding: '0.5rem' }}>Remarks</th>
-                    <th style={{ padding: '0.5rem', width: '50px' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allocations.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                        No allocations added.
-                      </td>
-                    </tr>
-                  ) : (
-                    allocations.map((alloc, idx) => (
-                      <tr key={idx}>
-                        <td style={{ padding: '0.4rem' }}>
-                          <input
-                            type="date"
-                            className="form-input"
-                            value={alloc.work_date}
-                            onChange={(e) => {
-                              const newAlloc = [...allocations];
-                              newAlloc[idx].work_date = e.target.value;
-                              setAllocations(newAlloc);
-                            }}
-                            required
-                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.4rem' }}>
-                          <select
-                            className="form-input"
-                            value={alloc.labour_id}
-                            onChange={(e) => {
-                              const newAlloc = [...allocations];
-                              newAlloc[idx].labour_id = parseInt(e.target.value, 10) || '';
-                              setAllocations(newAlloc);
-                            }}
-                            required
-                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
-                          >
-                            <option value="">-- Select Labour / Contractor --</option>
-                            {labours.map((l) => {
-                              const isContractor = l.labour_type === 'contractor';
-                              const subWorkers = l.sub_worker_count !== undefined ? l.sub_worker_count : 0;
-                              return (
-                                <option key={l.labour_id} value={l.labour_id}>
-                                  {isContractor
-                                    ? `${l.name} (Contractor - ${subWorkers} Workers Available)`
-                                    : `${l.name} (Direct Labour)`}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </td>
-                        <td style={{ padding: '0.4rem' }}>
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            className="form-input"
-                            value={alloc.amount}
-                            onChange={(e) => {
-                              const newAlloc = [...allocations];
-                              newAlloc[idx].amount = e.target.value;
-                              setAllocations(newAlloc);
-                            }}
-                            placeholder="0.00"
-                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.4rem' }}>
-                          <input
-                            type="text"
-                            className="form-input"
-                            value={alloc.work_description}
-                            onChange={(e) => {
-                              const newAlloc = [...allocations];
-                              newAlloc[idx].work_description = e.target.value;
-                              setAllocations(newAlloc);
-                            }}
-                            placeholder="Remarks..."
-                            style={{ padding: '0.3rem', fontSize: '0.85rem' }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.4rem', textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newAlloc = [...allocations];
-                              newAlloc.splice(idx, 1);
-                              setAllocations(newAlloc);
-                            }}
-                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
 
-            {/* Contractor Available Worker Count Summary Banner */}
-            {allocations.some((a) => labours.find((l) => l.labour_id === Number(a.labour_id))?.labour_type === 'contractor') && (
-              <div style={{ marginTop: '0.6rem', padding: '0.6rem 0.85rem', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-main)' }}>
-                {labours
-                  .filter((l) => l.labour_type === 'contractor' && allocations.some((a) => Number(a.labour_id) === l.labour_id))
-                  .map((c) => {
-                    const allocatedCountForContractor = allocations.filter((a) => Number(a.labour_id) === c.labour_id).length;
-                    const totalAvailable = c.sub_worker_count !== undefined ? c.sub_worker_count : 0;
-                    return (
-                      <div key={c.labour_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                        <span>🏢 Contractor <strong>{c.name}</strong>: <strong>{totalAvailable}</strong> total workers available under contractor</span>
-                        <span style={{ color: '#6366f1', fontWeight: 600 }}>Allocated to task: {allocatedCountForContractor} worker(s) | Total Worker Count: {allocations.length}</span>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
 
           {/* 4. Task Name */}
           <FormInput
@@ -1023,8 +972,221 @@ export const Tasks: React.FC = () => {
               error={formErrors.target_time}
             />
           </div>
+          <div className="form-group" style={{ marginBottom: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+            <div style={{ background: '#6366f1', color: 'white', padding: '0.75rem 1rem', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+              <Calendar size={16} /> Labour / Contractor Daily Allocation
+            </div>
+            <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', padding: '1.5rem', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                Add daily work allocation records for workers on this task. Each worker can work multiple dates, and multiple workers can be allocated per date.
+              </p>
 
+              {(!startDate || !targetDate) && (
+                <div style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                  Please select Task <strong>Start Date</strong> and <strong>End Date</strong> above before adding allocations.
+                </div>
+              )}
 
+              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                <div className="grid-3-col" style={{ gap: '1rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Work Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={allocationForm.work_date}
+                      min={startDate}
+                      max={targetDate}
+                      disabled={!startDate || !targetDate}
+                      onChange={(e) => setAllocationForm({ ...allocationForm, work_date: e.target.value })}
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1.5, minWidth: '220px', position: 'relative' }}>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Select Labour / Contractor <span style={{ color: '#ef4444' }}>*</span></label>
+                    <LabourCombobox
+                      selectedLabourId={allocationForm.labour_id}
+                      labours={labours}
+                      onSelectLabour={(l) => setAllocationForm({ ...allocationForm, labour_id: l ? String(l.labour_id) : '' })}
+                      onInitiateCreate={handleInitiateCreateLabour}
+                      disabled={!startDate || !targetDate}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Amount (₹) <span style={{ color: '#ef4444' }}>*</span></label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="form-input"
+                      value={allocationForm.amount}
+                      disabled={!startDate || !targetDate}
+                      onChange={(e) => setAllocationForm({ ...allocationForm, amount: e.target.value })}
+                      placeholder="Enter amount..."
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid-2-col" style={{ gap: '1rem', marginTop: '1rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Payment Status</label>
+                    <select
+                      className="form-input"
+                      value={allocationForm.payment_status}
+                      disabled={!startDate || !targetDate}
+                      onChange={(e) => setAllocationForm({ ...allocationForm, payment_status: e.target.value })}
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    >
+                      <option value="Paid">Paid</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Remarks / Notes</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={allocationForm.work_description}
+                        disabled={!startDate || !targetDate}
+                        onChange={(e) => setAllocationForm({ ...allocationForm, work_description: e.target.value })}
+                        placeholder="Optional work notes / remarks"
+                        style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', flex: 1 }}
+                      />
+                      <Button
+                        type="button"
+                        variant="primary"
+                        disabled={!startDate || !targetDate || !allocationForm.work_date || !allocationForm.labour_id || !allocationForm.amount}
+                        onClick={() => {
+                          if (editingAllocIndex !== null) {
+                            const newAlloc = [...allocations];
+                            newAlloc[editingAllocIndex] = { ...allocationForm };
+                            setAllocations(newAlloc);
+                          } else {
+                            setAllocations([...allocations, { ...allocationForm }]);
+                          }
+                          resetAllocationForm();
+                        }}
+                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', height: '36px', background: editingAllocIndex !== null ? '#f59e0b' : '#a855f7', borderColor: editingAllocIndex !== null ? '#f59e0b' : '#a855f7' }}
+                      >
+                        {editingAllocIndex !== null ? <><Edit size={14} /> Update</> : <><Plus size={14} /> Add Allocation</>}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
+                <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#7dd3fc', color: '#0f172a', fontSize: '0.8rem', textAlign: 'left' }}>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Date</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Labour / Contractor</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Type</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Amount (₹)</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Payment Status</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #cbd5e1' }}>Remarks</th>
+                      <th style={{ padding: '0.75rem', borderBottom: '1px solid #cbd5e1', width: '70px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allocations.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          No allocations added.
+                        </td>
+                      </tr>
+                    ) : (
+                      allocations.map((alloc, idx) => {
+                        const labour = labours.find(l => l.labour_id === Number(alloc.labour_id));
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', color: '#475569' }}>
+                              {alloc.work_date ? new Date(alloc.work_date).toLocaleDateString('en-GB') : '-'}
+                            </td>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0' }}>
+                              <div style={{ fontWeight: 600, color: '#334155' }}>{labour?.name || 'Unknown'}</div>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>(L{String(labour?.labour_id).padStart(3, '0')})</div>
+                            </td>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0' }}>
+                              {labour?.labour_type === 'contractor' ? (
+                                <span style={{ background: '#fef3c7', color: '#d97706', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Contractor</span>
+                              ) : (
+                                <span style={{ background: '#4f46e5', color: 'white', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Direct Labour</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', fontWeight: 500, color: '#334155' }}>
+                              ₹{Number(alloc.amount).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0' }}>
+                              {alloc.payment_status?.toLowerCase() === 'paid' ? (
+                                <span style={{ background: '#22c55e', color: 'white', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>Paid</span>
+                              ) : (
+                                <span style={{ background: '#f1f5f9', color: '#64748b', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600 }}>{alloc.payment_status || 'Pending'}</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', color: '#475569' }}>
+                              {alloc.work_description || '-'}
+                            </td>
+                            <td style={{ padding: '0.75rem', textAlign: 'center', display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAllocationForm({
+                                    work_date: alloc.work_date,
+                                    labour_id: alloc.labour_id.toString(),
+                                    amount: alloc.amount.toString(),
+                                    payment_status: alloc.payment_status || 'Pending',
+                                    work_description: alloc.work_description || ''
+                                  });
+                                  setEditingAllocIndex(idx);
+                                }}
+                                style={{ background: '#38bdf8', border: 'none', color: 'white', cursor: 'pointer', padding: '0.3rem', borderRadius: '4px' }}
+                                title="Edit Allocation"
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newAlloc = [...allocations];
+                                  newAlloc.splice(idx, 1);
+                                  setAllocations(newAlloc);
+                                  if (editingAllocIndex === idx) resetAllocationForm();
+                                }}
+                                style={{ background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', padding: '0.3rem', borderRadius: '4px' }}
+                                title="Delete Allocation"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  {allocations.length > 0 && (
+                    <tfoot style={{ background: '#f8fafc', fontWeight: 600 }}>
+                      <tr>
+                        <td colSpan={3} style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', textAlign: 'right', color: '#64748b' }}>
+                          Total Summary:
+                        </td>
+                        <td style={{ padding: '0.75rem', borderRight: '1px solid #e2e8f0', color: '#334155' }}>
+                          ₹{allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0).toFixed(2)}
+                        </td>
+                        <td colSpan={3} style={{ padding: '0.75rem' }}>
+                          <span style={{ background: '#4f46e5', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem' }}>
+                            {allocations.length} Allocations
+                          </span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
@@ -1071,13 +1233,78 @@ export const Tasks: React.FC = () => {
         </form>
       </Modal>
 
-      <ConfirmDeleteModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={confirmDelete}
-        recordName={deletingTask?.name || 'this task'}
-        isLoading={isDeleting}
-      />
+      {isAdmin && (
+        <ConfirmDeleteModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={confirmDelete}
+          recordName={deletingTask?.name || 'this task'}
+          isLoading={isDeleting}
+        />
+      )}
+
+      {/* Create Labour / Contractor Modal */}
+      <Modal isOpen={isCreateLabourModalOpen} onClose={() => setIsCreateLabourModalOpen(false)} title="Create New Labour / Contractor">
+        <form noValidate onSubmit={handleCreateLabourSubmit}>
+          <div className="form-group">
+            <label className="form-label">Name *</label>
+            <input
+              type="text"
+              className="form-input"
+              value={createLabourForm.name}
+              onChange={(e) => setCreateLabourForm({ ...createLabourForm, name: e.target.value })}
+              required
+            />
+          </div>
+          
+          <div className="form-group">
+            <FormSelect
+              label="Type *"
+              value={createLabourForm.labour_type}
+              onChange={(e) => setCreateLabourForm({ ...createLabourForm, labour_type: e.target.value as any })}
+              options={[
+                { value: 'direct_labour', label: 'Direct Labour' },
+                { value: 'contractor', label: 'Contractor' }
+              ]}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Contact Number (10 digits) *</label>
+            <input
+              type="text"
+              className="form-input"
+              value={createLabourForm.contact_number}
+              onChange={(e) => setCreateLabourForm({ ...createLabourForm, contact_number: e.target.value })}
+              maxLength={10}
+              placeholder="e.g. 9876543210"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Aadhar ID (Optional)</label>
+            <input
+              type="text"
+              className="form-input"
+              value={createLabourForm.aadhar_id}
+              onChange={(e) => setCreateLabourForm({ ...createLabourForm, aadhar_id: e.target.value })}
+              maxLength={12}
+              placeholder="e.g. 123456789012"
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <Button type="button" variant="secondary" onClick={() => setIsCreateLabourModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Labour'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

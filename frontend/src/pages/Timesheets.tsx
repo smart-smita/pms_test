@@ -5,6 +5,7 @@ import { DataTable, Column } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
+import { TaskCombobox } from '../components/common/TaskCombobox';
 
 export interface Timesheet {
   timesheet_id: number;
@@ -29,7 +30,7 @@ export const Timesheets: React.FC = () => {
 
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
-  const [wbsList, setWbsList] = useState<{ id: number; name: string }[]>([]);
+  const [wbsList, setWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
   const [tasks, setTasks] = useState<{ id: number; name: string; project_id: number; wbs_id?: number }[]>([]);
   const [employees, setEmployees] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +57,48 @@ export const Timesheets: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [filterWbsList, setFilterWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
+  const [modalWbsList, setModalWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
+
   useEffect(() => {
     fetchMasterData();
   }, []);
+
+  useEffect(() => {
+    if (selectedProject) {
+      apiService.get<any[]>(`/projects/${selectedProject}/wbs`).then((res) => {
+        if (res.success && res.data) {
+          setFilterWbsList(res.data.map((w: any) => ({
+            id: w.id || w.wbs_id,
+            name: w.wbs_name,
+            project_id: Number(selectedProject),
+          })));
+        } else {
+          setFilterWbsList([]);
+        }
+      });
+    } else {
+      setFilterWbsList(wbsList);
+    }
+  }, [selectedProject, wbsList]);
+
+  useEffect(() => {
+    if (form.project_id) {
+      apiService.get<any[]>(`/projects/${form.project_id}/wbs`).then((res) => {
+        if (res.success && res.data) {
+          setModalWbsList(res.data.map((w: any) => ({
+            id: w.id || w.wbs_id,
+            name: w.wbs_name,
+            project_id: Number(form.project_id),
+          })));
+        } else {
+          setModalWbsList([]);
+        }
+      });
+    } else {
+      setModalWbsList(wbsList);
+    }
+  }, [form.project_id, wbsList]);
 
   useEffect(() => {
     fetchTimesheets();
@@ -74,7 +114,7 @@ export const Timesheets: React.FC = () => {
       ]);
 
       if (projRes.data) setProjects(projRes.data.map((p) => ({ id: p.project_id, name: p.project_name })));
-      if (wbsRes.data) setWbsList(wbsRes.data.map((w) => ({ id: w.id, name: w.wbs_name })));
+      if (wbsRes.data) setWbsList(wbsRes.data.map((w) => ({ id: w.id, name: w.wbs_name, project_id: w.project_id })));
       if (taskRes.data) setTasks(taskRes.data.map((t) => ({ id: t.task_id, name: t.task_name, project_id: t.project_id, wbs_id: t.wbs_id })));
       if (empRes.data) setEmployees(empRes.data.map((e) => ({ id: e.employee_id, name: e.name })));
     } catch (err) {
@@ -187,6 +227,14 @@ export const Timesheets: React.FC = () => {
     }
   };
 
+  // Filter WBS based on selected modal project
+  const availableFormWbs = React.useMemo(() => {
+    if (!wbsList) return [];
+    if (!form.project_id) return wbsList;
+    const pid = Number(form.project_id);
+    return wbsList.filter((w) => !w.project_id || Number(w.project_id) === pid);
+  }, [wbsList, form.project_id]);
+
   // Filter tasks based on selected modal project & WBS
   const availableFormTasks = tasks.filter((t) => {
     if (form.project_id && Number(t.project_id) !== Number(form.project_id)) return false;
@@ -198,7 +246,7 @@ export const Timesheets: React.FC = () => {
     { header: 'Log Date', accessor: 'log_date', sortKey: 'log_date' },
     { header: 'Employee', accessor: (i) => `${i.employee_name} (${i.employee_code})`, sortKey: 'employee_name' },
     { header: 'Project', accessor: (i) => i.project_name || '-', sortKey: 'project_name' },
-    { header: 'WBS Discipline', accessor: (i) => i.wbs_name || '-', sortKey: 'wbs_name' },
+    { header: 'WBS', accessor: (i) => i.wbs_name || '-', sortKey: 'wbs_name' },
     { header: 'Task Name', accessor: 'task_name', sortKey: 'task_name' },
     {
       header: 'Working Hours',
@@ -243,7 +291,7 @@ export const Timesheets: React.FC = () => {
         startDate={startDate}
         endDate={endDate}
         projects={projects}
-        wbsList={wbsList}
+        wbsList={filterWbsList}
         employees={!isEmployee ? employees : undefined}
         onFilterChange={(f) => {
           if (f.projectId !== undefined) setSelectedProject(String(f.projectId));
@@ -331,7 +379,17 @@ export const Timesheets: React.FC = () => {
                     <label className="form-label">Project</label>
                     <select
                       value={form.project_id}
-                      onChange={(e) => setForm({ ...form, project_id: e.target.value, task_id: '' })}
+                      onChange={(e) => {
+                        const newPid = e.target.value;
+                        const pidNum = Number(newPid);
+                        const isWbsValid = form.wbs_id && wbsList.some((w) => String(w.id) === String(form.wbs_id) && (!w.project_id || !pidNum || Number(w.project_id) === pidNum));
+                        setForm({
+                          ...form,
+                          project_id: newPid,
+                          wbs_id: isWbsValid ? form.wbs_id : '',
+                          task_id: '',
+                        });
+                      }}
                       className="form-select"
                     >
                       <option value="">-- All Projects --</option>
@@ -341,14 +399,14 @@ export const Timesheets: React.FC = () => {
                     </select>
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">WBS Discipline</label>
+                    <label className="form-label">WBS</label>
                     <select
                       value={form.wbs_id}
                       onChange={(e) => setForm({ ...form, wbs_id: e.target.value, task_id: '' })}
                       className="form-select"
                     >
                       <option value="">-- All WBS --</option>
-                      {wbsList.map((w) => (
+                      {modalWbsList.map((w) => (
                         <option key={w.id} value={w.id}>{w.name}</option>
                       ))}
                     </select>
@@ -358,27 +416,36 @@ export const Timesheets: React.FC = () => {
                 {/* Row 2: Task */}
                 <div className="form-group" style={{ marginBottom: '1rem' }}>
                   <label className="form-label">
-                    Select Task <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.78rem' }}>(optional — auto-links to discipline)</span>
+                    Select Task <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.78rem' }}>(optional — auto-links to WBS)</span>
                   </label>
-                  <select
-                    value={form.task_id}
-                    onChange={(e) => {
-                      const tId = e.target.value;
-                      const selected = tasks.find((t) => Number(t.id) === Number(tId));
+                  <TaskCombobox
+                    projectId={form.project_id}
+                    wbsId={form.wbs_id}
+                    selectedTaskId={form.task_id}
+                    tasks={availableFormTasks}
+                    onSelectTask={(selected) => {
+                      if (!selected) {
+                        setForm({ ...form, task_id: '' });
+                      } else {
+                        setForm({
+                          ...form,
+                          task_id: String(selected.id),
+                          project_id: selected.project_id ? String(selected.project_id) : form.project_id,
+                          wbs_id: selected.wbs_id ? String(selected.wbs_id) : form.wbs_id,
+                        });
+                      }
+                    }}
+                    onTaskCreated={(newTask) => {
+                      setTasks((prev) => [...prev, { id: newTask.id, name: newTask.name, project_id: newTask.project_id || (form.project_id ? Number(form.project_id) : 0), wbs_id: newTask.wbs_id }]);
                       setForm({
                         ...form,
-                        task_id: tId,
-                        project_id: selected ? String(selected.project_id) : form.project_id,
-                        wbs_id: selected && selected.wbs_id ? String(selected.wbs_id) : form.wbs_id,
+                        task_id: String(newTask.id),
+                        project_id: newTask.project_id ? String(newTask.project_id) : form.project_id,
+                        wbs_id: newTask.wbs_id ? String(newTask.wbs_id) : form.wbs_id,
                       });
                     }}
-                    className="form-select"
-                  >
-                    <option value="">-- Choose Task --</option>
-                    {availableFormTasks.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+                    placeholder="Choose task or type to create new..."
+                  />
                 </div>
 
                 {/* Row 3: Employee (admin/manager only) */}

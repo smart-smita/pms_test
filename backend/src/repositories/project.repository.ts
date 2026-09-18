@@ -7,15 +7,31 @@ export class ProjectRepository {
     let sql = `
       SELECT 
         p.project_id, p.project_code, p.project_name, p.project_address, p.client_name, p.client_code, p.latitude, p.longitude, p.radius_meters, p.project_date, p.status, p.note, p.budget_amount, p.created_at, p.updated_at, p.is_deleted,
-        COUNT(t.task_id) AS task_count,
-        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_task_count,
-        COALESCE(SUM(t.estimated_hours), 0) AS total_planned_hours,
+        COALESCE(wbs_stats.total_wbs, 0) AS task_count,
+        COALESCE(wbs_stats.completed_wbs, 0) AS completed_task_count,
+        COALESCE(wbs_stats.total_planned_hours, 0) AS total_planned_hours,
         COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = p.project_id), 0) +
         COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS total_actual_hours,
         COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost,
         COALESCE((SELECT SUM(total_amount) FROM labour_payments WHERE project_id = p.project_id AND status = 'paid'), 0) AS paid_amount
       FROM projects p
-      LEFT JOIN tasks t ON p.project_id = t.project_id AND t.is_deleted = 0
+      LEFT JOIN (
+        SELECT pw.project_id,
+          COUNT(pw.id) AS total_wbs,
+          SUM(pw.total_hours) AS total_planned_hours,
+          SUM(CASE WHEN 
+            GREATEST(
+              COALESCE(pw.actual_hours, 0),
+              (
+                COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id)), 0) +
+                COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0)
+              )
+            ) >= pw.total_hours AND pw.total_hours > 0
+          THEN 1 ELSE 0 END) AS completed_wbs
+        FROM project_wbs pw
+        WHERE pw.deleted_at IS NULL
+        GROUP BY pw.project_id
+      ) wbs_stats ON p.project_id = wbs_stats.project_id
       WHERE p.is_deleted = 0
     `;
     const params: any[] = [];
@@ -59,7 +75,7 @@ export class ProjectRepository {
       params.push(term, term, term);
     }
 
-    sql += ` GROUP BY p.project_id, p.project_code, p.project_name, p.project_address, p.client_name, p.client_code, p.latitude, p.longitude, p.radius_meters, p.project_date, p.status, p.note, p.budget_amount, p.created_at, p.updated_at, p.is_deleted ORDER BY p.project_id DESC`;
+    sql += ` ORDER BY p.project_id DESC`;
 
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
 

@@ -71,6 +71,7 @@ export interface Task {
   allocation_status?: string;
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
   assigned_labours?: { labour_id: number; name: string; labour_type: string }[];
+  allocations?: any[];
 }
 
 export interface AttendanceLog {

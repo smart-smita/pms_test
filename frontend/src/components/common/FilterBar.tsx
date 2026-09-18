@@ -3,7 +3,7 @@ import { Search, Filter, RotateCcw, Calendar } from 'lucide-react';
 
 export interface FilterBarProps {
   projects?: { id: number; name: string }[];
-  wbsList?: { id: number; name: string }[];
+  wbsList?: { id: number; name: string; project_id?: number }[];
   employees?: { id: number; name: string }[];
   labourTypes?: { value: string; label: string }[];
   statuses?: { value: string; label: string }[];
@@ -45,6 +45,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onFilterChange,
   onReset,
 }) => {
+  // Filter WBS list dynamically based on selected project
+  const filteredWbsList = React.useMemo(() => {
+    if (!wbsList) return [];
+    if (!selectedProject || Number(selectedProject) === 0) return wbsList;
+    const pid = Number(selectedProject);
+    return wbsList.filter((w) => !w.project_id || Number(w.project_id) === pid);
+  }, [wbsList, selectedProject]);
+
   // Compute active filters count
   let activeFilterCount = 0;
   if (selectedProject) activeFilterCount++;
@@ -76,6 +84,19 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     color: 'var(--text-secondary)',
     marginBottom: '0.35rem',
     display: 'block',
+  };
+
+  const handleProjectChange = (newProjectId: string) => {
+    // If selected WBS does not exist in new project's filtered list, reset it
+    const pid = Number(newProjectId);
+    const isValidWbs = selectedWbs && wbsList?.some(
+      (w) => String(w.id) === String(selectedWbs) && (!w.project_id || !pid || Number(w.project_id) === pid)
+    );
+
+    onFilterChange({
+      projectId: newProjectId,
+      ...(isValidWbs ? {} : { wbsId: '' }),
+    });
   };
 
   return (
@@ -172,7 +193,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <label style={labelStyle}>Project</label>
             <select
               value={selectedProject}
-              onChange={(e) => onFilterChange({ projectId: e.target.value })}
+              onChange={(e) => handleProjectChange(e.target.value)}
               style={inputStyle}
             >
               <option value="">All Projects</option>
@@ -195,7 +216,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               style={inputStyle}
             >
               <option value="">All WBS Disciplines</option>
-              {wbsList.map((w) => (
+              {filteredWbsList.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
                 </option>

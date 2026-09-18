@@ -132,6 +132,16 @@ export class TaskRepository {
     return tasks.find((t) => Number(t.wbs_id) === Number(wbsId)) || null;
   }
 
+  async findByNameAndProjectWbs(projectId: number, wbsId: number | null | undefined, taskName: string): Promise<TaskRow | null> {
+    const tasks = await this.findAll(projectId, undefined, undefined);
+    const normalizedTarget = taskName.trim().toLowerCase();
+    return tasks.find((t) => {
+      if (Number(t.project_id) !== Number(projectId)) return false;
+      if (wbsId && Number(t.wbs_id) !== Number(wbsId)) return false;
+      return t.task_name.trim().toLowerCase() === normalizedTarget;
+    }) || null;
+  }
+
   async getAssignedEmployees(taskId: number): Promise<{ employee_id: number; name: string; employee_code: string }[]> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
       `SELECT e.employee_id, e.name, e.employee_code
@@ -156,7 +166,7 @@ export class TaskRepository {
 
   async getTaskAllocations(taskId: number): Promise<any[]> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT wl.work_log_id, wl.labour_id, wl.work_date, wl.amount, wl.work_description, l.name as labour_name, l.labour_type
+      `SELECT wl.work_log_id, wl.labour_id, wl.work_date, wl.amount, wl.work_description, wl.payment_status, l.name as labour_name, l.labour_type
        FROM labour_work_logs wl
        JOIN labours l ON wl.labour_id = l.labour_id
        WHERE wl.task_id = ? AND (wl.is_deleted = 0 OR wl.is_deleted IS NULL)
@@ -289,12 +299,12 @@ export class TaskRepository {
         // Update existing
         await dbPool.execute(
           `UPDATE labour_work_logs 
-           SET labour_id = ?, work_date = ?, amount = ?, work_description = ?,
+           SET labour_id = ?, work_date = ?, amount = ?, work_description = ?, payment_status = ?,
                in_address = ?, out_address = ?,
                in_latitude = ?, in_longitude = ?,
                out_latitude = ?, out_longitude = ?
            WHERE work_log_id = ? AND work_status = 'pending'`,
-          [alloc.labour_id, alloc.work_date, alloc.amount || 0, alloc.work_description || null,
+          [alloc.labour_id, alloc.work_date, alloc.amount || 0, alloc.work_description || null, alloc.payment_status || 'pending',
            useAddr, useAddr, useLat, useLng, useLat, useLng, alloc.work_log_id]
         );
       } else {
@@ -302,8 +312,8 @@ export class TaskRepository {
         await dbPool.execute(
           `INSERT INTO labour_work_logs 
            (labour_id, project_id, wbs_id, task_id, work_date, amount, work_description, work_status, payment_status, total_working_hours, rate, in_address, out_address, in_latitude, in_longitude, out_latitude, out_longitude)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 0, 0, ?, ?, ?, ?, ?, ?)`,
-          [alloc.labour_id, projectId, wbsId || null, taskId, alloc.work_date, alloc.amount || 0, alloc.work_description || null,
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, 0, 0, ?, ?, ?, ?, ?, ?)`,
+          [alloc.labour_id, projectId, wbsId || null, taskId, alloc.work_date, alloc.amount || 0, alloc.work_description || null, alloc.payment_status || 'pending',
            useAddr, useAddr, useLat, useLng, useLat, useLng]
         );
       }

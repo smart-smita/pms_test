@@ -132,14 +132,14 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
         <div style={{ width: '120px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
             <span>{r.progress_percentage}%</span>
-            <span style={{ color: '#94a3b8' }}>{r.completed_task_count}/{r.task_count} tasks</span>
+            <span style={{ color: '#94a3b8' }}>{r.completed_task_count}/{r.task_count} WBS</span>
           </div>
           <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{ width: `${r.progress_percentage}%`, height: '100%', background: '#6366f1' }} />
           </div>
         </div>
       ),
-      csvAccessor: (r) => `${r.progress_percentage}% (${r.completed_task_count}/${r.task_count} tasks)`,
+      csvAccessor: (r) => `${r.progress_percentage}% (${r.completed_task_count}/${r.task_count} WBS)`,
       sortKey: 'progress_percentage'
     },
     {

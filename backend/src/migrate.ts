@@ -372,6 +372,9 @@ export async function migrate() {
       `ALTER TABLE attendance_logs MODIFY COLUMN status ENUM('open', 'completed', 'outside_area', 'missing_checkout') NOT NULL DEFAULT 'open'`,
       `ALTER TABLE projects ADD COLUMN budget_amount DECIMAL(15,2) DEFAULT 0.00`,
       `ALTER TABLE project_wbs ADD COLUMN budget_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE project_wbs ADD COLUMN actual_start_date DATE NULL DEFAULT NULL`,
+      `ALTER TABLE project_wbs ADD COLUMN actual_end_date DATE NULL DEFAULT NULL`,
+      `ALTER TABLE project_wbs ADD COLUMN actual_hours DECIMAL(10,2) NULL DEFAULT 0.00`,
       `ALTER TABLE tasks ADD COLUMN budget_amount DECIMAL(15,2) DEFAULT 0.00`,
     ];
 

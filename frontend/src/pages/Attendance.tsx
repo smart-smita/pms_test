@@ -409,7 +409,10 @@ export const Attendance: React.FC = () => {
             label="Select Assigned Task"
             value={selectedTaskId}
             onChange={(e) => setSelectedTaskId(parseInt(e.target.value, 10))}
-            options={modalAvailableTasks.map((t) => ({ value: t.task_id, label: `${t.task_name} (${t.project_name})` }))}
+            options={[
+              { value: 0, label: '-- Select Task --' },
+              ...modalAvailableTasks.map((t) => ({ value: t.task_id, label: `${t.task_name} (${t.project_name || 'General Site'})` }))
+            ]}
           />
 
           <div className="form-group">

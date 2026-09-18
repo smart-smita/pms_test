@@ -157,6 +157,8 @@ export interface ProjectWBSRow {
   wbs_name?: string;
   start_date?: string;
   end_date?: string;
+  actual_start_date?: string;
+  actual_end_date?: string;
   total_hours?: number;
   actual_hours?: number;
   remaining_hours?: number;
