@@ -43,8 +43,18 @@ export class LabourPaymentRepository {
     const params: any[] = [];
 
     if (filters.managerId) {
-      sql += ` AND (lp.project_id IS NULL OR lp.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?))`;
-      params.push(filters.managerId);
+      sql += ` AND (
+        lp.project_id IS NULL OR 
+        lp.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR
+        lp.payment_id IN (
+          SELECT lpi.payment_id FROM labour_payment_items lpi
+          JOIN labour_work_logs wl ON lpi.work_log_id = wl.work_log_id
+          WHERE wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+                wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+                wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)
+        )
+      )`;
+      params.push(filters.managerId, filters.managerId, filters.managerId, filters.managerId);
     }
 
     if (filters.labourId) {

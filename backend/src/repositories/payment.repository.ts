@@ -20,8 +20,8 @@ export class PaymentRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND (wl.project_id IS NULL OR wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?))`;
-      params.push(managerId);
+      sql += ` AND (wl.project_id IS NULL OR wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?))`;
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (labourId) {
@@ -59,8 +59,8 @@ export class PaymentRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?))`;
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (projectId) {
@@ -96,8 +96,13 @@ export class PaymentRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (
+        p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id = ?)
+      )`;
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (projectId) {
@@ -132,8 +137,13 @@ export class PaymentRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (
+        p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id = ?)
+      )`;
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (projectId) {
@@ -166,8 +176,13 @@ export class PaymentRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (
+        p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        p.project_id IN (SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id = ?)
+      )`;
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (projectId) {

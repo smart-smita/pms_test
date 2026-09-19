@@ -75,8 +75,17 @@ export class LabourWorkLogRepository {
     const params: any[] = [];
 
     if (filters.managerId) {
-      sql += ` AND wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(filters.managerId);
+      sql += ` AND (
+        wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)
+        OR wl.task_id IN (
+          SELECT task_id FROM task_assignments WHERE employee_id IN (
+            SELECT employee_id FROM manager_employees WHERE manager_id = ?
+          ) OR employee_id IN (
+            SELECT employee_id FROM employees WHERE reporting_to_id = ?
+          ) OR employee_id = ?
+        )
+      )`;
+      params.push(filters.managerId, filters.managerId, filters.managerId, filters.managerId);
     }
 
     if (filters.projectId) {

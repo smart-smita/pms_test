@@ -150,8 +150,12 @@ export class AttendanceRepository {
     const params: any[] = [];
 
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (
+        e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) 
+        OR e.reporting_to_id = ?
+        OR e.employee_id = ?
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
 
     if (filters.employee_id) {

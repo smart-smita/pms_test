@@ -44,8 +44,17 @@ export class TaskRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND t.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?)`;
-      params.push(managerId);
+      sql += ` AND (
+        t.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) 
+        OR t.task_id IN (
+          SELECT task_id FROM task_assignments WHERE employee_id IN (
+            SELECT employee_id FROM manager_employees WHERE manager_id = ?
+          ) OR employee_id IN (
+            SELECT employee_id FROM employees WHERE reporting_to_id = ?
+          ) OR employee_id = ?
+        )
+      )`;
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (projectId) {

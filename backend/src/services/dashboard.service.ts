@@ -11,9 +11,26 @@ export class DashboardService {
     let taskScope = '1=1';
     
     if (managerId) {
-      empScope = `e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ${managerId})`;
-      prjScope = `project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
-      taskScope = `project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
+      empScope = `(e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ${managerId}) OR e.reporting_to_id = ${managerId} OR e.employee_id = ${managerId})`;
+      prjScope = `(
+        project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})
+        OR project_id IN (
+          SELECT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id
+          WHERE ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ${managerId})
+          OR ta.employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ${managerId})
+          OR ta.employee_id = ${managerId}
+        )
+        OR project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ${managerId})
+        OR project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ${managerId})
+      )`;
+      taskScope = `(
+        project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})
+        OR task_id IN (
+          SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ${managerId})
+          OR employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ${managerId})
+          OR employee_id = ${managerId}
+        )
+      )`;
     }
     
     if (employeeId) {

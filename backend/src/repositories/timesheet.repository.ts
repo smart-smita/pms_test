@@ -63,8 +63,8 @@ export class TimesheetRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND (ts.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR ts.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(managerId, managerId, managerId);
+      sql += ` AND (ts.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR ts.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      params.push(managerId, managerId, managerId, managerId);
     }
     if (projectId) { sql += ` AND ts.project_id = ?`; params.push(projectId); }
     if (wbsId) { sql += ` AND ts.wbs_id = ?`; params.push(wbsId); }

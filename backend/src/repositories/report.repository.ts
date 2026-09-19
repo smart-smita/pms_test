@@ -26,8 +26,8 @@ export class ReportRepository {
     `;
     const params: any[] = [];
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.employee_id) { sql += ` AND e.employee_id = ?`; params.push(filters.employee_id); }
     if (filters.project_id) { sql += ` AND e.assigned_project_id = ?`; params.push(filters.project_id); }
@@ -100,8 +100,8 @@ export class ReportRepository {
 
     if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      whereParams.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      whereParams.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.project_id) { 
       sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
@@ -136,8 +136,8 @@ export class ReportRepository {
     if (filters.end_date) { labourSql += ` AND wl.work_date <= ?`; labourParams.push(filters.end_date); }
     if (filters.employee_id) { labourSql += ` AND ta.employee_id = ?`; labourParams.push(filters.employee_id); }
     if (filters.manager_id) {
-      labourSql += ` AND (ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      labourParams.push(filters.manager_id, filters.manager_id);
+      labourSql += ` AND (ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      labourParams.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.project_id) {
       labourSql += ` AND (wl.project_id = ? OR e.assigned_project_id = ?)`;
@@ -212,8 +212,8 @@ export class ReportRepository {
 
     if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      whereParams.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      whereParams.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.project_id) { 
       sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
@@ -252,8 +252,8 @@ export class ReportRepository {
 
     if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      whereParams.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      whereParams.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.project_id) { 
       sql += ` AND (t.project_id = ? OR e.assigned_project_id = ?)`; 
@@ -327,8 +327,13 @@ export class ReportRepository {
     if (filters.wbs_id) { sql += ` AND pw.wbs_id = ?`; params.push(filters.wbs_id); }
     if (filters.task_id) { sql += ` AND wl.task_id = ?`; params.push(filters.task_id); }
     if (filters.manager_id) {
-      sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
-      params.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (
+        wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
@@ -376,8 +381,13 @@ export class ReportRepository {
     if (filters.wbs_id) { sql += ` AND pw.wbs_id = ?`; params.push(filters.wbs_id); }
     if (filters.task_id) { sql += ` AND wl.task_id = ?`; params.push(filters.task_id); }
     if (filters.manager_id) {
-      sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
-      params.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (
+        wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
@@ -425,8 +435,13 @@ export class ReportRepository {
     if (filters.wbs_id) { sql += ` AND pw.wbs_id = ?`; params.push(filters.wbs_id); }
     if (filters.task_id) { sql += ` AND wl.task_id = ?`; params.push(filters.task_id); }
     if (filters.manager_id) {
-      sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
-      params.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (
+        wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
@@ -472,8 +487,13 @@ export class ReportRepository {
     if (filters.contractor_id) { sql += ` AND l.contractor_id = ?`; params.push(filters.contractor_id); }
     if (filters.project_id) { sql += ` AND wl.project_id = ?`; params.push(filters.project_id); }
     if (filters.manager_id) {
-      sql += ` AND (wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR wl.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?))`;
-      params.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (
+        wl.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR 
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        wl.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
     }
     if (filters.start_date) { sql += ` AND wl.work_date >= ?`; params.push(filters.start_date); }
     if (filters.end_date) { sql += ` AND wl.work_date <= ?`; params.push(filters.end_date); }
@@ -517,8 +537,8 @@ export class ReportRepository {
 
     if (filters.employee_id) { sql += ` AND e.employee_id = ?`; whereParams.push(filters.employee_id); }
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      whereParams.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      whereParams.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
     // We didn't have project filter here before, adding it for consistency
     if (filters.project_id) { 
@@ -575,8 +595,8 @@ export class ReportRepository {
       whereParams.push(filters.employee_id);
     }
     if (filters.manager_id) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      whereParams.push(filters.manager_id, filters.manager_id);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      whereParams.push(filters.manager_id, filters.manager_id, filters.manager_id);
     }
 
     sql += ` ORDER BY e.name ASC, al.attendance_date ASC`;
@@ -623,9 +643,11 @@ export class ReportRepository {
     if (managerId) {
       sql += ` AND (
         p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR
-        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ? OR reporting_to_id = ?))
+        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?)
       )`;
-      params.push(managerId, managerId, managerId);
+      params.push(managerId, managerId, managerId, managerId);
     }
 
     if (employeeId) {

@@ -72,8 +72,8 @@ export class UserRepository {
     const params: any[] = [];
 
     if (managerId) {
-      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ?)`;
-      params.push(managerId, managerId);
+      sql += ` AND (e.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?) OR e.reporting_to_id = ? OR e.employee_id = ?)`;
+      params.push(managerId, managerId, managerId);
     }
 
     if (employeeId) {
