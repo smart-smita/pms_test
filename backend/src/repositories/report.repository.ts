@@ -789,4 +789,91 @@ export class ReportRepository {
       };
     });
   }
+
+  // 15. Project Profit & Loss Report
+  async getProjectProfitLossReport(filters?: any): Promise<any[]> {
+    let sql = `
+      SELECT 
+        p.project_id,
+        p.project_name,
+        p.project_code,
+        c.customer_name,
+        COALESCE((SELECT SUM(total_amount) FROM quotations WHERE project_id = p.project_id AND status='approved'), 0) AS contract_value,
+        COALESCE((SELECT SUM(total_amount) FROM invoices WHERE project_id = p.project_id), 0) AS invoice_value,
+        COALESCE((SELECT SUM(total_amount) FROM invoices WHERE project_id = p.project_id AND status IN ('paid', 'partially_paid')), 0) AS collected_value,
+        COALESCE((SELECT SUM(budget_amount) FROM tasks WHERE project_id = p.project_id), 0) AS planned_cost,
+        COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_cost,
+        COALESCE((SELECT SUM(actual_cost) FROM material_logs WHERE project_id = p.project_id), 0) AS actual_material_cost
+      FROM projects p
+      LEFT JOIN customers c ON p.customer_id = c.customer_id
+      WHERE (p.is_deleted = 0 OR p.is_deleted IS NULL)
+    `;
+    const params: any[] = [];
+    if (filters?.project_id) { sql += ` AND p.project_id = ?`; params.push(filters.project_id); }
+    sql += ` ORDER BY p.project_name ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+
+    return rows.map((r: any) => {
+      const revenue = Number(r.invoice_value || 0); // revenue is invoiced amount
+      const actualCost = Number(r.actual_labour_cost || 0) + Number(r.actual_material_cost || 0);
+      const profitLoss = revenue - actualCost;
+      const profitMargin = revenue > 0 ? (profitLoss / revenue) * 100 : 0;
+
+      return {
+        ...r,
+        contract_value: Number(r.contract_value),
+        invoice_value: revenue,
+        collected_value: Number(r.collected_value),
+        planned_cost: Number(r.planned_cost),
+        actual_labour_cost: Number(r.actual_labour_cost),
+        actual_material_cost: Number(r.actual_material_cost),
+        other_cost: 0,
+        total_actual_cost: actualCost,
+        profit_loss: profitLoss,
+        profit_margin_percentage: Math.round(profitMargin * 100) / 100,
+      };
+    });
+  }
+
+  // 16. Planned vs Actual Report
+  async getPlannedVsActualReport(filters?: any): Promise<any[]> {
+    let sql = `
+      SELECT 
+        p.project_name,
+        w.wbs_name,
+        t.task_name,
+        t.estimated_hours AS planned_labour_hours,
+        COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_hours,
+        t.budget_amount AS planned_labour_cost,
+        COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_cost,
+        COALESCE((SELECT SUM(planned_quantity) FROM material_planning WHERE task_id = t.task_id), 0) AS planned_material_quantity,
+        COALESCE((SELECT SUM(quantity) FROM material_logs WHERE task_id = t.task_id), 0) AS actual_material_quantity,
+        COALESCE((SELECT SUM(planned_cost) FROM material_planning WHERE task_id = t.task_id), 0) AS planned_material_cost,
+        COALESCE((SELECT SUM(actual_cost) FROM material_logs WHERE task_id = t.task_id), 0) AS actual_material_cost
+      FROM tasks t
+      JOIN projects p ON t.project_id = p.project_id
+      LEFT JOIN project_wbs w ON t.wbs_id = w.id
+      WHERE (t.is_deleted = 0 OR t.is_deleted IS NULL)
+    `;
+    const params: any[] = [];
+    if (filters?.project_id) { sql += ` AND t.project_id = ?`; params.push(filters.project_id); }
+    sql += ` ORDER BY p.project_name ASC, w.wbs_name ASC, t.task_name ASC`;
+    const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
+
+    return rows.map((r: any) => {
+      const plannedTotal = Number(r.planned_labour_cost || 0) + Number(r.planned_material_cost || 0);
+      const actualTotal = Number(r.actual_labour_cost || 0) + Number(r.actual_material_cost || 0);
+
+      return {
+        ...r,
+        hour_variance: Number(r.planned_labour_hours || 0) - Number(r.actual_labour_hours || 0),
+        labour_cost_variance: Number(r.planned_labour_cost || 0) - Number(r.actual_labour_cost || 0),
+        material_quantity_variance: Number(r.planned_material_quantity || 0) - Number(r.actual_material_quantity || 0),
+        material_cost_variance: Number(r.planned_material_cost || 0) - Number(r.actual_material_cost || 0),
+        planned_total_cost: plannedTotal,
+        actual_total_cost: actualTotal,
+        total_variance: plannedTotal - actualTotal,
+      };
+    });
+  }
 }

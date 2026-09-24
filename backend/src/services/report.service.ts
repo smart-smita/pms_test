@@ -65,6 +65,14 @@ export class ReportService {
     return await this.reportRepo.getProjectSummaryReport(filters);
   }
 
+  async getProjectProfitLossReport(filters?: any) {
+    return await this.reportRepo.getProjectProfitLossReport(filters);
+  }
+
+  async getPlannedVsActualReport(filters?: any) {
+    return await this.reportRepo.getPlannedVsActualReport(filters);
+  }
+
   async getPaymentReport(type: 'employee' | 'daily' | 'project' | 'task', startDate?: string, endDate?: string, employeeId?: number) {
     switch (type) {
       case 'employee':

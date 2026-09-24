@@ -7,8 +7,13 @@ export class LabourController {
 
   getAll = async (req: Request, res: Response) => {
     try {
-      const { search, labour_type } = req.query;
-      const labours = await this.labourService.getLabours(search as string, labour_type as string);
+      const { search, labour_type, project_id, country_id } = req.query;
+      const labours = await this.labourService.getLabours(
+        search as string,
+        labour_type as string,
+        project_id ? Number(project_id) : undefined,
+        country_id ? Number(country_id) : undefined
+      );
       return sendSuccess(res, 'Labours retrieved successfully', labours);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to retrieve labours', [], 500);
@@ -25,9 +30,21 @@ export class LabourController {
     }
   };
 
+  getDetails = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const details = await this.labourService.getLabourDetails(id);
+      return sendSuccess(res, 'Labour profile details retrieved successfully', details);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Labour details not found', [], 404);
+    }
+  };
+
   create = async (req: Request, res: Response) => {
     try {
-      const newLabour = await this.labourService.createLabour(req.body);
+      const uploadedBy = (req as any).user?.employee_id;
+      const ipAddress = req.ip;
+      const newLabour = await this.labourService.createLabour(req.body, uploadedBy, ipAddress);
       return sendSuccess(res, 'Labour record created successfully', newLabour, 201);
     } catch (error: any) {
       const statusCode = error.statusCode || 400;
@@ -67,6 +84,4 @@ export class LabourController {
       return sendError(res, error.message || 'Failed to delete labour record', error.dependencies ? [error.dependencies] : [], statusCode);
     }
   };
-
-
 }

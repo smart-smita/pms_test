@@ -195,4 +195,26 @@ export class ReportController {
       return sendError(res, error.message || 'Failed to generate project summary report', [], 500);
     }
   };
+
+  getProjectProfitLossReport = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
+      const data = await this.reportService.getProjectProfitLossReport(filters);
+      return sendSuccess(res, 'Project Profit/Loss report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate profit loss report', [], 500);
+    }
+  };
+
+  getPlannedVsActualReport = async (req: Request, res: Response) => {
+    try {
+      const { empId, managerId } = this.getRoleIds(req);
+      const filters = { ...req.query, employee_id: empId, manager_id: managerId };
+      const data = await this.reportService.getPlannedVsActualReport(filters);
+      return sendSuccess(res, 'Planned vs Actual report generated successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to generate planned vs actual report', [], 500);
+    }
+  };
 }

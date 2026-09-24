@@ -14,6 +14,7 @@ export interface CreateQuotationDTO {
   discount_amount: number;
   total_amount: number;
   terms_conditions?: string | null;
+  terms_snapshots?: { title: string; description: string; sort_order?: number }[];
   status?: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'revised';
   created_by?: number | null;
 }
@@ -110,6 +111,14 @@ export class QuotationRepository {
     );
 
     quotation.disciplines = disciplines;
+
+    // Fetch terms snapshots
+    const [snapshots]: any = await dbPool.query(
+      `SELECT * FROM quotation_terms_snapshots WHERE quotation_id = ? AND status = 1 ORDER BY sort_order ASC`,
+      [id]
+    );
+    quotation.terms_snapshots = snapshots;
+
     return quotation;
   }
 
@@ -154,6 +163,16 @@ export class QuotationRepository {
       );
 
       const quotationId = result.insertId;
+
+      // Insert terms snapshots
+      if (data.terms_snapshots && data.terms_snapshots.length > 0) {
+        for (const item of data.terms_snapshots) {
+          await connection.query(
+            `INSERT INTO quotation_terms_snapshots (quotation_id, title, description, sort_order) VALUES (?, ?, ?, ?)`,
+            [quotationId, item.title, item.description, item.sort_order || 0]
+          );
+        }
+      }
 
       // Insert line item disciplines
       if (disciplines && disciplines.length > 0) {
@@ -242,6 +261,19 @@ export class QuotationRepository {
           id,
         ]
       );
+
+      // Handle terms snapshots update
+      if (data.terms_snapshots !== undefined) {
+        await connection.query(`UPDATE quotation_terms_snapshots SET status = 0 WHERE quotation_id = ?`, [id]);
+        if (data.terms_snapshots.length > 0) {
+          for (const item of data.terms_snapshots) {
+            await connection.query(
+              `INSERT INTO quotation_terms_snapshots (quotation_id, title, description, sort_order) VALUES (?, ?, ?, ?)`,
+              [id, item.title, item.description, item.sort_order || 0]
+            );
+          }
+        }
+      }
 
       if (disciplines) {
         // Soft-delete or clear previous disciplines and re-insert

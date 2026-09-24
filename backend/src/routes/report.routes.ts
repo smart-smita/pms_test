@@ -29,5 +29,7 @@ router.get('/labour-cost-payment', controller.getLabourCostPaymentReport);
 router.get('/project-work', controller.getProjectWorkReport);
 router.get('/project-budget', controller.getProjectBudgetReport);
 router.get('/project-summary', controller.getProjectSummaryReport);
+router.get('/project-profit-loss', controller.getProjectProfitLossReport);
+router.get('/planned-vs-actual', controller.getPlannedVsActualReport);
 
 export default router;

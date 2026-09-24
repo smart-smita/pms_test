@@ -287,9 +287,10 @@ export class ProjectRepository {
 
     // 4. Fetch Tasks & Work Status Summary
     const [taskRows]: any = await dbPool.query(
-      `SELECT t.*, pw.wbs_name, pw.wbs_code 
+      `SELECT t.*, w.wbs_name, w.wbs_code 
        FROM tasks t 
        LEFT JOIN project_wbs pw ON t.wbs_id = pw.id 
+       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE t.project_id = ? 
        ORDER BY t.task_id DESC`,
       [projectId]
@@ -316,11 +317,11 @@ export class ProjectRepository {
 
     // 6. Fetch Site Surveys
     const [surveyRows]: any = await dbPool.query(
-      `SELECT s.*, e.first_name, e.last_name, d.discipline_name 
+      `SELECT s.*, e.name AS inspector_name, d.discipline_name 
        FROM site_surveys s 
-       LEFT JOIN employees e ON s.inspector_employee_id = e.employee_id 
+       LEFT JOIN employees e ON s.conducted_by = e.employee_id 
        LEFT JOIN disciplines d ON s.discipline_id = d.discipline_id 
-       WHERE s.project_id = ? AND s.is_deleted = 0 
+       WHERE s.project_id = ?
        ORDER BY s.survey_id DESC`,
       [projectId]
     );

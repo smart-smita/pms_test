@@ -299,7 +299,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div className="metric-title-sm">Active Projects</div>
           </div>
           <div className="metric-value-lg">{metrics.projects.active}</div>
-          <div className="metric-trend" style={{ color: '#94a3b8' }}>↳ 3 nearing completion</div>
+          <div className="metric-trend" style={{ color: '#94a3b8' }}>Total: {metrics.projects.total}</div>
+        </div>
+
+        <div className="metric-card-sm">
+          <div className="metric-header">
+            <div className="metric-icon-sm" style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6' }}>
+              <Receipt size={18} />
+            </div>
+            <div className="metric-title-sm">Quotation Pipeline</div>
+          </div>
+          <div className="metric-value-lg">₹{metrics.quotations?.pipeline_value?.toLocaleString('en-IN') || 0}</div>
+          <div className="metric-trend" style={{ color: '#94a3b8' }}>Count: {metrics.quotations?.pipeline_count || 0} | Total: {metrics.quotations?.total || 0}</div>
+        </div>
+
+        <div className="metric-card-sm">
+          <div className="metric-header">
+            <div className="metric-icon-sm" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
+              <FilePlus size={18} />
+            </div>
+            <div className="metric-title-sm">Pending Invoices</div>
+          </div>
+          <div className="metric-value-lg">₹{metrics.invoices?.outstanding_amount?.toLocaleString('en-IN') || 0}</div>
+          <div className="metric-trend" style={{ color: '#94a3b8' }}>Count: {metrics.invoices?.pending_count || 0}</div>
         </div>
 
         <div className="metric-card-sm">
@@ -307,10 +329,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div className="metric-icon-sm" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>
               <IndianRupee size={18} />
             </div>
-            <div className="metric-title-sm">Today's Labor Cost</div>
+            <div className="metric-title-sm">Project Actual Profit</div>
           </div>
-          <div className="metric-value-lg">₹{metrics.today_metrics.worker_cost.toLocaleString('en-IN')}</div>
-          <div className="metric-trend down">↓ 5% from yesterday</div>
+          <div className="metric-value-lg">₹{metrics.financials?.actual_profit?.toLocaleString('en-IN') || 0}</div>
+          <div className="metric-trend up">Rev: ₹{metrics.financials?.project_revenue?.toLocaleString('en-IN') || 0} | Cost: ₹{metrics.financials?.project_cost?.toLocaleString('en-IN') || 0}</div>
         </div>
       </div>
 
@@ -430,7 +452,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       </div>
 
       {/* Bottom Row Content */}
-      <div className="grid-bottom-content">
+      <div className="grid-bottom-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+        
+        {/* System Alerts */}
+        <div className="glass-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>System Alerts & Notifications</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', maxHeight: '300px' }}>
+            {metrics.alerts?.map((alert: any, idx: number) => (
+              <div key={idx} style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', borderLeft: `3px solid ${alert.type === 'danger' ? '#ef4444' : alert.type === 'warning' ? '#f59e0b' : '#3b82f6'}` }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>{alert.title}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{alert.message}</div>
+              </div>
+            ))}
+            {(!metrics.alerts || metrics.alerts.length === 0) && (
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>No new alerts.</div>
+            )}
+          </div>
+        </div>
+
         {/* Recent Tasks */}
         <div className="glass-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

@@ -13,7 +13,7 @@ export class TermsTemplateService {
 
   static async create(data: CreateTermsTemplateDTO, userId?: number, ipAddress?: string) {
     if (!data.template_name) throw new Error('Template name is required');
-    if (!data.terms_content) throw new Error('Terms content is required');
+    if (!data.terms_content && (!data.items || data.items.length === 0)) throw new Error('Terms content or items are required');
 
     return TermsTemplateRepository.create(data, userId, ipAddress);
   }

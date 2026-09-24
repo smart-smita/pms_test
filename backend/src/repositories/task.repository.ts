@@ -125,7 +125,8 @@ export class TaskRepository {
         productivity_status: productivityStatus,
         assigned_employees: assignedEmployees,
         assigned_labours: await this.getAssignedLabours(r.task_id),
-      } as TaskRow);
+        dependencies: await this.getDependencies(r.task_id),
+      } as unknown as TaskRow);
     }
 
     return tasks;
@@ -342,6 +343,94 @@ export class TaskRepository {
       `UPDATE tasks SET status = ? WHERE task_id = ?`,
       [status, id]
     );
+    if (status === 'completed') {
+      await dbPool.execute(`UPDATE tasks SET actual_end_date = CURRENT_DATE WHERE task_id = ?`, [id]);
+      await this.recalculateDependentTasks(id);
+    }
     return result.affectedRows > 0;
+  }
+
+  async getDependencies(taskId: number): Promise<any[]> {
+    const [rows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT d.*, t.task_name as predecessor_name 
+       FROM task_dependencies d
+       JOIN tasks t ON d.predecessor_task_id = t.task_id
+       WHERE d.task_id = ?`,
+      [taskId]
+    );
+    return rows;
+  }
+
+  async updateDependencies(taskId: number, dependencies: { predecessor_task_id: number; dependency_type: string; lag_days?: number }[]): Promise<void> {
+    await dbPool.execute(`DELETE FROM task_dependencies WHERE task_id = ?`, [taskId]);
+    
+    if (dependencies && dependencies.length > 0) {
+      for (const dep of dependencies) {
+        await dbPool.execute(
+          `INSERT INTO task_dependencies (task_id, predecessor_task_id, dependency_type, lag_days) VALUES (?, ?, ?, ?)`,
+          [taskId, dep.predecessor_task_id, dep.dependency_type || 'FS', dep.lag_days || 0]
+        );
+      }
+      await this.recalculateDependentTasks(dependencies[0].predecessor_task_id);
+    }
+  }
+
+  async recalculateDependentTasks(taskId: number): Promise<void> {
+    // 1. Get task details
+    const [taskRows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT * FROM tasks WHERE task_id = ?`, [taskId]
+    );
+    if (taskRows.length === 0) return;
+    const task = taskRows[0];
+    
+    // The reference date is actual_end_date if completed, otherwise target_date
+    const refDateStr = task.actual_end_date || task.target_date;
+    if (!refDateStr) return; // No date to base dependencies on
+    
+    const refDate = new Date(refDateStr);
+
+    // 2. Find dependents
+    const [dependents] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT d.*, t.target_date, t.start_date, t.estimated_hours, t.status 
+       FROM task_dependencies d
+       JOIN tasks t ON d.task_id = t.task_id
+       WHERE d.predecessor_task_id = ? AND t.status != 'completed'`,
+      [taskId]
+    );
+
+    // 3. Shift dependents
+    for (const dep of dependents) {
+      if (dep.dependency_type === 'FS') {
+        const newStart = new Date(refDate);
+        newStart.setDate(newStart.getDate() + (dep.lag_days || 0) + 1);
+        
+        // Calculate original duration
+        let durationDays = 1;
+        if (dep.start_date && dep.target_date) {
+           const sd = new Date(dep.start_date);
+           const td = new Date(dep.target_date);
+           durationDays = Math.max(1, Math.round((td.getTime() - sd.getTime()) / (1000 * 3600 * 24)));
+        }
+
+        const newTarget = new Date(newStart);
+        newTarget.setDate(newTarget.getDate() + durationDays);
+
+        const newStartStr = newStart.toISOString().split('T')[0];
+        const newTargetStr = newTarget.toISOString().split('T')[0];
+
+        // Update if changed
+        if (newStartStr !== (dep.start_date instanceof Date ? dep.start_date.toISOString().split('T')[0] : dep.start_date) || 
+            newTargetStr !== (dep.target_date instanceof Date ? dep.target_date.toISOString().split('T')[0] : dep.target_date)) {
+            
+            await dbPool.execute(
+              `UPDATE tasks SET start_date = ?, target_date = ? WHERE task_id = ?`,
+              [newStartStr, newTargetStr, dep.task_id]
+            );
+            
+            // Recurse
+            await this.recalculateDependentTasks(dep.task_id);
+        }
+      }
+    }
   }
 }

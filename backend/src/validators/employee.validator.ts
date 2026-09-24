@@ -11,6 +11,15 @@ export const createEmployeeSchema = z.object({
   reporting_to_id: z.number().int().nullable().optional(),
   assigned_project_id: z.number().int().nullable().optional(),
   assigned_wbs_id: z.number().int().nullable().optional(),
+  department: z.string().nullable().optional(),
+  contact_number: z.string().nullable().optional(),
+  nationality_id: z.number().int().nullable().optional(),
+  country_id: z.number().int().nullable().optional(),
+  emreads_id: z.string().nullable().optional(),
+  passport: z.any().optional(),
+  visa: z.any().optional(),
+  contract: z.any().optional(),
+  emreads: z.any().optional(),
 });
 
 export const updateEmployeeSchema = z.object({
@@ -23,4 +32,9 @@ export const updateEmployeeSchema = z.object({
   reporting_to_id: z.number().int().nullable().optional(),
   assigned_project_id: z.number().int().nullable().optional(),
   assigned_wbs_id: z.number().int().nullable().optional(),
+  department: z.string().nullable().optional(),
+  contact_number: z.string().nullable().optional(),
+  nationality_id: z.number().int().nullable().optional(),
+  country_id: z.number().int().nullable().optional(),
+  emreads_id: z.string().nullable().optional(),
 });

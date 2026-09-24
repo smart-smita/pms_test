@@ -51,6 +51,29 @@ if (process.env.NODE_ENV !== 'test') {
     await migrate();
     console.log(`🚀 Backend running in ${env.NODE_ENV} mode on port ${PORT}`);
     console.log(`📍 API: /api/v1  |  Health: /health`);
+
+    // Initialize automatic document expiry engine
+    setTimeout(async () => {
+      try {
+        const { DocumentService } = await import('./services/document.service');
+        const ds = new DocumentService();
+        const res = await ds.triggerExpiryCheckJob();
+        console.log(`⏰ [Expiry Engine] Initial check complete: checked ${res.checked_count} docs, sent ${res.notifications_sent} alert(s).`);
+      } catch (e: any) {
+        console.warn('⏰ [Expiry Engine] Initial check error:', e.message);
+      }
+    }, 4000);
+
+    // Run periodic check every 6 hours
+    setInterval(async () => {
+      try {
+        const { DocumentService } = await import('./services/document.service');
+        const ds = new DocumentService();
+        await ds.triggerExpiryCheckJob();
+      } catch (e: any) {
+        console.warn('⏰ [Expiry Engine] Periodic check error:', e.message);
+      }
+    }, 6 * 60 * 60 * 1000);
   });
 }
 

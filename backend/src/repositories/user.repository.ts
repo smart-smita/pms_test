@@ -36,7 +36,9 @@ export class UserRepository {
               mgr_r.role_name AS reporting_to_role_name,
               mgr.status AS reporting_to_status,
               p.project_name AS assigned_project_name,
-              w.wbs_name AS assigned_wbs_name
+              w.wbs_name AS assigned_wbs_name,
+              n.nationality_name,
+              co.country_name
        FROM employees e
        JOIN roles r ON e.role_id = r.role_id
        LEFT JOIN employees mgr ON e.reporting_to_id = mgr.employee_id
@@ -44,6 +46,8 @@ export class UserRepository {
        LEFT JOIN projects p ON e.assigned_project_id = p.project_id
        LEFT JOIN project_wbs pw ON e.assigned_wbs_id = pw.id
        LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+       LEFT JOIN nationalities n ON e.nationality_id = n.nationality_id
+       LEFT JOIN countries co ON e.country_id = co.country_id
        WHERE e.employee_id = ?`,
       [id]
     );
@@ -59,7 +63,9 @@ export class UserRepository {
               mgr_r.role_name AS reporting_to_role_name,
               mgr.status AS reporting_to_status,
               p.project_name AS assigned_project_name,
-              w.wbs_name AS assigned_wbs_name
+              w.wbs_name AS assigned_wbs_name,
+              n.nationality_name,
+              co.country_name
       FROM employees e
       JOIN roles r ON e.role_id = r.role_id
       LEFT JOIN employees mgr ON e.reporting_to_id = mgr.employee_id
@@ -67,6 +73,8 @@ export class UserRepository {
       LEFT JOIN projects p ON e.assigned_project_id = p.project_id
       LEFT JOIN project_wbs pw ON e.assigned_wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+      LEFT JOIN nationalities n ON e.nationality_id = n.nationality_id
+      LEFT JOIN countries co ON e.country_id = co.country_id
       WHERE (e.is_deleted = 0 OR e.is_deleted IS NULL)
     `;
     const params: any[] = [];
@@ -112,10 +120,18 @@ export class UserRepository {
     reporting_to_id?: number | null;
     assigned_project_id?: number | null;
     assigned_wbs_id?: number | null;
+    department?: string | null;
+    contact_number?: string | null;
+    nationality_id?: number | null;
+    country_id?: number | null;
+    emreads_id?: string | null;
   }): Promise<number> {
     const [result] = await dbPool.execute<ResultSetHeader>(
-      `INSERT INTO employees (employee_code, name, email, password_hash, role_id, hourly_rate, status, reporting_to_id, assigned_project_id, assigned_wbs_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO employees (
+         employee_code, name, email, password_hash, role_id, hourly_rate, status,
+         reporting_to_id, assigned_project_id, assigned_wbs_id,
+         department, contact_number, nationality_id, country_id, emreads_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.employee_code,
         data.name,
@@ -127,6 +143,11 @@ export class UserRepository {
         data.reporting_to_id || null,
         data.assigned_project_id || null,
         data.assigned_wbs_id || null,
+        data.department || null,
+        data.contact_number || null,
+        data.nationality_id || null,
+        data.country_id || null,
+        data.emreads_id || null,
       ]
     );
     return result.insertId;
@@ -145,6 +166,11 @@ export class UserRepository {
     if (data.reporting_to_id !== undefined) { fields.push('reporting_to_id = ?'); params.push(data.reporting_to_id || null); }
     if (data.assigned_project_id !== undefined) { fields.push('assigned_project_id = ?'); params.push(data.assigned_project_id || null); }
     if (data.assigned_wbs_id !== undefined) { fields.push('assigned_wbs_id = ?'); params.push(data.assigned_wbs_id || null); }
+    if (data.department !== undefined) { fields.push('department = ?'); params.push(data.department || null); }
+    if (data.contact_number !== undefined) { fields.push('contact_number = ?'); params.push(data.contact_number || null); }
+    if (data.nationality_id !== undefined) { fields.push('nationality_id = ?'); params.push(data.nationality_id || null); }
+    if (data.country_id !== undefined) { fields.push('country_id = ?'); params.push(data.country_id || null); }
+    if (data.emreads_id !== undefined) { fields.push('emreads_id = ?'); params.push(data.emreads_id || null); }
 
     if (fields.length === 0) return false;
 

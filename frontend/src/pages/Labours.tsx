@@ -1,10 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Eye, EyeOff, Calendar, AlertTriangle, ShieldAlert, X, Filter, RotateCcw, Clock, CheckCircle, FileText } from 'lucide-react';
+import {
+  Users,
+  Plus,
+  Edit2,
+  Trash2,
+  Eye,
+  EyeOff,
+  Calendar,
+  AlertTriangle,
+  ShieldAlert,
+  X,
+  Filter,
+  RotateCcw,
+  Clock,
+  CheckCircle,
+  FileText,
+  Globe,
+  Briefcase,
+  CreditCard,
+  Shield,
+  Upload,
+} from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { DocumentModal } from '../components/common/DocumentModal';
+import { LabourDetailsModal } from '../components/common/LabourDetailsModal';
 import { useAuth } from '../context/AuthContext';
-import { apiService } from '../services/api';
+import { apiService, apiRequest } from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
+import { calculateExpiryStatus } from '../utils/documentHelper';
 
 export interface Labour {
   labour_id: number;
@@ -14,6 +37,15 @@ export interface Labour {
   labour_type: 'contractor' | 'direct_labour';
   contractor_id?: number | null;
   contractor_name?: string | null;
+  assigned_project_id?: number | null;
+  assigned_project_name?: string | null;
+  nationality_id?: number | null;
+  nationality_name?: string | null;
+  country_id?: number | null;
+  country_name?: string | null;
+  emreads_id?: string | null;
+  email?: string | null;
+  status?: 'active' | 'inactive';
   sub_worker_count?: number;
   created_at: string;
 }
@@ -49,7 +81,7 @@ export const Labours: React.FC = () => {
   const [workLogs, setWorkLogs] = useState<LabourWorkLog[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const contractorsList = labours.filter(l => l.labour_type === 'contractor');
+  const contractorsList = labours.filter((l) => l.labour_type === 'contractor');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -62,17 +94,57 @@ export const Labours: React.FC = () => {
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
   const [wbsList, setWbsList] = useState<{ id: number; name: string; project_id?: number }[]>([]);
   const [tasks, setTasks] = useState<{ id: number; name: string; project_id?: number; wbs_id?: number }[]>([]);
+  const [countries, setCountries] = useState<{ country_id: number; country_name: string; phone_code: string }[]>([]);
+  const [nationalities, setNationalities] = useState<{ nationality_id: number; nationality_name: string }[]>([]);
 
   // Create / Edit Labour Form State
   const [showAddLabour, setShowAddLabour] = useState(false);
   const [editingLabour, setEditingLabour] = useState<Labour | null>(null);
-  const [labourForm, setLabourForm] = useState({
+  const [formSection, setFormSection] = useState<'basic' | 'identity' | 'visa' | 'contract'>('basic');
+
+  const initialLabourForm = {
     name: '',
     contact_number: '',
     aadhar_id: '',
     labour_type: 'direct_labour' as 'contractor' | 'direct_labour',
     contractor_id: '' as string | number,
-  });
+    country_id: '' as string | number,
+    nationality_id: '' as string | number,
+    assigned_project_id: '' as string | number,
+    status: 'active' as 'active' | 'inactive',
+    emreads_id: '',
+    // Identity - Passport
+    passport_number: '',
+    passport_issue_date: '',
+    passport_expiry_date: '',
+    passport_file_base64: '',
+    passport_file_name: '',
+    // Labour Card
+    labour_card_number: '',
+    labour_card_issue_date: '',
+    labour_card_expiry_date: '',
+    labour_card_file_base64: '',
+    labour_card_file_name: '',
+    // Visa
+    visa_number: '',
+    visa_type: 'Employment Visa',
+    visa_issue_date: '',
+    visa_expiry_date: '',
+    visa_file_base64: '',
+    visa_file_name: '',
+    // Contract
+    contract_number: '',
+    contract_type: 'Direct Employment',
+    contract_start_date: '',
+    contract_end_date: '',
+    contract_file_base64: '',
+    contract_file_name: '',
+  };
+
+  const [labourForm, setLabourForm] = useState(initialLabourForm);
+
+  // Profile Details Modal
+  const [detailsModalLabourId, setDetailsModalLabourId] = useState<number | null>(null);
 
   // Work Log Form State
   const [showAddWorkLog, setShowAddWorkLog] = useState(false);
@@ -112,7 +184,11 @@ export const Labours: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const laboursRes = await apiService.get<Labour[]>('/labours', { search, labour_type: selectedType });
+      const laboursRes = await apiService.get<Labour[]>('/labours', {
+        search,
+        labour_type: selectedType,
+        project_id: selectedProject,
+      });
       if (laboursRes.data) setLabours(laboursRes.data);
 
       if (activeTab === 'work_logs') {
@@ -133,6 +209,12 @@ export const Labours: React.FC = () => {
 
       const taskRes = await apiService.get<any[]>('/tasks');
       if (taskRes.data) setTasks(taskRes.data.map((t) => ({ id: t.task_id, name: t.task_name, project_id: t.project_id, wbs_id: t.wbs_id })));
+
+      const countryRes = await apiRequest<any[]>('/masters/countries');
+      if (countryRes.success && countryRes.data) setCountries(countryRes.data);
+
+      const natRes = await apiRequest<any[]>('/masters/nationalities');
+      if (natRes.success && natRes.data) setNationalities(natRes.data);
     } catch (err) {
       console.error('Error fetching labours data:', err);
     } finally {
@@ -146,11 +228,13 @@ export const Labours: React.FC = () => {
     if (workLogForm.project_id) {
       apiService.get<any[]>(`/projects/${workLogForm.project_id}/wbs`).then((res) => {
         if (res.success && res.data) {
-          setModalWbsList(res.data.map((w: any) => ({
-            id: w.id || w.wbs_id,
-            name: w.wbs_name,
-            project_id: Number(workLogForm.project_id),
-          })));
+          setModalWbsList(
+            res.data.map((w: any) => ({
+              id: w.id || w.wbs_id,
+              name: w.wbs_name,
+              project_id: Number(workLogForm.project_id),
+            }))
+          );
         } else {
           setModalWbsList([]);
         }
@@ -160,12 +244,34 @@ export const Labours: React.FC = () => {
     }
   }, [workLogForm.project_id, wbsList]);
 
-  // Filter tasks based on selected project/wbs in form
   const filteredFormTasks = tasks.filter((t) => {
     if (workLogForm.project_id && Number(t.project_id) !== Number(workLogForm.project_id)) return false;
     if (workLogForm.wbs_id && Number(t.wbs_id) !== Number(workLogForm.wbs_id)) return false;
     return true;
   });
+
+  const handleFileUpload = (
+    fieldPrefix: 'passport' | 'labour_card' | 'visa' | 'contract',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      showError('File size exceeds 15MB limit.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLabourForm((prev) => ({
+        ...prev,
+        [`${fieldPrefix}_file_base64`]: reader.result as string,
+        [`${fieldPrefix}_file_name`]: file.name,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleCreateOrUpdateLabour = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,36 +285,95 @@ export const Labours: React.FC = () => {
       return;
     }
 
-    if (!contactClean) {
-      showError('Contact number is compulsory.');
+    // Optional phone validation: 7-15 digits
+    if (contactClean) {
+      const cleanDigits = contactClean.replace(/[\s+-]/g, '');
+      if (cleanDigits.length < 7 || cleanDigits.length > 15) {
+        showError('Contact number must be between 7 and 15 digits.');
+        return;
+      }
+    }
+
+    // Optional Aadhaar: if entered, must be 12 digits
+    if (aadharClean && !/^\d{12}$/.test(aadharClean)) {
+      showError('Aadhaar ID must be exactly 12 digits.');
       return;
     }
 
-    if (!/^\d{10}$/.test(contactClean)) {
-      showError('Contact number must be compulsory 10 digits.');
-      return;
-    }
+    // Validate dates: issue date cannot be after expiry date
+    const checkDatePair = (issue?: string, expiry?: string, label?: string) => {
+      if (issue && expiry && new Date(issue) > new Date(expiry)) {
+        throw new Error(`${label}: Issue date cannot be after expiry date.`);
+      }
+    };
 
-    if (!aadharClean) {
-      showError('Aadhaar ID is compulsory.');
-      return;
-    }
-
-    if (!/^\d{12}$/.test(aadharClean)) {
-      showError('Aadhaar ID must be compulsory 12 digits.');
+    try {
+      checkDatePair(labourForm.passport_issue_date, labourForm.passport_expiry_date, 'Passport');
+      checkDatePair(labourForm.visa_issue_date, labourForm.visa_expiry_date, 'Visa');
+      checkDatePair(labourForm.labour_card_issue_date, labourForm.labour_card_expiry_date, 'Labour Card');
+      checkDatePair(labourForm.contract_start_date, labourForm.contract_end_date, 'Contract');
+    } catch (err: any) {
+      showError(err.message);
       return;
     }
 
     try {
-      let res;
-      const payload = {
+      const payload: any = {
         name: nameClean,
-        contact_number: contactClean,
-        aadhar_id: aadharClean,
+        contact_number: contactClean || null,
+        aadhar_id: aadharClean || null,
         labour_type: labourForm.labour_type,
         contractor_id: labourForm.contractor_id ? Number(labourForm.contractor_id) : null,
+        country_id: labourForm.country_id ? Number(labourForm.country_id) : null,
+        nationality_id: labourForm.nationality_id ? Number(labourForm.nationality_id) : null,
+        assigned_project_id: labourForm.assigned_project_id ? Number(labourForm.assigned_project_id) : null,
+        emreads_id: labourForm.emreads_id?.trim() || null,
+        status: labourForm.status,
       };
 
+      if (labourForm.passport_number || labourForm.passport_file_base64) {
+        payload.passport = {
+          document_number: labourForm.passport_number,
+          issue_date: labourForm.passport_issue_date || null,
+          expiry_date: labourForm.passport_expiry_date || null,
+          file_base64: labourForm.passport_file_base64 || null,
+          file_name: labourForm.passport_file_name || null,
+        };
+      }
+
+      if (labourForm.visa_number || labourForm.visa_file_base64 || labourForm.visa_expiry_date) {
+        payload.visa = {
+          document_number: labourForm.visa_number,
+          visa_type: labourForm.visa_type,
+          issue_date: labourForm.visa_issue_date || null,
+          expiry_date: labourForm.visa_expiry_date || null,
+          file_base64: labourForm.visa_file_base64 || null,
+          file_name: labourForm.visa_file_name || null,
+        };
+      }
+
+      if (labourForm.labour_card_number || labourForm.labour_card_file_base64) {
+        payload.labour_card = {
+          document_number: labourForm.labour_card_number,
+          issue_date: labourForm.labour_card_issue_date || null,
+          expiry_date: labourForm.labour_card_expiry_date || null,
+          file_base64: labourForm.labour_card_file_base64 || null,
+          file_name: labourForm.labour_card_file_name || null,
+        };
+      }
+
+      if (labourForm.contract_number || labourForm.contract_file_base64) {
+        payload.contract = {
+          document_number: labourForm.contract_number,
+          contract_type: labourForm.contract_type,
+          start_date: labourForm.contract_start_date || null,
+          end_date: labourForm.contract_end_date || null,
+          file_base64: labourForm.contract_file_base64 || null,
+          file_name: labourForm.contract_file_name || null,
+        };
+      }
+
+      let res;
       if (editingLabour) {
         res = await apiService.put(`/labours/${editingLabour.labour_id}`, payload);
       } else {
@@ -216,9 +381,9 @@ export const Labours: React.FC = () => {
       }
 
       if (res.success) {
-        showSuccess(editingLabour ? 'Labour updated successfully!' : 'Labour registered successfully!');
+        showSuccess(editingLabour ? 'Labour updated successfully!' : 'Labour registered successfully with documents!');
         setEditingLabour(null);
-        setLabourForm({ name: '', contact_number: '', aadhar_id: '', labour_type: 'direct_labour', contractor_id: '' });
+        setLabourForm(initialLabourForm);
         setShowAddLabour(false);
         fetchData();
       } else {
@@ -257,9 +422,17 @@ export const Labours: React.FC = () => {
         showSuccess(editingWorkLog ? 'Work log updated successfully!' : 'Work log created successfully!');
         setEditingWorkLog(null);
         setWorkLogForm({
-          labour_id: '', project_id: '', wbs_id: '', task_id: '',
+          labour_id: '',
+          project_id: '',
+          wbs_id: '',
+          task_id: '',
           work_date: new Date().toISOString().split('T')[0],
-          in_time: '', out_time: '', total_working_hours: 8, rate_type: 'hourly', rate: 500, work_description: '',
+          in_time: '',
+          out_time: '',
+          total_working_hours: 8,
+          rate_type: 'hourly',
+          rate: 500,
+          work_description: '',
         });
         setShowAddWorkLog(false);
         fetchData();
@@ -267,53 +440,50 @@ export const Labours: React.FC = () => {
         showError(res.message || 'Failed to save work log');
       }
     } catch (err: any) {
-      showError(err.message || 'Failed to save work log');
+      showError(err.message || 'Action failed');
     }
   };
 
-  const handleDeleteWorkLog = async (id: number) => {
-    if (!window.confirm('Are you sure you want to soft-delete this work log?')) return;
+  const handleOpenDelete = async (labour: Labour) => {
     try {
-      const res = await apiService.delete(`/labour-work-logs/${id}`);
-      if (res.success) {
-        showSuccess('Work log soft-deleted successfully');
-        fetchData();
-      } else {
-        showError(res.message || 'Delete failed');
-      }
-    } catch (err: any) {
-      showError(err.message || 'Delete failed');
-    }
-  };
-
-  const handleOpenDelete = async (item: Labour) => {
-    setDeleteTarget(item);
-    try {
-      const res = await apiService.get<{ attendanceCount: number; subWorkersCount: number }>(`/labours/${item.labour_id}/dependencies`);
-      if (res.success && res.data) {
-        setDeleteDeps(res.data);
-      } else {
-        setDeleteDeps({ attendanceCount: 0, subWorkersCount: 0 });
-      }
+      const res = await apiService.get<{ attendanceCount: number; subWorkersCount: number }>(`/labours/${labour.labour_id}/dependencies`);
+      setDeleteTarget(labour);
+      if (res.data) setDeleteDeps(res.data);
     } catch (err) {
-      setDeleteDeps({ attendanceCount: 0, subWorkersCount: 0 });
+      setDeleteTarget(labour);
+      setDeleteDeps(null);
     }
   };
 
   const handleConfirmDelete = async (force: boolean) => {
     if (!deleteTarget) return;
     try {
-      const res = await apiService.delete(`/labours/${deleteTarget.labour_id}${force ? '?force=true' : ''}`);
+      const res = await apiService.delete(`/labours/${deleteTarget.labour_id}?force=${force}`);
       if (res.success) {
-        showSuccess(`Worker '${deleteTarget.name}' deleted successfully!`);
+        showSuccess('Labour deleted successfully');
         setDeleteTarget(null);
         setDeleteDeps(null);
         fetchData();
       } else {
-        showError(res.message || 'Delete failed');
+        showError(res.message || 'Failed to delete labour');
       }
     } catch (err: any) {
       showError(err.message || 'Delete failed');
+    }
+  };
+
+  const handleDeleteWorkLog = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this work log?')) return;
+    try {
+      const res = await apiService.delete(`/labour-work-logs/${id}`);
+      if (res.success) {
+        showSuccess('Work log deleted');
+        fetchData();
+      } else {
+        showError(res.message || 'Failed to delete work log');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Action failed');
     }
   };
 
@@ -321,13 +491,31 @@ export const Labours: React.FC = () => {
     setRevealAadhar((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const liveVisaCalc = calculateExpiryStatus(labourForm.visa_expiry_date);
+
   // Registry Columns
   const registryColumns: Column<Labour>[] = [
-    { accessor: 'labour_id', header: 'ID', sortable: true },
-    { accessor: 'name', header: 'Name', sortable: true, render: (item) => <span className="font-semibold">{item.name}</span> },
+    {
+      accessor: (item) => `LAB-${String(item.labour_id).padStart(3, '0')}`,
+      header: 'Labour ID',
+      sortable: true,
+    },
+    {
+      accessor: 'name',
+      header: 'Labour / Contractor Name',
+      sortable: true,
+      render: (item) => (
+        <div>
+          <span className="font-semibold" style={{ color: 'var(--text-primary)', display: 'block' }}>{item.name}</span>
+          {item.contractor_name && (
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Contractor: {item.contractor_name}</span>
+          )}
+        </div>
+      ),
+    },
     {
       accessor: 'labour_type',
-      header: 'Labour Type',
+      header: 'Type',
       sortable: true,
       render: (item) => (
         <span
@@ -338,66 +526,126 @@ export const Labours: React.FC = () => {
         </span>
       ),
     },
-    { accessor: 'contact_number', header: 'Contact Number', render: (item) => item.contact_number || '-' },
+    {
+      accessor: 'contact_number',
+      header: 'Contact',
+      render: (item) => item.contact_number || '-',
+    },
+    {
+      accessor: (item) => item.assigned_project_name || 'Unassigned',
+      header: 'Project Assignment',
+      render: (item) => (
+        <span style={{ fontSize: '0.85rem' }}>{item.assigned_project_name || <span style={{ color: '#94a3b8' }}>Unassigned</span>}</span>
+      ),
+    },
+    {
+      accessor: (item) => item.country_name || item.nationality_name || '-',
+      header: 'Country / Nationality',
+      render: (item) => (
+        <span style={{ fontSize: '0.82rem' }}>
+          {item.country_name || item.nationality_name || '-'}
+        </span>
+      ),
+    },
     {
       accessor: 'aadhar_id',
-      header: 'Aadhar ID (PII)',
+      header: 'Govt / EMREADS ID',
       render: (item) => (
-        <div className="flex items-center gap-2">
-          <span>
-            {item.aadhar_id
-              ? revealAadhar[item.labour_id]
-                ? item.aadhar_id
-                : item.aadhar_id.replace(/^.*(\d{4})$/, 'XXXX-XXXX-$1')
-              : '-'}
-          </span>
-          {item.aadhar_id && (
-            <button
-              onClick={() => toggleAadhar(item.labour_id)}
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
-            >
-              {revealAadhar[item.labour_id] ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
+        <div style={{ fontSize: '0.8rem' }}>
+          {item.emreads_id ? (
+            <span style={{ color: '#38bdf8' }}>{item.emreads_id}</span>
+          ) : item.aadhar_id ? (
+            <div className="flex items-center gap-1">
+              <span>
+                {revealAadhar[item.labour_id]
+                  ? item.aadhar_id
+                  : item.aadhar_id.replace(/^.*(\d{4})$/, 'XXXX-XXXX-$1')}
+              </span>
+              <button
+                type="button"
+                onClick={() => toggleAadhar(item.labour_id)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+              >
+                {revealAadhar[item.labour_id] ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+          ) : (
+            <span style={{ color: '#94a3b8' }}>-</span>
           )}
         </div>
       ),
     },
     {
-      accessor: (item) => new Date(item.created_at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-      header: 'Registered On',
+      accessor: (item) => (
+        <span
+          style={{
+            padding: '0.2rem 0.5rem',
+            borderRadius: '12px',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            background: item.status === 'inactive' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+            color: item.status === 'inactive' ? '#ef4444' : '#10b981',
+            textTransform: 'uppercase',
+          }}
+        >
+          {item.status || 'Active'}
+        </span>
+      ),
+      header: 'Status',
     },
     {
       accessor: (item) => (
         <div className="flex items-center gap-1">
+          {/* View Details Profile Modal */}
+          <button
+            onClick={() => setDetailsModalLabourId(item.labour_id)}
+            className="action-btn"
+            style={{ color: '#6366f1', padding: '0.25rem 0.5rem' }}
+            title="View Complete Labour Profile & Documents"
+          >
+            <Eye size={15} />
+          </button>
+
+          {/* Manage Documents Modal */}
           <button
             onClick={() => setDocModal({ isOpen: true, labourId: item.labour_id, labourName: item.name })}
             className="action-btn"
             style={{ color: '#38bdf8', padding: '0.25rem 0.5rem' }}
             title="Manage Passports, Visas & Worker Documents"
           >
-            <FileText size={14} />
+            <FileText size={15} />
           </button>
+
           {hasPermission('labours', 'update') && (
             <button
               onClick={() => {
                 setEditingLabour(item);
                 setShowAddLabour(true);
+                setFormSection('basic');
                 setLabourForm({
+                  ...initialLabourForm,
                   name: item.name,
                   contact_number: item.contact_number || '',
                   aadhar_id: item.aadhar_id || '',
                   labour_type: item.labour_type,
                   contractor_id: item.contractor_id || '',
+                  country_id: item.country_id || '',
+                  nationality_id: item.nationality_id || '',
+                  assigned_project_id: item.assigned_project_id || '',
+                  emreads_id: item.emreads_id || '',
+                  status: (item.status as any) || 'active',
                 });
               }}
               className="action-btn edit"
+              title="Edit Labour"
             >
-              <Edit2 size={14} />
+              <Edit2 size={15} />
             </button>
           )}
+
           {hasPermission('labours', 'delete') && (
-            <button onClick={() => handleOpenDelete(item)} className="action-btn delete">
-              <Trash2 size={14} />
+            <button onClick={() => handleOpenDelete(item)} className="action-btn delete" title="Delete Labour">
+              <Trash2 size={15} />
             </button>
           )}
         </div>
@@ -460,9 +708,9 @@ export const Labours: React.FC = () => {
                 wbs_id: i.wbs_id ? String(i.wbs_id) : '',
                 task_id: String(i.task_id),
                 work_date: i.work_date,
-                in_time: i.in_time || '09:00',
-                out_time: i.out_time || '18:00',
-                total_working_hours: i.total_working_hours || 8,
+                in_time: i.in_time || '',
+                out_time: i.out_time || '',
+                total_working_hours: i.total_working_hours,
                 rate_type: i.rate_type,
                 rate: i.rate,
                 work_description: i.work_description || '',
@@ -505,7 +753,8 @@ export const Labours: React.FC = () => {
                 if (nextState) {
                   setShowAddWorkLog(false);
                   setEditingLabour(null);
-                  setLabourForm({ name: '', contact_number: '', aadhar_id: '', labour_type: 'direct_labour', contractor_id: '' });
+                  setFormSection('basic');
+                  setLabourForm(initialLabourForm);
                 }
               }}
               className="btn btn-primary"
@@ -524,9 +773,17 @@ export const Labours: React.FC = () => {
                 setShowAddLabour(false);
                 setEditingWorkLog(null);
                 setWorkLogForm({
-                  labour_id: '', project_id: '', wbs_id: '', task_id: '',
+                  labour_id: '',
+                  project_id: '',
+                  wbs_id: '',
+                  task_id: '',
                   work_date: new Date().toISOString().split('T')[0],
-                  in_time: '', out_time: '', total_working_hours: 8, rate_type: 'hourly', rate: 500, work_description: '',
+                  in_time: '',
+                  out_time: '',
+                  total_working_hours: 8,
+                  rate_type: 'hourly',
+                  rate: 500,
+                  work_description: '',
                 });
               }
             }}
@@ -541,7 +798,7 @@ export const Labours: React.FC = () => {
       {/* Add / Edit Labour Form Card */}
       {showAddLabour && (
         <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid var(--accent-primary, #6366f1)' }}>
-          <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
+          <div className="flex items-center justify-between mb-3 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
             <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
               <Users size={18} style={{ color: 'var(--accent-primary, #6366f1)' }} />
               {editingLabour ? `Edit Labour / Contractor: ${editingLabour.name}` : 'Register New Labour / Contractor'}
@@ -559,165 +816,572 @@ export const Labours: React.FC = () => {
             </button>
           </div>
 
-          <form onSubmit={handleCreateOrUpdateLabour}>
-            <div className="grid-2-col mb-4">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Labour / Contractor Name <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter full name or contractor name"
-                  value={labourForm.name}
-                  onChange={(e) => setLabourForm({ ...labourForm, name: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Labour Type <span className="text-danger">*</span>
-                </label>
-                <select
-                  value={labourForm.labour_type}
-                  onChange={(e) =>
-                    setLabourForm({
-                      ...labourForm,
-                      labour_type: e.target.value as 'contractor' | 'direct_labour',
-                    })
-                  }
-                  className="form-select"
-                >
-                  <option value="direct_labour">Direct Labour</option>
-                  <option value="contractor">Contractor (Sub-contractor / Agency)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid-3-col mb-4">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Contact Number <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={10}
-                  placeholder="Compulsory 10-digit mobile (e.g. 9876543210)"
-                  value={labourForm.contact_number}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    setLabourForm({ ...labourForm, contact_number: val });
-                  }}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Aadhaar ID (PII Confidential) <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={12}
-                  placeholder="Compulsory 12-digit Aadhaar (e.g. 123456789012)"
-                  value={labourForm.aadhar_id}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    setLabourForm({ ...labourForm, aadhar_id: val });
-                  }}
-                  className="form-input"
-                />
-              </div>
-
-              {labourForm.labour_type === 'direct_labour' && (
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Associated Contractor (Optional)</label>
-                  <select
-                    value={labourForm.contractor_id}
-                    onChange={(e) => setLabourForm({ ...labourForm, contractor_id: e.target.value })}
-                    className="form-select"
-                  >
-                    <option value="">-- Direct (No Contractor) --</option>
-                    {contractorsList.map((c) => (
-                      <option key={c.labour_id} value={c.labour_id}>
-                        {c.name} (ID: L{String(c.labour_id).padStart(3, '0')})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
+          {/* Form Tabs: Basic, Identity, Visa, Contract */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
+            {[
+              { key: 'basic', label: '1. Basic Information' },
+              { key: 'identity', label: '2. Identity & Govt Documents' },
+              { key: 'visa', label: '3. Visa & Immigration' },
+              { key: 'contract', label: '4. Labour Card & Contract' },
+            ].map((tab) => (
               <button
+                key={tab.key}
                 type="button"
-                onClick={() => {
-                  setShowAddLabour(false);
-                  setEditingLabour(null);
+                onClick={() => setFormSection(tab.key as any)}
+                style={{
+                  padding: '0.5rem 0.85rem',
+                  border: 'none',
+                  borderBottom: formSection === tab.key ? '2px solid #6366f1' : '2px solid transparent',
+                  background: 'transparent',
+                  color: formSection === tab.key ? '#6366f1' : 'var(--text-secondary)',
+                  fontWeight: formSection === tab.key ? 600 : 400,
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
                 }}
-                className="btn btn-outline"
               >
-                Cancel
+                {tab.label}
               </button>
-              <button type="submit" className="btn btn-primary">
-                {editingLabour ? 'Update Labour' : 'Register Labour'}
-              </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleCreateOrUpdateLabour}>
+            {/* TAB 1: BASIC INFORMATION */}
+            {formSection === 'basic' && (
+              <div>
+                <div className="grid-2-col mb-4">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">
+                      Labour / Contractor Name <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter full name or contractor agency name"
+                      value={labourForm.name}
+                      onChange={(e) => setLabourForm({ ...labourForm, name: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">
+                      Labour Type <span className="text-danger">*</span>
+                    </label>
+                    <select
+                      value={labourForm.labour_type}
+                      onChange={(e) =>
+                        setLabourForm({
+                          ...labourForm,
+                          labour_type: e.target.value as 'contractor' | 'direct_labour',
+                        })
+                      }
+                      className="form-select"
+                    >
+                      <option value="direct_labour">Direct Labour</option>
+                      <option value="contractor">Contractor (Sub-contractor / Agency)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid-3-col mb-4">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Contact Number (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. +971 50 1234567 or 9876543210"
+                      value={labourForm.contact_number}
+                      onChange={(e) => setLabourForm({ ...labourForm, contact_number: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Country</label>
+                    <select
+                      value={labourForm.country_id}
+                      onChange={(e) => setLabourForm({ ...labourForm, country_id: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="">-- Select Country --</option>
+                      {countries.map((c) => (
+                        <option key={c.country_id} value={c.country_id}>
+                          {c.country_name} ({c.phone_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Nationality</label>
+                    <select
+                      value={labourForm.nationality_id}
+                      onChange={(e) => setLabourForm({ ...labourForm, nationality_id: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="">-- Select Nationality --</option>
+                      {nationalities.map((n) => (
+                        <option key={n.nationality_id} value={n.nationality_id}>
+                          {n.nationality_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid-3-col mb-4">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Project Assignment (Optional)</label>
+                    <select
+                      value={labourForm.assigned_project_id}
+                      onChange={(e) => setLabourForm({ ...labourForm, assigned_project_id: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="">-- No Initial Project --</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {labourForm.labour_type === 'direct_labour' && (
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Associated Contractor (Optional)</label>
+                      <select
+                        value={labourForm.contractor_id}
+                        onChange={(e) => setLabourForm({ ...labourForm, contractor_id: e.target.value })}
+                        className="form-select"
+                      >
+                        <option value="">-- Direct (No Contractor) --</option>
+                        {contractorsList.map((c) => (
+                          <option key={c.labour_id} value={c.labour_id}>
+                            {c.name} (ID: LAB-{String(c.labour_id).padStart(3, '0')})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Status</label>
+                    <select
+                      value={labourForm.status}
+                      onChange={(e) => setLabourForm({ ...labourForm, status: e.target.value as any })}
+                      className="form-select"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: IDENTITY & GOVT DOCUMENTS */}
+            {formSection === 'identity' && (
+              <div>
+                <div className="grid-2-col mb-4">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">EMREADS ID / Emirates ID (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 784-1988-1234567-1"
+                      value={labourForm.emreads_id}
+                      onChange={(e) => setLabourForm({ ...labourForm, emreads_id: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">National ID / Aadhaar ID (Optional)</label>
+                    <input
+                      type="text"
+                      maxLength={12}
+                      placeholder="12-digit Aadhaar (e.g. 123456789012)"
+                      value={labourForm.aadhar_id}
+                      onChange={(e) => setLabourForm({ ...labourForm, aadhar_id: e.target.value.replace(/\D/g, '') })}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  <h4 style={{ margin: '0 0 0.75rem 0', color: '#38bdf8', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Shield size={16} /> Passport Details (Optional)
+                  </h4>
+                  <div className="grid-3-col mb-3">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Passport Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. N1234567"
+                        value={labourForm.passport_number}
+                        onChange={(e) => setLabourForm({ ...labourForm, passport_number: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Passport Issue Date</label>
+                      <input
+                        type="date"
+                        value={labourForm.passport_issue_date}
+                        onChange={(e) => setLabourForm({ ...labourForm, passport_issue_date: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Passport Expiry Date</label>
+                      <input
+                        type="date"
+                        value={labourForm.passport_expiry_date}
+                        onChange={(e) => setLabourForm({ ...labourForm, passport_expiry_date: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">Upload Passport Document Copy (PDF, JPG, PNG)</label>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      onChange={(e) => handleFileUpload('passport', e)}
+                      className="form-input"
+                    />
+                    {labourForm.passport_file_name && (
+                      <span style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '0.25rem', display: 'block' }}>
+                        Attached: {labourForm.passport_file_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: VISA & IMMIGRATION */}
+            {formSection === 'visa' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                    Record Visa details and expiry dates. The system automatically calculates Visa status and generates alerts at 10, 8, 5, 3, 2, 1 days.
+                  </div>
+                  {labourForm.visa_expiry_date && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Status Preview:</span>
+                      <span
+                        style={{
+                          padding: '0.3rem 0.65rem',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          ...liveVisaCalc.badgeStyle,
+                        }}
+                      >
+                        {liveVisaCalc.statusLabel}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid-2-col mb-4">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Visa Number</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 201/2026/8921"
+                      value={labourForm.visa_number}
+                      onChange={(e) => setLabourForm({ ...labourForm, visa_number: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Visa Type</label>
+                    <select
+                      value={labourForm.visa_type}
+                      onChange={(e) => setLabourForm({ ...labourForm, visa_type: e.target.value })}
+                      className="form-select"
+                    >
+                      <option value="Employment Visa">Employment Visa</option>
+                      <option value="Work Visa">Work Visa</option>
+                      <option value="Residence Visa">Residence Visa</option>
+                      <option value="Mission Visa">Mission Visa</option>
+                      <option value="Visit / Short Term">Visit / Short Term</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid-2-col mb-4">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Visa Issue Date</label>
+                    <input
+                      type="date"
+                      value={labourForm.visa_issue_date}
+                      onChange={(e) => setLabourForm({ ...labourForm, visa_issue_date: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Visa Expiry Date</label>
+                    <input
+                      type="date"
+                      value={labourForm.visa_expiry_date}
+                      onChange={(e) => setLabourForm({ ...labourForm, visa_expiry_date: e.target.value })}
+                      className="form-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="form-label">Visa Document Upload (PDF, PNG, JPG)</label>
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                    onChange={(e) => handleFileUpload('visa', e)}
+                    className="form-input"
+                  />
+                  {labourForm.visa_file_name && (
+                    <span style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '0.25rem', display: 'block' }}>
+                      Attached: {labourForm.visa_file_name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: LABOUR CARD & CONTRACT */}
+            {formSection === 'contract' && (
+              <div>
+                {/* Labour Card Subsection */}
+                <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  <h4 style={{ margin: '0 0 0.75rem 0', color: '#f59e0b', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <CreditCard size={16} /> Labour Card Details (Optional)
+                  </h4>
+                  <div className="grid-3-col mb-3">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Labour Card Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. LC-998822"
+                        value={labourForm.labour_card_number}
+                        onChange={(e) => setLabourForm({ ...labourForm, labour_card_number: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Issue Date</label>
+                      <input
+                        type="date"
+                        value={labourForm.labour_card_issue_date}
+                        onChange={(e) => setLabourForm({ ...labourForm, labour_card_issue_date: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Expiry Date</label>
+                      <input
+                        type="date"
+                        value={labourForm.labour_card_expiry_date}
+                        onChange={(e) => setLabourForm({ ...labourForm, labour_card_expiry_date: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">Upload Labour Card Copy</label>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      onChange={(e) => handleFileUpload('labour_card', e)}
+                      className="form-input"
+                    />
+                    {labourForm.labour_card_file_name && (
+                      <span style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '0.25rem', display: 'block' }}>
+                        Attached: {labourForm.labour_card_file_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contract Subsection */}
+                <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  <h4 style={{ margin: '0 0 0.75rem 0', color: '#10b981', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Briefcase size={16} /> Contract Details (Optional)
+                  </h4>
+                  <div className="grid-2-col mb-3">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Contract Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. CON-2026-004"
+                        value={labourForm.contract_number}
+                        onChange={(e) => setLabourForm({ ...labourForm, contract_number: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Contract Type</label>
+                      <select
+                        value={labourForm.contract_type}
+                        onChange={(e) => setLabourForm({ ...labourForm, contract_type: e.target.value })}
+                        className="form-select"
+                      >
+                        <option value="Direct Employment">Direct Employment</option>
+                        <option value="Subcontractor Agreement">Subcontractor Agreement</option>
+                        <option value="Fixed-Term Project">Fixed-Term Project</option>
+                        <option value="Daily Wage">Daily Wage</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid-2-col mb-3">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Contract Start Date</label>
+                      <input
+                        type="date"
+                        value={labourForm.contract_start_date}
+                        onChange={(e) => setLabourForm({ ...labourForm, contract_start_date: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Contract End Date</label>
+                      <input
+                        type="date"
+                        value={labourForm.contract_end_date}
+                        onChange={(e) => setLabourForm({ ...labourForm, contract_end_date: e.target.value })}
+                        className="form-input"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">Upload Contract Document</label>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      onChange={(e) => handleFileUpload('contract', e)}
+                      className="form-input"
+                    />
+                    {labourForm.contract_file_name && (
+                      <span style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '0.25rem', display: 'block' }}>
+                        Attached: {labourForm.contract_file_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Actions */}
+            <div className="flex justify-between items-center pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {formSection !== 'basic' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formSection === 'contract') setFormSection('visa');
+                      else if (formSection === 'visa') setFormSection('identity');
+                      else if (formSection === 'identity') setFormSection('basic');
+                    }}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    ← Previous Tab
+                  </button>
+                )}
+                {formSection !== 'contract' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formSection === 'basic') setFormSection('identity');
+                      else if (formSection === 'identity') setFormSection('visa');
+                      else if (formSection === 'visa') setFormSection('contract');
+                    }}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    Next Tab →
+                  </button>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddLabour(false);
+                    setEditingLabour(null);
+                  }}
+                  className="btn btn-outline"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {editingLabour ? 'Update Labour & Documents' : 'Register Labour & Save Documents'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
       )}
 
-      {/* Add / Edit Task Work Log Form Card */}
+      {/* Add / Edit Work Log Form Card */}
       {showAddWorkLog && (
-        <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid #2563eb' }}>
+        <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
             <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
-              <Clock size={18} style={{ color: '#2563eb' }} />
-              {editingWorkLog ? 'Edit Labour Work Log' : 'Add Labour Work Log (Task & Date-Wise)'}
+              <Clock size={18} style={{ color: '#3b82f6' }} />
+              {editingWorkLog ? 'Edit Task Work Log' : 'Add Daily Labour Task Work Log'}
             </h3>
-            <button onClick={() => setShowAddWorkLog(false)} className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddWorkLog(false);
+                setEditingWorkLog(null);
+              }}
+              className="btn btn-outline"
+              style={{ padding: '0.3rem 0.6rem' }}
+            >
               <X size={16} />
             </button>
           </div>
 
           <form onSubmit={handleCreateOrUpdateWorkLog}>
-            <div className="grid-4-col mb-4">
+            <div className="grid-3-col mb-4">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Labour <span className="text-danger">*</span></label>
+                <label className="form-label">
+                  Worker / Contractor <span className="text-danger">*</span>
+                </label>
                 <select
                   required
                   value={workLogForm.labour_id}
                   onChange={(e) => setWorkLogForm({ ...workLogForm, labour_id: e.target.value })}
                   className="form-select"
                 >
-                  <option value="">Select Labour</option>
-                  {labours.map((l) => {
-                    const code = `L${String(l.labour_id).padStart(3, '0')}`;
-                    const typeStr = l.labour_type === 'contractor' ? 'Contractor Labour' : 'Direct Labour';
-                    const parentStr = l.contractor_name ? ` - ${l.contractor_name}` : '';
-                    return (
-                      <option key={l.labour_id} value={l.labour_id}>
-                        {l.name} - {code} - {typeStr}{parentStr}
-                      </option>
-                    );
-                  })}
+                  <option value="">-- Select Worker --</option>
+                  {labours.map((l) => (
+                    <option key={l.labour_id} value={l.labour_id}>
+                      {l.name} ({l.labour_type === 'contractor' ? 'Contractor' : 'Direct'})
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Project <span className="text-danger">*</span></label>
+                <label className="form-label">
+                  Project <span className="text-danger">*</span>
+                </label>
                 <select
                   required
                   value={workLogForm.project_id}
                   onChange={(e) => setWorkLogForm({ ...workLogForm, project_id: e.target.value, wbs_id: '', task_id: '' })}
                   className="form-select"
                 >
-                  <option value="">Select Project</option>
+                  <option value="">-- Select Project --</option>
                   {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -729,32 +1393,40 @@ export const Labours: React.FC = () => {
                   onChange={(e) => setWorkLogForm({ ...workLogForm, wbs_id: e.target.value, task_id: '' })}
                   className="form-select"
                 >
-                  <option value="">Select WBS Discipline</option>
+                  <option value="">-- All / General WBS --</option>
                   {modalWbsList.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
                   ))}
                 </select>
               </div>
+            </div>
 
+            <div className="grid-3-col mb-4">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Task <span className="text-danger">*</span></label>
+                <label className="form-label">
+                  Task <span className="text-danger">*</span>
+                </label>
                 <select
                   required
                   value={workLogForm.task_id}
                   onChange={(e) => setWorkLogForm({ ...workLogForm, task_id: e.target.value })}
                   className="form-select"
                 >
-                  <option value="">Select Task</option>
+                  <option value="">-- Select Task --</option>
                   {filteredFormTasks.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
                   ))}
                 </select>
               </div>
-            </div>
 
-            <div className="grid-4-col mb-4">
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Work Date <span className="text-danger">*</span></label>
+                <label className="form-label">
+                  Work Date <span className="text-danger">*</span>
+                </label>
                 <input
                   type="date"
                   required
@@ -765,67 +1437,82 @@ export const Labours: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">In Time (Optional)</label>
-                <input
-                  type="time"
-                  value={workLogForm.in_time}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, in_time: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Out Time (Optional)</label>
-                <input
-                  type="time"
-                  value={workLogForm.out_time}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, out_time: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Rate Type <span className="text-danger">*</span></label>
-                <select
-                  value={workLogForm.rate_type}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate_type: e.target.value as 'hourly' | 'daily' })}
-                  className="form-select"
-                >
-                  <option value="hourly">Hourly Rate (₹/hr)</option>
-                  <option value="daily">Daily Flat Rate (₹/day)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid-2-col mb-4">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Rate (₹) <span className="text-danger">*</span></label>
+                <label className="form-label">
+                  Total Working Hours <span className="text-danger">*</span>
+                </label>
                 <input
                   type="number"
                   step="0.5"
+                  min="0.5"
+                  max="24"
+                  required
+                  value={workLogForm.total_working_hours}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, total_working_hours: parseFloat(e.target.value) || 0 })}
+                  className="form-input"
+                />
+              </div>
+            </div>
+
+            <div className="grid-3-col mb-4">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Rate Type</label>
+                <select
+                  value={workLogForm.rate_type}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate_type: e.target.value as any })}
+                  className="form-select"
+                >
+                  <option value="hourly">Hourly Rate</option>
+                  <option value="daily">Daily Wage</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Rate (₹)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
                   required
                   value={workLogForm.rate}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate: Number(e.target.value) })}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate: parseFloat(e.target.value) || 0 })}
                   className="form-input"
                 />
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Work Description / Scope</label>
+                <label className="form-label">Calculated Amount (₹)</label>
                 <input
                   type="text"
-                  placeholder="Enter work details (e.g. Excavated North Section)"
-                  value={workLogForm.work_description}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, work_description: e.target.value })}
+                  disabled
+                  value={`₹${(
+                    workLogForm.rate_type === 'hourly'
+                      ? workLogForm.total_working_hours * workLogForm.rate
+                      : workLogForm.rate
+                  ).toFixed(2)}`}
                   className="form-input"
+                  style={{ background: 'rgba(255, 255, 255, 0.05)', fontWeight: 700, color: '#10b981' }}
                 />
               </div>
+            </div>
+
+            <div className="form-group mb-4">
+              <label className="form-label">Work Description / Remarks</label>
+              <textarea
+                placeholder="Specific tasks completed, site progress, notes..."
+                value={workLogForm.work_description}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, work_description: e.target.value })}
+                className="form-textarea"
+                rows={2}
+              />
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowAddWorkLog(false)}
+                onClick={() => {
+                  setShowAddWorkLog(false);
+                  setEditingWorkLog(null);
+                }}
                 className="btn btn-outline"
               >
                 Cancel
@@ -839,16 +1526,14 @@ export const Labours: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div className="tabs-container">
+      <div className="tabs-container mb-4">
         <button
-          type="button"
           onClick={() => setActiveTab('registry')}
           className={`tab-btn ${activeTab === 'registry' ? 'active' : ''}`}
         >
           Labour Registry ({labours.length})
         </button>
         <button
-          type="button"
           onClick={() => setActiveTab('work_logs')}
           className={`tab-btn ${activeTab === 'work_logs' ? 'active' : ''}`}
         >
@@ -856,15 +1541,14 @@ export const Labours: React.FC = () => {
         </button>
       </div>
 
-      {/* Filters & Selection */}
-      <div className="glass-card mb-4 p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '0.9rem' }}>
-            <Filter size={16} style={{ color: 'var(--accent-primary)' }} />
+      {/* Filters Section */}
+      <div className="glass-card p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold flex items-center gap-2" style={{ fontSize: '0.95rem' }}>
+            <Filter size={16} />
             Filters & Selection
-          </h3>
+          </h4>
           <button
-            type="button"
             onClick={() => {
               setSearch('');
               setSelectedType('');
@@ -873,19 +1557,18 @@ export const Labours: React.FC = () => {
               setEndDate('');
             }}
             className="btn btn-outline"
-            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
           >
-            <RotateCcw size={14} />
-            Reset
+            <RotateCcw size={14} /> Reset
           </button>
         </div>
 
-        <div className="grid-5-col">
+        <div className="grid-4-col">
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">Search Keyword</label>
+            <label className="form-label">Search Keyword</label>
             <input
               type="text"
-              placeholder="Search by name, project, task..."
+              placeholder="Search by name, contact, ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="form-input"
@@ -893,7 +1576,7 @@ export const Labours: React.FC = () => {
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">Project</label>
+            <label className="form-label">Project</label>
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
@@ -901,13 +1584,15 @@ export const Labours: React.FC = () => {
             >
               <option value="">All Projects</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
               ))}
             </select>
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">Labour Type</label>
+            <label className="form-label">Labour Type</label>
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
@@ -919,33 +1604,54 @@ export const Labours: React.FC = () => {
             </select>
           </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">From Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="form-input"
-            />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label text-xs uppercase text-muted">To Date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="form-input"
-            />
-          </div>
+          {activeTab === 'work_logs' ? (
+            <div className="grid-2-col" style={{ gap: '0.5rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">From Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">To Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="form-input"
+                />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Showing <strong>{labours.length}</strong> registered worker(s).
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Data Table */}
+      {/* Main Table Content */}
       {activeTab === 'registry' ? (
-        <DataTable data={labours} columns={registryColumns} isLoading={loading} exportFilename="Labour_Registry" />
+        <DataTable
+          columns={registryColumns}
+          data={labours}
+          isLoading={loading}
+          keyExtractor={(item: Labour) => item.labour_id}
+          emptyMessage="No labour or contractor records found."
+        />
       ) : (
-        <DataTable data={workLogs} columns={workLogColumns} isLoading={loading} exportFilename="Labour_Work_Logs" />
+        <DataTable
+          columns={workLogColumns}
+          data={workLogs}
+          isLoading={loading}
+          keyExtractor={(item: LabourWorkLog) => item.work_log_id}
+          emptyMessage="No labour work logs recorded for the selected period."
+        />
       )}
 
       {/* Delete Confirmation Modal */}
@@ -957,13 +1663,19 @@ export const Labours: React.FC = () => {
                 <AlertTriangle size={20} />
                 Delete Labour / Contractor
               </h3>
-              <button onClick={() => { setDeleteTarget(null); setDeleteDeps(null); }} className="modal-close-btn">
+              <button
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteDeps(null);
+                }}
+                className="modal-close-btn"
+              >
                 <X size={18} />
               </button>
             </div>
             <div className="modal-body" style={{ padding: '1.25rem 0' }}>
               <p style={{ marginBottom: '1rem', color: 'var(--text-primary)' }}>
-                Are you sure you want to delete worker/contractor <strong>{deleteTarget.name}</strong> (ID: L{String(deleteTarget.labour_id).padStart(3, '0')})?
+                Are you sure you want to delete worker/contractor <strong>{deleteTarget.name}</strong> (ID: LAB-{String(deleteTarget.labour_id).padStart(3, '0')})?
               </p>
               {deleteDeps && (deleteDeps.attendanceCount > 0 || deleteDeps.subWorkersCount > 0) && (
                 <div
@@ -994,7 +1706,10 @@ export const Labours: React.FC = () => {
             </div>
             <div className="modal-footer flex justify-end gap-2" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
               <button
-                onClick={() => { setDeleteTarget(null); setDeleteDeps(null); }}
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteDeps(null);
+                }}
                 className="btn btn-outline"
               >
                 Cancel
@@ -1021,6 +1736,17 @@ export const Labours: React.FC = () => {
         </div>
       )}
 
+      {/* Labour Profile Details Modal */}
+      {detailsModalLabourId && (
+        <LabourDetailsModal
+          isOpen={!!detailsModalLabourId}
+          labourId={detailsModalLabourId}
+          onClose={() => setDetailsModalLabourId(null)}
+          onUpdated={fetchData}
+        />
+      )}
+
+      {/* Document Modal */}
       <DocumentModal
         isOpen={docModal.isOpen}
         onClose={() => setDocModal({ ...docModal, isOpen: false })}
@@ -1032,3 +1758,4 @@ export const Labours: React.FC = () => {
   );
 };
 
+export default Labours;

@@ -1,0 +1,183 @@
+
+=== projects ===
+project_id | int | NO | PRI
+project_code | varchar(50) | NO | UNI
+customer_id | int | YES | 
+project_type_id | int | YES | 
+emreads_id | varchar(50) | YES | 
+contact_email | varchar(150) | YES | 
+community_id | int | YES | 
+nationality_id | int | YES | 
+country_id | int | YES | 
+project_name | varchar(150) | NO | 
+project_address | text | YES | 
+client_name | varchar(150) | YES | 
+client_code | varchar(50) | YES | 
+latitude | decimal(10,8) | YES | 
+longitude | decimal(11,8) | YES | 
+radius_meters | int | YES | 
+project_date | date | YES | 
+status | enum('active','inactive','completed','cancelled') | NO | 
+note | text | YES | 
+created_at | timestamp | YES | 
+updated_at | timestamp | YES | 
+is_deleted | tinyint(1) | NO | 
+deleted_at | datetime | YES | 
+budget_amount | decimal(15,2) | YES | 
+
+=== work_breakdown_structures ===
+id | int | NO | PRI
+wbs_code | varchar(100) | NO | UNI
+wbs_name | varchar(255) | NO | 
+description | text | YES | 
+status | tinyint(1) | NO | 
+created_by | int | YES | 
+updated_by | int | YES | 
+deleted_by | int | YES | 
+created_at | datetime | YES | 
+updated_at | datetime | YES | 
+deleted_at | datetime | YES | 
+
+=== project_wbs ===
+id | int | NO | PRI
+project_id | int | NO | MUL
+wbs_id | int | NO | MUL
+start_date | date | YES | 
+end_date | date | YES | 
+total_hours | decimal(10,2) | YES | 
+note | text | YES | 
+status | tinyint(1) | YES | 
+created_by | int | YES | 
+updated_by | int | YES | 
+deleted_by | int | YES | 
+created_at | datetime | YES | 
+updated_at | datetime | YES | 
+deleted_at | datetime | YES | 
+budget_amount | decimal(15,2) | YES | 
+actual_start_date | date | YES | 
+actual_end_date | date | YES | 
+actual_hours | decimal(10,2) | YES | 
+
+=== tasks ===
+task_id | int | NO | PRI
+project_id | int | NO | MUL
+quotation_id | int | YES | 
+discipline_id | int | YES | 
+wbs_id | int | YES | MUL
+task_name | varchar(150) | NO | 
+description | text | YES | 
+required_worker_count | int | NO | 
+estimated_hours | decimal(10,2) | NO | 
+start_date | date | YES | 
+start_time | time | YES | 
+target_date | date | YES | 
+target_time | time | YES | 
+status | enum('pending','in-progress','completed','delayed') | NO | 
+created_at | timestamp | YES | 
+updated_at | timestamp | YES | 
+is_deleted | tinyint(1) | NO | 
+deleted_at | datetime | YES | 
+task_address | text | YES | 
+latitude | decimal(10,8) | YES | 
+longitude | decimal(11,8) | YES | 
+budget_amount | decimal(15,2) | YES | 
+
+=== task_assignments ===
+assignment_id | int | NO | PRI
+task_id | int | NO | MUL
+employee_id | int | NO | MUL
+assigned_at | timestamp | YES | 
+
+=== labours ===
+labour_id | int | NO | PRI
+name | varchar(100) | NO | 
+contact_number | varchar(20) | YES | 
+aadhar_id | varchar(20) | YES | 
+labour_type | enum('contractor','direct_labour') | NO | 
+created_at | timestamp | YES | 
+updated_at | timestamp | YES | 
+contractor_id | int | YES | 
+nationality_id | int | YES | 
+community_id | int | YES | 
+country_id | int | YES | 
+emreads_id | varchar(50) | YES | 
+email | varchar(150) | YES | 
+status | enum('active','inactive') | YES | 
+is_deleted | tinyint(1) | NO | 
+deleted_at | datetime | YES | 
+
+=== labour_work_logs ===
+work_log_id | int | NO | PRI
+labour_id | int | NO | MUL
+project_id | int | NO | MUL
+wbs_id | int | YES | MUL
+task_id | int | NO | MUL
+work_date | date | NO | 
+in_time | time | YES | 
+out_time | time | YES | 
+total_working_hours | decimal(10,2) | NO | 
+rate_type | enum('hourly','daily') | NO | 
+rate | decimal(10,2) | NO | 
+amount | decimal(10,2) | NO | 
+work_description | text | YES | 
+work_status | enum('pending','in_progress','completed') | NO | 
+payment_status | enum('pending','approved','paid','rejected','cancelled') | NO | 
+created_by | int | YES | 
+updated_by | int | YES | 
+is_deleted | tinyint(1) | NO | 
+deleted_at | datetime | YES | 
+created_at | timestamp | YES | 
+updated_at | timestamp | YES | 
+in_address | text | YES | 
+out_address | text | YES | 
+in_latitude | decimal(10,8) | YES | 
+in_longitude | decimal(11,8) | YES | 
+out_latitude | decimal(10,8) | YES | 
+out_longitude | decimal(11,8) | YES | 
+labour_count | int | NO | 
+rate_per_labour | decimal(10,2) | NO | 
+
+=== invoices ===
+invoice_id | int | NO | PRI
+invoice_number | varchar(50) | NO | UNI
+customer_id | int | NO | MUL
+project_id | int | NO | MUL
+quotation_id | int | NO | MUL
+schedule_id | int | NO | MUL
+survey_id | int | YES | 
+currency_id | int | NO | MUL
+tax_id | int | YES | MUL
+invoice_date | date | NO | 
+due_date | date | NO | 
+subtotal_amount | decimal(15,2) | NO | 
+tax_amount | decimal(15,2) | NO | 
+total_amount | decimal(15,2) | NO | 
+status | enum('draft','pending_approval','approved','sent','partially_paid','paid','cancelled') | YES | 
+created_by | int | YES | 
+approved_by | int | YES | 
+created_at | timestamp | YES | 
+
+=== quotations ===
+quotation_id | int | NO | PRI
+quotation_code | varchar(50) | NO | UNI
+customer_id | int | NO | MUL
+project_id | int | NO | MUL
+quotation_date | date | NO | 
+validity_date | date | YES | 
+description | text | YES | 
+subtotal_amount | decimal(15,2) | NO | 
+tax_percentage | decimal(5,2) | NO | 
+tax_amount | decimal(15,2) | NO | 
+discount_amount | decimal(15,2) | NO | 
+total_amount | decimal(15,2) | NO | 
+terms_conditions | longtext | YES | 
+status | enum('draft','pending_approval','approved','rejected','revised') | NO | 
+revision_number | int | NO | 
+created_by | int | YES | MUL
+approved_by | int | YES | MUL
+approved_at | datetime | YES | 
+rejection_reason | text | YES | 
+is_deleted | tinyint(1) | NO | 
+deleted_at | datetime | YES | 
+created_at | timestamp | YES | 
+updated_at | timestamp | YES | 

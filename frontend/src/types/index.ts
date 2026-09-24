@@ -33,11 +33,18 @@ export interface Employee {
 
 export interface Project {
   project_id: number;
+  id?: number;
   project_code: string;
   project_name: string;
+  name?: string;
   project_address?: string;
   client_name?: string;
   client_code?: string;
+  customer_id?: number | null;
+  customer_name?: string | null;
+  country_id?: number | null;
+  country_name?: string | null;
+  budget_amount?: number | null;
   latitude?: number;
   longitude?: number;
   radius_meters?: number;
@@ -277,6 +284,7 @@ export interface TermsTemplate {
   discipline_id?: number | null;
   discipline_name?: string | null;
   terms_content: string;
+  items?: Array<{ title: string; description?: string; sort_order?: number }>;
   status: number;
   version: number;
   created_at?: string;
@@ -287,6 +295,7 @@ export interface QuotationDiscipline {
   quotation_id?: number;
   project_id?: number;
   discipline_id: number;
+  discipline_code?: string;
   discipline_name: string;
   description?: string;
   unit: string;
@@ -313,6 +322,7 @@ export interface Quotation {
   discount_amount: number;
   total_amount: number;
   terms_conditions?: string;
+  terms_snapshots?: Array<{ title: string; description?: string; sort_order?: number }>;
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'revised';
   revision_number: number;
   created_by?: number;

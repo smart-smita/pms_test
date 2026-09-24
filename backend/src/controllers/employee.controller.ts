@@ -76,7 +76,9 @@ export class EmployeeController {
     }
 
     try {
-      const newEmployee = await this.employeeService.createEmployee(parseResult.data);
+      const uploadedBy = (req as any).user?.employee_id;
+      const ipAddress = req.ip;
+      const newEmployee = await this.employeeService.createEmployee(parseResult.data, uploadedBy, ipAddress);
       return sendSuccess(res, 'Employee created successfully', newEmployee, 201);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to create employee', [], 400);

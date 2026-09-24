@@ -26,6 +26,9 @@ interface DataTableProps<T> {
   onRetry?: () => void;
   defaultPageSize?: number;
   pageSizeOptions?: number[];
+  keyField?: string | keyof T;
+  keyExtractor?: (item: T) => any;
+  emptyMessage?: string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -39,6 +42,9 @@ export function DataTable<T extends Record<string, any>>({
   onRetry,
   defaultPageSize = 15,
   pageSizeOptions = [10, 15, 25, 50, 100],
+  keyField,
+  keyExtractor,
+  emptyMessage,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [pageSize, setPageSize] = useState<number>(defaultPageSize);
@@ -306,14 +312,14 @@ export function DataTable<T extends Record<string, any>>({
                     <div className="datatable-state-container">
                       <Inbox size={32} style={{ opacity: 0.5, color: 'var(--text-secondary)' }} />
                       <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        {searchTerm ? 'No matching records found' : 'No records available'}
+                        {searchTerm ? 'No matching records found' : (emptyMessage || 'No records available')}
                       </div>
                     </div>
                   </td>
                 </tr>
               ) : (
                 paginatedData.map((row, rIdx) => (
-                  <tr key={rIdx}>
+                  <tr key={keyExtractor ? keyExtractor(row) : (keyField && row[keyField as string] !== undefined ? String(row[keyField as string]) : rIdx)}>
                     {columns.map((col, cIdx) => (
                       <td key={cIdx} className={col.className}>
                         {col.render

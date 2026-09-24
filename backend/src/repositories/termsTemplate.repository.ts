@@ -1,12 +1,19 @@
 import { dbPool } from '../config/db';
 import { AuditService } from '../services/audit.service';
 
+export interface TermsTemplateItemDTO {
+  title: string;
+  description: string;
+  sort_order?: number;
+}
+
 export interface CreateTermsTemplateDTO {
   template_name: string;
   country_id?: number | null;
   project_type_id?: number | null;
   discipline_id?: number | null;
-  terms_content: string;
+  terms_content?: string;
+  items?: TermsTemplateItemDTO[];
   status?: number;
   version?: number;
   created_by?: number | null;
@@ -65,7 +72,17 @@ export class TermsTemplateRepository {
       [id]
     );
 
-    return rows.length > 0 ? rows[0] : null;
+    if (rows.length > 0) {
+      const template = rows[0];
+      const [items]: any = await dbPool.query(
+        `SELECT * FROM quotation_terms_template_items WHERE template_id = ? AND status = 1 ORDER BY sort_order ASC`,
+        [id]
+      );
+      template.items = items;
+      return template;
+    }
+
+    return null;
   }
 
   static async create(data: CreateTermsTemplateDTO, userId?: number, ipAddress?: string) {
@@ -89,6 +106,15 @@ export class TermsTemplateRepository {
     );
 
     const id = result.insertId;
+
+    if (data.items && data.items.length > 0) {
+      for (const item of data.items) {
+        await dbPool.query(
+          `INSERT INTO quotation_terms_template_items (template_id, title, description, sort_order) VALUES (?, ?, ?, ?)`,
+          [id, item.title, item.description, item.sort_order || 0]
+        );
+      }
+    }
 
     await AuditService.log({
       user_id: userId,
@@ -127,6 +153,18 @@ export class TermsTemplateRepository {
         id,
       ]
     );
+
+    if (data.items !== undefined) {
+      await dbPool.query(`UPDATE quotation_terms_template_items SET status = 0 WHERE template_id = ?`, [id]);
+      if (data.items.length > 0) {
+        for (const item of data.items) {
+          await dbPool.query(
+            `INSERT INTO quotation_terms_template_items (template_id, title, description, sort_order) VALUES (?, ?, ?, ?)`,
+            [id, item.title, item.description, item.sort_order || 0]
+          );
+        }
+      }
+    }
 
     await AuditService.log({
       user_id: userId,

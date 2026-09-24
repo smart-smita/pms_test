@@ -60,6 +60,16 @@ export class TaskController {
     }
   };
 
+  getDependencies = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const dependencies = await this.taskService.getDependencies(id);
+      return sendSuccess(res, 'Dependencies retrieved successfully', dependencies);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to fetch dependencies', [], 500);
+    }
+  };
+
   getAllocations = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id, 10);

@@ -40,6 +40,13 @@ export interface EmployeeRow {
   assigned_wbs_name?: string | null;
   hourly_rate?: number;
   status: 'active' | 'inactive';
+  department?: string | null;
+  contact_number?: string | null;
+  nationality_id?: number | null;
+  nationality_name?: string | null;
+  country_id?: number | null;
+  country_name?: string | null;
+  emreads_id?: string | null;
   created_at: Date;
   updated_at: Date;
 }

@@ -21,6 +21,8 @@ import quotationRoutes from './quotation.routes';
 import termsTemplateRoutes from './termsTemplate.routes';
 import siteSurveyRoutes from './siteSurvey.routes';
 
+import materialRoutes from './material.routes';
+
 const router = Router();
 
 router.use('/auth', authRoutes);
@@ -44,6 +46,7 @@ router.use('/documents', documentRoutes);
 router.use('/quotations', quotationRoutes);
 router.use('/terms-templates', termsTemplateRoutes);
 router.use('/site-surveys', siteSurveyRoutes);
+router.use('/materials', materialRoutes);
 
 export default router;
 

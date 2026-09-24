@@ -17,6 +17,10 @@ export class TaskService {
     return task;
   }
 
+  async getDependencies(id: number) {
+    return await this.taskRepo.getDependencies(id);
+  }
+
   async getTaskAllocations(id: number) {
     const task = await this.taskRepo.findById(id);
     if (!task) throw new Error('Task not found');
@@ -48,9 +52,11 @@ export class TaskService {
       throw new Error('A task can be assigned to ONLY ONE employee');
     }
     const allocations = data.allocations || [];
+    const dependencies = data.dependencies || [];
     delete data.assigned_employee_ids;
     delete data.assigned_labour_ids; // legacy
     delete data.allocations;
+    delete data.dependencies;
 
     data.status = data.status || 'pending';
 
@@ -58,6 +64,10 @@ export class TaskService {
 
     if (assignedEmployeeIds.length > 0 || allocations.length > 0) {
       await this.taskRepo.assignWorkers(taskId, assignedEmployeeIds, allocations, data.project_id, data.wbs_id);
+    }
+
+    if (dependencies.length > 0) {
+      await this.taskRepo.updateDependencies(taskId, dependencies);
     }
 
     return await this.taskRepo.findById(taskId);
@@ -72,14 +82,28 @@ export class TaskService {
       throw new Error('A task can be assigned to ONLY ONE employee');
     }
     const allocations = data.allocations;
+    const dependencies = data.dependencies;
     delete data.assigned_employee_ids;
     delete data.assigned_labour_ids; // legacy
     delete data.allocations;
+    delete data.dependencies;
+
+    // Check if dates changed, if they did, we might need to recalculate dependents.
+    const oldTask = await this.taskRepo.findById(id);
 
     await this.taskRepo.update(id, data);
 
     if (assignedEmployeeIds !== undefined || allocations !== undefined) {
       await this.taskRepo.assignWorkers(id, assignedEmployeeIds || [], allocations || [], task.project_id, task.wbs_id);
+    }
+
+    if (dependencies !== undefined) {
+      await this.taskRepo.updateDependencies(id, dependencies);
+    }
+    
+    // If target date changed, we recalculate dependents.
+    if (data.target_date && oldTask && data.target_date !== oldTask.target_date) {
+      await this.taskRepo.recalculateDependentTasks(id);
     }
 
     return await this.taskRepo.findById(id);

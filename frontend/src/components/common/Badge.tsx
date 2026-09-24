@@ -1,7 +1,7 @@
 import React from 'react';
 
 type BadgeVariant = 
-  | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
+  | 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'secondary'
   | 'completed' | 'active' | 'planned' | 'pending' | 'in-progress'
   | 'delayed' | 'on-hold' | 'cancelled' | 'inactive' | 'paid' | 'approved' | 'rejected';
 

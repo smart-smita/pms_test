@@ -42,8 +42,9 @@ export const Quotations: React.FC = () => {
     description: '',
     tax_percentage: '5',
     discount_amount: '0',
-    terms_conditions: '',
   });
+
+  const [termsSnapshots, setTermsSnapshots] = useState<{ title: string; description: string; sort_order: number }[]>([]);
 
   const [lineItems, setLineItems] = useState<
     { discipline_id: number; discipline_name: string; description: string; unit: string; quantity: number; rate: number; amount: number }[]
@@ -106,8 +107,8 @@ export const Quotations: React.FC = () => {
       description: '',
       tax_percentage: '5',
       discount_amount: '0',
-      terms_conditions: termsTemplates.length > 0 ? termsTemplates[0].terms_content : '',
     });
+    setTermsSnapshots([]);
     setLineItems([]);
     setIsModalOpen(true);
   };
@@ -126,8 +127,17 @@ export const Quotations: React.FC = () => {
       description: quotationData.description || '',
       tax_percentage: String(quotationData.tax_percentage || 0),
       discount_amount: String(quotationData.discount_amount || 0),
-      terms_conditions: quotationData.terms_conditions || '',
     });
+
+    if (quotationData.terms_snapshots) {
+      setTermsSnapshots(quotationData.terms_snapshots.map((t: any) => ({
+        title: t.title || '',
+        description: t.description || '',
+        sort_order: Number(t.sort_order || 0),
+      })));
+    } else {
+      setTermsSnapshots([]);
+    }
 
     if (quotationData.disciplines) {
       setLineItems(
@@ -203,7 +213,7 @@ export const Quotations: React.FC = () => {
       subtotal_amount: subtotal,
       tax_amount: taxAmount,
       total_amount: grandTotal,
-      terms_conditions: formData.terms_conditions,
+      terms_snapshots: termsSnapshots,
       disciplines: lineItems,
     };
 
@@ -523,13 +533,70 @@ export const Quotations: React.FC = () => {
           </div>
 
           {/* Terms & Conditions */}
-          <div style={{ marginTop: '1rem' }}>
-            <FormInput
-              label="Terms & Conditions"
-              placeholder="Terms and conditions snapshot text..."
-              value={formData.terms_conditions}
-              onChange={(e) => setFormData({ ...formData, terms_conditions: e.target.value })}
-            />
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Terms & Conditions</h3>
+            </div>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <FormSelect
+                label="Load from Template (Optional)"
+                value=""
+                onChange={(e) => {
+                  const tmpl = termsTemplates.find(t => String(t.template_id) === e.target.value);
+                  if (tmpl && tmpl.items && tmpl.items.length > 0) {
+                    if (termsSnapshots.length > 0) {
+                      if (!window.confirm("Changing the template will replace the current template-based terms. Continue?")) return;
+                    }
+                    setTermsSnapshots(tmpl.items.map((item: any) => ({ title: item.title, description: item.description, sort_order: item.sort_order })));
+                  }
+                }}
+                options={[
+                  { value: '', label: '-- Select Template --' },
+                  ...termsTemplates.map((t) => ({ value: String(t.template_id), label: t.template_name }))
+                ]}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {termsSnapshots.map((term, index) => (
+                <div key={index} style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <FormInput 
+                      label=""
+                      placeholder="Condition Title"
+                      value={term.title}
+                      onChange={(e) => {
+                        const newTerms = [...termsSnapshots];
+                        newTerms[index].title = e.target.value;
+                        setTermsSnapshots(newTerms);
+                      }}
+                    />
+                    <button type="button" onClick={() => {
+                      const newTerms = [...termsSnapshots];
+                      newTerms.splice(index, 1);
+                      setTermsSnapshots(newTerms);
+                    }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', marginTop: '0.5rem' }}>
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                  <textarea 
+                    placeholder="Condition Description"
+                    style={{ width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '0.5rem', borderRadius: '4px', minHeight: '60px', fontFamily: 'inherit' }}
+                    value={term.description}
+                    onChange={(e) => {
+                      const newTerms = [...termsSnapshots];
+                      newTerms[index].description = e.target.value;
+                      setTermsSnapshots(newTerms);
+                    }}
+                  />
+                </div>
+              ))}
+              
+              <Button type="button" variant="secondary" onClick={() => setTermsSnapshots([...termsSnapshots, { title: '', description: '', sort_order: termsSnapshots.length }])} style={{ alignSelf: 'flex-start' }}>
+                <Plus size={16} /> Add Custom Condition
+              </Button>
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>

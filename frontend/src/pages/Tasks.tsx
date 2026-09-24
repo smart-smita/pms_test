@@ -59,6 +59,7 @@ export const Tasks: React.FC = () => {
   const [taskAddress, setTaskAddress] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
+  const [dependencies, setDependencies] = useState<{predecessor_task_id: number, dependency_type: string, lag_days?: number}[]>([]);
 
   // Auto-calculate Worker Count based on allocated labour workers count
   useEffect(() => {
@@ -202,6 +203,7 @@ export const Tasks: React.FC = () => {
     setTaskAddress('');
     setLatitude('');
     setLongitude('');
+    setDependencies([]);
     setStatus('pending');
     setFormErrors({});
     setIsModalOpen(true);
@@ -235,6 +237,18 @@ export const Tasks: React.FC = () => {
           })) || []
         );
         resetAllocationForm();
+      }
+    }).catch(console.error);
+
+    apiService.get<any[]>(`/tasks/${t.task_id}/dependencies`).then(res => {
+      if (res.success && res.data) {
+        setDependencies(res.data.map((d: any) => ({
+          predecessor_task_id: d.predecessor_task_id,
+          dependency_type: d.dependency_type || 'FS',
+          lag_days: d.lag_days || 0
+        })));
+      } else {
+        setDependencies([]);
       }
     }).catch(console.error);
 
@@ -401,6 +415,7 @@ export const Tasks: React.FC = () => {
       task_address: taskAddress,
       latitude: latitude ? parseFloat(latitude) : undefined,
       longitude: longitude ? parseFloat(longitude) : undefined,
+      dependencies: dependencies
     };
 
     if (editingTask) {
@@ -984,6 +999,38 @@ export const Tasks: React.FC = () => {
               error={formErrors.target_time}
             />
           </div>
+
+          {/* 10. Task Dependencies */}
+          <div className="form-group" style={{ marginBottom: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+            <div style={{ background: '#3b82f6', color: 'white', padding: '0.75rem 1rem', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+              Task Dependencies (Optional)
+            </div>
+            <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', padding: '1.5rem', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                Select predecessor tasks that must be completed before this task can start.
+              </p>
+              
+              <FormSelect
+                label="Select Predecessor Task"
+                value={dependencies.length > 0 ? dependencies[0].predecessor_task_id : ''}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (val) {
+                    setDependencies([{ predecessor_task_id: val, dependency_type: 'FS', lag_days: 0 }]);
+                  } else {
+                    setDependencies([]);
+                  }
+                }}
+                options={[
+                  { value: '', label: '-- None --' },
+                  ...tasks
+                    .filter(t => t.project_id === projectId && t.task_id !== editingTask?.task_id)
+                    .map(t => ({ value: t.task_id, label: t.task_name }))
+                ]}
+              />
+            </div>
+          </div>
+
           <div className="form-group" style={{ marginBottom: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
             <div style={{ background: '#6366f1', color: 'white', padding: '0.75rem 1rem', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
               <Calendar size={16} /> Labour / Contractor Daily Allocation

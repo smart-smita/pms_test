@@ -176,10 +176,79 @@ export class DashboardService {
         COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
         t.status
       FROM tasks t
-      WHERE ${taskScope} AND t.is_deleted = 0
       ORDER BY t.start_date DESC, t.task_id DESC
       LIMIT 15
     `);
+
+    // 10. Quotation Metrics
+    let quoteScope = 'is_deleted = 0';
+    if (managerId) quoteScope += ` AND project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
+    const [quoteRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT 
+        COUNT(quotation_id) AS total_quotations,
+        SUM(CASE WHEN status = 'pending_approval' OR status = 'draft' THEN 1 ELSE 0 END) AS pipeline_count,
+        SUM(CASE WHEN status = 'pending_approval' OR status = 'draft' THEN total_amount ELSE 0 END) AS pipeline_value,
+        SUM(CASE WHEN status = 'approved' THEN total_amount ELSE 0 END) AS approved_value
+      FROM quotations
+      WHERE ${quoteScope}
+    `);
+
+    // 11. Invoice Metrics
+    let invScope = 'is_deleted = 0';
+    if (managerId) invScope += ` AND project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
+    const [invRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT 
+        COUNT(invoice_id) AS total_invoices,
+        SUM(CASE WHEN status = 'pending' OR status = 'overdue' THEN 1 ELSE 0 END) AS pending_invoices_count,
+        SUM(total_amount) AS total_invoiced,
+        SUM(amount_paid) AS total_paid
+      FROM invoices
+      WHERE ${invScope}
+    `);
+
+    // 12. Financial Metrics
+    let labourScope = '(is_deleted = 0 OR is_deleted IS NULL)';
+    if (managerId) labourScope += ` AND project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
+    const [finRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT COALESCE(SUM(amount), 0) AS total_labour_cost FROM labour_work_logs WHERE ${labourScope}
+    `);
+    
+    // 13. System Alerts
+    const alerts: { title: string; type: string; message: string; date: string }[] = [];
+    
+    // Check delayed tasks
+    const [delayedRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT task_name, target_date FROM tasks 
+      WHERE status = 'delayed' AND is_deleted = 0 
+      ${managerId ? `AND (project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId}) OR task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ${managerId}) OR employee_id = ${managerId}))` : ''}
+      LIMIT 3
+    `);
+    
+    for (const t of delayedRows) {
+      alerts.push({
+        title: 'Task Delayed',
+        type: 'danger',
+        message: `Task "${t.task_name}" is delayed. Due date was ${t.target_date}`,
+        date: new Date().toISOString()
+      });
+    }
+
+    // Check overdue invoices
+    const [overdueInvRows] = await dbPool.execute<RowDataPacket[]>(`
+      SELECT invoice_number, total_amount, due_date FROM invoices 
+      WHERE status = 'overdue' AND is_deleted = 0
+      ${managerId ? `AND project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})` : ''}
+      LIMIT 3
+    `);
+
+    for (const i of overdueInvRows) {
+      alerts.push({
+        title: 'Overdue Invoice',
+        type: 'warning',
+        message: `Invoice ${i.invoice_number} (₹${i.total_amount}) is overdue since ${i.due_date}`,
+        date: new Date().toISOString()
+      });
+    }
 
     return {
       employees: {
@@ -211,6 +280,25 @@ export class DashboardService {
       recent_tasks: recentTasksRows,
       live_attendance: liveAttendanceRows,
       task_hours_comparison: taskHoursRows,
+      quotations: {
+        total: Number(quoteRows[0]?.total_quotations || 0),
+        pipeline_count: Number(quoteRows[0]?.pipeline_count || 0),
+        pipeline_value: Number(quoteRows[0]?.pipeline_value || 0),
+        approved_value: Number(quoteRows[0]?.approved_value || 0),
+      },
+      invoices: {
+        total: Number(invRows[0]?.total_invoices || 0),
+        pending_count: Number(invRows[0]?.pending_invoices_count || 0),
+        total_amount: Number(invRows[0]?.total_invoiced || 0),
+        outstanding_amount: Math.max(Number(invRows[0]?.total_invoiced || 0) - Number(invRows[0]?.total_paid || 0), 0),
+      },
+      financials: {
+        project_cost: Number(finRows[0]?.total_labour_cost || 0),
+        project_revenue: Number(quoteRows[0]?.approved_value || 0),
+        estimated_profit: 0, // This could be calculated based on quote vs planned cost
+        actual_profit: Number(quoteRows[0]?.approved_value || 0) - Number(finRows[0]?.total_labour_cost || 0),
+      },
+      alerts: alerts
     };
   }
 

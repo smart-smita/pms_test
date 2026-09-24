@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock, BarChart2, Building2, Receipt, FileText, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock, BarChart2, Building2, Receipt, FileText, ClipboardCheck, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -28,9 +28,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'timesheets', label: isEmployee ? 'My Timesheets' : 'Timesheets', icon: Clock, isAllowed: hasPermission('timesheets', 'view') },
     { id: 'attendance', label: 'GPS Attendance', icon: MapPin, isAllowed: hasPermission('attendance', 'view') },
     { id: 'payments', label: 'Labour Payments', icon: IndianRupee, isAllowed: !isEmployee && hasPermission('payments', 'view') },
-    { id: 'reports', label: isEmployee ? 'My Reports' : 'Reports', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
-    { id: 'reports/project-work', label: 'Project Work Report', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
+    { 
+      id: 'reports', 
+      label: 'Reports', 
+      icon: FileBarChart, 
+      isAllowed: hasPermission('reports', 'view'),
+      children: [
+        { id: 'reports', label: isEmployee ? 'My Reports' : 'All Reports', isAllowed: true },
+        { id: 'reports/project-work', label: 'Project Work Report', isAllowed: true },
+        { id: 'reports/project-profit-loss', label: 'Profit & Loss Report', isAllowed: true },
+        { id: 'reports/planned-vs-actual', label: 'Planned vs Actual', isAllowed: true }
+      ]
+    },
   ];
+
+  // Check if current page is inside Reports
+  const isReportActive = currentPage.startsWith('reports');
+  const [isReportsExpanded, setIsReportsExpanded] = useState(isReportActive);
 
 
   const filteredMenu = menuItems.filter((item) => item.isAllowed);
@@ -81,7 +95,71 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           {filteredMenu.map((item) => {
             const Icon = item.icon;
-            const isActive = currentPage === item.id;
+            const isActive = currentPage === item.id || (item.id === 'reports' && isReportActive && item.children);
+
+            if (item.children) {
+              return (
+                <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                  <button
+                    onClick={() => setIsReportsExpanded(!isReportsExpanded)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: isReportActive ? 'rgba(79, 70, 229, 0.1)' : 'transparent',
+                      color: isReportActive ? '#4f46e5' : 'var(--text-secondary)',
+                      fontWeight: 500,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <Icon size={20} color={isReportActive ? '#4f46e5' : 'currentColor'} />
+                      <span>{item.label}</span>
+                    </div>
+                    {isReportsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  
+                  {isReportsExpanded && (
+                    <div style={{ paddingLeft: '3rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
+                      {item.children.filter(child => child.isAllowed).map(child => {
+                        const isChildActive = currentPage === child.id;
+                        return (
+                          <button
+                            key={child.id}
+                            onClick={() => onNavigate(child.id)}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: isChildActive ? '#4f46e5' : 'transparent',
+                              color: isChildActive ? '#ffffff' : 'var(--text-secondary)',
+                              fontWeight: isChildActive ? 600 : 500,
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <span>{child.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <button
                 key={item.id}
@@ -128,6 +206,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           <button onClick={() => onNavigate('settings')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'settings' ? '#4f46e5' : 'transparent', color: currentPage === 'settings' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
             <Settings size={20} color={currentPage === 'settings' ? '#ffffff' : 'currentColor'} />
             <span>Settings</span>
+          </button>
+          
+          <button onClick={() => onNavigate('masters')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'masters' ? '#4f46e5' : 'transparent', color: currentPage === 'masters' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>
+            <FileText size={20} color={currentPage === 'masters' ? '#ffffff' : 'currentColor'} />
+            <span>System Masters</span>
           </button>
 
           <button onClick={() => onNavigate('support')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: '12px', border: 'none', background: currentPage === 'support' ? '#4f46e5' : 'transparent', color: currentPage === 'support' ? '#ffffff' : 'var(--text-secondary)', fontWeight: 500, fontSize: '0.95rem', cursor: 'pointer', textAlign: 'left' }}>

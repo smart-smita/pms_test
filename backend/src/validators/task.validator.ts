@@ -21,6 +21,11 @@ export const createTaskSchema = z.object({
     work_description: z.string().optional(),
     payment_status: z.string().optional(),
   })).optional(),
+  dependencies: z.array(z.object({
+    predecessor_task_id: z.number().int().positive(),
+    dependency_type: z.enum(['FS', 'SS', 'FF', 'SF']).optional(),
+    lag_days: z.number().int().optional()
+  })).optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -42,6 +47,11 @@ export const updateTaskSchema = z.object({
     amount: z.number().nonnegative().optional(),
     work_description: z.string().optional(),
     payment_status: z.string().optional(),
+  })).optional(),
+  dependencies: z.array(z.object({
+    predecessor_task_id: z.number().int().positive(),
+    dependency_type: z.enum(['FS', 'SS', 'FF', 'SF']).optional(),
+    lag_days: z.number().int().optional()
   })).optional(),
 });
 

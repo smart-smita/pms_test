@@ -10,6 +10,7 @@ router.use(authenticateJwt);
 
 
 router.get('/', requirePermission('labours', 'view'), controller.getAll);
+router.get('/:id/details', requirePermission('labours', 'view'), controller.getDetails);
 router.get('/:id/dependencies', requirePermission('labours', 'view'), controller.getDependencies);
 router.get('/:id', requirePermission('labours', 'view'), controller.getById);
 router.post('/', requirePermission('labours', 'create'), controller.create);

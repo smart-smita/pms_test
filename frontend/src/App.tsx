@@ -14,11 +14,18 @@ import { Payments } from './pages/Payments';
 import { Reports } from './pages/Reports';
 import { Labours } from './pages/Labours';
 import { ProjectWorkReport } from './pages/ProjectWorkReport';
+import { ProjectProfitLossReport } from './pages/ProjectProfitLossReport';
 import { ProjectWork } from './pages/ProjectWork';
 import { Timesheets } from './pages/Timesheets';
 import { Settings } from './pages/Settings';
+import { Masters } from './pages/Masters';
 import { Support } from './pages/Support';
 import { GanttChartPage } from './pages/GanttChartPage';
+import { Customers } from './pages/Customers';
+import { Quotations } from './pages/Quotations';
+import { SiteSurveys } from './pages/SiteSurveys';
+import { Invoices } from './pages/Invoices';
+import { PlannedVsActualReport } from './pages/PlannedVsActualReport';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { RequirePermission } from './components/common/RequirePermission';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
@@ -70,6 +77,14 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="projects" action="create" fallback={fallback}><ProjectForm onBack={() => setCurrentPage('projects')} /></RequirePermission>;
       case 'projects/manage-work':
         return <RequirePermission module="projects" action="view" fallback={fallback}><ProjectWork /></RequirePermission>;
+      case 'customers':
+        return <RequirePermission module="customers" action="view" fallback={fallback}><Customers /></RequirePermission>;
+      case 'quotations':
+        return <RequirePermission module="quotations" action="view" fallback={fallback}><Quotations /></RequirePermission>;
+      case 'site-surveys':
+        return <RequirePermission module="site_surveys" action="view" fallback={fallback}><SiteSurveys /></RequirePermission>;
+      case 'invoices':
+        return <RequirePermission module="invoices" action="view" fallback={fallback}><Invoices /></RequirePermission>;
       case 'tasks': 
         return <RequirePermission module="tasks" action="view" fallback={fallback}><Tasks /></RequirePermission>;
       case 'gantt-chart':
@@ -84,8 +99,14 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="reports" action="view" fallback={fallback}><Reports /></RequirePermission>;
       case 'reports/project-work':
         return <RequirePermission module="reports" action="view" fallback={fallback}><ProjectWorkReport /></RequirePermission>;
+      case 'reports/project-profit-loss':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ProjectProfitLossReport /></RequirePermission>;
+      case 'reports/planned-vs-actual':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><PlannedVsActualReport /></RequirePermission>;
       case 'settings':
         return <Settings />;
+      case 'masters': 
+        return <RequirePermission module="masters" action="manage" fallback={fallback}><Masters /></RequirePermission>;
       case 'support':
         return <Support />;
       default: 
