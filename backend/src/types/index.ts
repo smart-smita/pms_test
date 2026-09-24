@@ -51,6 +51,18 @@ export interface ProjectRow {
   project_address?: string;
   client_name?: string;
   client_code?: string;
+  customer_id?: number | null;
+  customer_name?: string | null;
+  project_type_id?: number | null;
+  project_type_name?: string | null;
+  emreads_id?: string | null;
+  contact_email?: string | null;
+  community_id?: number | null;
+  community_name?: string | null;
+  nationality_id?: number | null;
+  nationality_name?: string | null;
+  country_id?: number | null;
+  country_name?: string | null;
   latitude?: number;
   longitude?: number;
   radius_meters?: number;
@@ -74,6 +86,7 @@ export interface ProjectRow {
   remaining_budget?: number;
   budget_variance?: number;
 }
+
 
 export interface TaskRow {
   task_id: number;

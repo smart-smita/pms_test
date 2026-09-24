@@ -21,6 +21,7 @@ import { Support } from './pages/Support';
 import { GanttChartPage } from './pages/GanttChartPage';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { RequirePermission } from './components/common/RequirePermission';
+import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -120,6 +121,7 @@ export const App: React.FC = () => {
     <AuthProvider>
       <ToastContainer />
       <AppContent />
+      <PWAInstallPrompt />
     </AuthProvider>
   );
 };

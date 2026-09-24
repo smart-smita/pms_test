@@ -4,13 +4,18 @@ import { verifyAccessToken } from '../config/jwt';
 import { sendError } from '../utils/apiResponse';
 
 export function authenticateJwt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+  let token = '';
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return sendError(res, 'Authorization token missing or malformed', [], 401);
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = String(req.query.token);
   }
 
-  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return sendError(res, 'Authorization token missing or malformed', [], 401);
+  }
 
   try {
     const payload = verifyAccessToken(token);

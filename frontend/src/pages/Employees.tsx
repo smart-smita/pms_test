@@ -9,9 +9,10 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest, parseApiErrors } from '../services/api';
 import { Employee } from '../types';
 import { showSuccess, showError } from '../utils/toast';
-import { Plus, Edit, Trash2, Eye, UserCheck, Briefcase, Clock, Layers, ShieldCheck, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, UserCheck, Briefcase, Clock, Layers, ShieldCheck, X, FileText } from 'lucide-react';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
+import { DocumentModal } from '../components/common/DocumentModal';
 import { useAuth } from '../context/AuthContext';
 
 export const Employees: React.FC = () => {
@@ -49,6 +50,13 @@ export const Employees: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingEmp, setDeletingEmp] = useState<{ id: number, name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Document Modal State
+  const [docModal, setDocModal] = useState<{ isOpen: boolean; empId: number; empName: string }>({
+    isOpen: false,
+    empId: 0,
+    empName: '',
+  });
 
   const fetchEmployees = async () => {
     setIsLoading(true);
@@ -287,6 +295,14 @@ export const Employees: React.FC = () => {
                   title="View Employee Details & Reporting Manager"
                 >
                   <Eye size={14} /> View Details
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setDocModal({ isOpen: true, empId: row.employee_id, empName: row.name })}
+                  style={{ padding: '0.35rem 0.65rem', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}
+                  title="Manage Passports, Visas & Official Documents"
+                >
+                  <FileText size={14} /> Docs
                 </Button>
                 {isAdmin && (
                   <>
@@ -654,6 +670,14 @@ export const Employees: React.FC = () => {
         onConfirm={confirmDelete}
         recordName={deletingEmp?.name || 'this employee'}
         isLoading={isDeleting}
+      />
+
+      <DocumentModal
+        isOpen={docModal.isOpen}
+        onClose={() => setDocModal({ ...docModal, isOpen: false })}
+        entityType="employee"
+        entityId={docModal.empId}
+        entityName={docModal.empName}
       />
     </div>
   );

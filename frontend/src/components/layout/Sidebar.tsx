@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock, BarChart2, Building2, Receipt, FileText, ClipboardCheck } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -15,10 +15,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, isAllowed: true },
+    { id: 'customers', label: 'Customers', icon: Building2, isAllowed: !isEmployee },
+    { id: 'quotations', label: 'Quotations', icon: FileText, isAllowed: !isEmployee && (hasPermission('quotations', 'view') || user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager') },
     { id: 'employees', label: 'Employees', icon: Users, isAllowed: !isEmployee && hasPermission('employees', 'view') },
     { id: 'labours', label: 'Labours / Contractors', icon: Users, isAllowed: !isEmployee && hasPermission('labours', 'view') },
     { id: 'projects', label: 'Projects', icon: FolderKanban, isAllowed: !isEmployee && hasPermission('projects', 'view') },
     { id: 'projects/manage-work', label: 'Manage Project Work', icon: FolderKanban, isAllowed: !isEmployee && hasPermission('projects', 'view') },
+    { id: 'site-surveys', label: 'Site Surveys', icon: ClipboardCheck, isAllowed: !isEmployee && (hasPermission('site_surveys', 'view') || user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager') },
+    { id: 'invoices', label: 'Monthly Invoices', icon: Receipt, isAllowed: !isEmployee && (hasPermission('invoices', 'view') || user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager') },
     { id: 'tasks', label: isEmployee ? 'My Tasks' : 'Task Management', icon: CheckSquare, isAllowed: hasPermission('tasks', 'view') },
     { id: 'gantt-chart', label: 'Gantt Chart', icon: BarChart2, isAllowed: hasPermission('tasks', 'view') },
     { id: 'timesheets', label: isEmployee ? 'My Timesheets' : 'Timesheets', icon: Clock, isAllowed: hasPermission('timesheets', 'view') },
@@ -27,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'reports', label: isEmployee ? 'My Reports' : 'Reports', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
     { id: 'reports/project-work', label: 'Project Work Report', icon: FileBarChart, isAllowed: hasPermission('reports', 'view') },
   ];
+
 
   const filteredMenu = menuItems.filter((item) => item.isAllowed);
 

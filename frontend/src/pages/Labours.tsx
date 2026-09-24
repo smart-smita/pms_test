@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Eye, EyeOff, Calendar, AlertTriangle, ShieldAlert, X, Filter, RotateCcw, Clock, CheckCircle } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Eye, EyeOff, Calendar, AlertTriangle, ShieldAlert, X, Filter, RotateCcw, Clock, CheckCircle, FileText } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
+import { DocumentModal } from '../components/common/DocumentModal';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
@@ -96,6 +97,13 @@ export const Labours: React.FC = () => {
   // Dependency Check Delete Modal State
   const [deleteTarget, setDeleteTarget] = useState<Labour | null>(null);
   const [deleteDeps, setDeleteDeps] = useState<{ attendanceCount: number; subWorkersCount: number } | null>(null);
+
+  // Document Modal State
+  const [docModal, setDocModal] = useState<{ isOpen: boolean; labourId: number; labourName: string }>({
+    isOpen: false,
+    labourId: 0,
+    labourName: '',
+  });
 
   useEffect(() => {
     fetchData();
@@ -361,6 +369,14 @@ export const Labours: React.FC = () => {
     {
       accessor: (item) => (
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setDocModal({ isOpen: true, labourId: item.labour_id, labourName: item.name })}
+            className="action-btn"
+            style={{ color: '#38bdf8', padding: '0.25rem 0.5rem' }}
+            title="Manage Passports, Visas & Worker Documents"
+          >
+            <FileText size={14} />
+          </button>
           {hasPermission('labours', 'update') && (
             <button
               onClick={() => {
@@ -1004,6 +1020,14 @@ export const Labours: React.FC = () => {
           </div>
         </div>
       )}
+
+      <DocumentModal
+        isOpen={docModal.isOpen}
+        onClose={() => setDocModal({ ...docModal, isOpen: false })}
+        entityType="labour"
+        entityId={docModal.labourId}
+        entityName={docModal.labourName}
+      />
     </div>
   );
 };

@@ -100,4 +100,22 @@ export class ProjectController {
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
   };
+
+  get360Details = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const user = (req as any).user;
+      let managerId = undefined;
+      let employeeId = undefined;
+      const userId = user?.employee_id || user?.userId || user?.id;
+      
+      if (user?.role_name === 'Manager') managerId = userId;
+      if (user?.role_name === 'Employee') employeeId = userId;
+
+      const details = await this.projectService.getProject360Details(id, managerId, employeeId);
+      return sendSuccess(res, 'Project 360 details retrieved successfully', details);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Project 360 details not found', [], 404);
+    }
+  };
 }

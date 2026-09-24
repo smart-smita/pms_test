@@ -180,4 +180,10 @@ export class ProjectService {
 
     return await this.projectRepo.softDelete(id, deletedBy);
   }
+
+  async getProject360Details(id: number, managerId?: number, employeeId?: number) {
+    const details = await this.projectRepo.getProject360Details(id);
+    if (!details) throw new Error('Project not found');
+    return details;
+  }
 }

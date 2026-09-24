@@ -11,6 +11,7 @@ router.use(authenticateJwt);
 
 router.get('/', requirePermission('projects', 'view'), controller.getAll);
 router.get('/:id', requirePermission('projects', 'view'), controller.getById);
+router.get('/:id/360', requirePermission('projects', 'view'), controller.get360Details);
 router.post('/', requirePermission('projects', 'create'), controller.create);
 router.put('/:id', requirePermission('projects', 'update'), controller.update);
 router.patch('/:id/status', requirePermission('projects', 'update'), controller.updateStatus);

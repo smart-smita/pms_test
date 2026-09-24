@@ -51,6 +51,13 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
   // Main Form State
   const [projectCode, setProjectCode] = useState(`PRJ-${new Date().getFullYear()}-${Math.floor(10 + Math.random() * 90)}`);
   const [projectName, setProjectName] = useState('');
+  const [customerId, setCustomerId] = useState('');
+  const [projectTypeId, setProjectTypeId] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [communityId, setCommunityId] = useState('');
+  const [nationalityId, setNationalityId] = useState('');
+  const [emreadsId, setEmreadsId] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [projectAddress, setProjectAddress] = useState('');
   const [radiusMeters, setRadiusMeters] = useState<number>(500);
   const [projectDate, setProjectDate] = useState(getFormattedDate());
@@ -58,6 +65,13 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
   const [clientName, setClientName] = useState('');
   const [note, setNote] = useState('');
   const [status, setStatus] = useState('active');
+
+  // Master lists
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [projectTypes, setProjectTypes] = useState<any[]>([]);
+  const [countries, setCountries] = useState<any[]>([]);
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [nationalities, setNationalities] = useState<any[]>([]);
 
   // Map / Location State
   const [latitude, setLatitude] = useState<string>('18.5204');
@@ -81,21 +95,38 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
 
   // Fetch existing project data, WBS allocations and master list
   React.useEffect(() => {
-    apiRequest<any[]>('/wbs').then(res => {
-      if (res.success && res.data) {
-        setMasterWbsList(res.data);
-      }
+    Promise.all([
+      apiRequest<any[]>('/wbs'),
+      apiRequest<any[]>('/customers'),
+      apiRequest<any[]>('/masters/project-types'),
+      apiRequest<any[]>('/masters/countries'),
+      apiRequest<any[]>('/masters/communities'),
+      apiRequest<any[]>('/masters/nationalities'),
+    ]).then(([wRes, cRes, ptRes, coRes, cmRes, nRes]) => {
+      if (wRes.success && wRes.data) setMasterWbsList(wRes.data);
+      if (cRes.success && cRes.data) setCustomers(cRes.data);
+      if (ptRes.success && ptRes.data) setProjectTypes(ptRes.data);
+      if (coRes.success && coRes.data) setCountries(coRes.data);
+      if (cmRes.success && cmRes.data) setCommunities(cmRes.data);
+      if (nRes.success && nRes.data) setNationalities(nRes.data);
     });
 
     if (projectId) {
       setIsLoadingProject(true);
       // Fetch project details
-      apiRequest<Project>(`/projects/${projectId}`).then(res => {
+      apiRequest<Project & any>(`/projects/${projectId}`).then(res => {
         if (res.success && res.data) {
           const p = res.data;
           setProject(p);
           setProjectCode(p.project_code);
           setProjectName(p.project_name);
+          setCustomerId(p.customer_id ? String(p.customer_id) : '');
+          setProjectTypeId(p.project_type_id ? String(p.project_type_id) : '');
+          setCountryId(p.country_id ? String(p.country_id) : '');
+          setCommunityId(p.community_id ? String(p.community_id) : '');
+          setNationalityId(p.nationality_id ? String(p.nationality_id) : '');
+          setEmreadsId(p.emreads_id || '');
+          setContactEmail(p.contact_email || '');
           setProjectAddress(p.project_address || '');
           setRadiusMeters(p.radius_meters || 500);
           setProjectDate(getFormattedDate(p.project_date));
@@ -107,6 +138,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
           if (p.longitude) setLongitude(String(p.longitude));
         }
       });
+
 
       // Fetch WBS allocations
       apiRequest<any[]>(`/projects/${projectId}/wbs`).then(res => {
@@ -191,6 +223,13 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
 
     const payload: any = {
       project_name: projectName,
+      customer_id: customerId ? parseInt(customerId, 10) : undefined,
+      project_type_id: projectTypeId ? parseInt(projectTypeId, 10) : undefined,
+      country_id: countryId ? parseInt(countryId, 10) : undefined,
+      community_id: communityId ? parseInt(communityId, 10) : undefined,
+      nationality_id: nationalityId ? parseInt(nationalityId, 10) : undefined,
+      emreads_id: emreadsId || undefined,
+      contact_email: contactEmail || undefined,
       project_address: projectAddress,
       client_name: clientName,
       client_code: clientCode,
@@ -249,7 +288,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
       <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div>
           <h1 className="page-title">{projectId ? 'Master / Edit Project' : 'Master / Add Project'}</h1>
-          <p className="page-subtitle">Configure project details, location boundaries, and task disciplines</p>
+          <p className="page-subtitle">Configure project details, customer linking, location boundaries, and task disciplines</p>
         </div>
         <button onClick={onBack} style={{ background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 1rem', borderRadius: '8px', gap: '0.5rem', border: '1px solid var(--border-color)' }} className="hover-bg">
           <ArrowLeft size={18} /> Back
@@ -260,10 +299,68 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
         
         {/* LEFT COLUMN: Project Form */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.5rem' }}>Project Form</h3>
+          <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.5rem' }}>Project Details</h3>
           
           <FormInput label="Project Code" type="text" value={projectCode} onChange={e => { setProjectCode(e.target.value); setFormErrors(prev => ({...prev, project_code: ''})); }} required disabled={!!project} error={formErrors.project_code} />
           <FormInput label="Project Name" type="text" value={projectName} onChange={e => { setProjectName(e.target.value); setFormErrors(prev => ({...prev, project_name: ''})); }} required error={formErrors.project_name} />
+          
+          {/* Customer & Project Type Dropdowns */}
+          <div className="grid-2-col">
+            <FormSelect
+              label="Customer / Client"
+              value={customerId}
+              onChange={(e) => {
+                const cId = e.target.value;
+                setCustomerId(cId);
+                const selectedCust = customers.find(c => String(c.customer_id) === cId);
+                if (selectedCust) {
+                  setClientName(selectedCust.customer_name);
+                  setClientCode(selectedCust.customer_code);
+                  if (selectedCust.country_id) setCountryId(String(selectedCust.country_id));
+                }
+              }}
+              options={[
+                { value: '', label: '-- Select Customer --' },
+                ...customers.map(c => ({ value: String(c.customer_id), label: `${c.customer_name} (${c.customer_code})` }))
+              ]}
+            />
+            <FormSelect
+              label="Project Type"
+              value={projectTypeId}
+              onChange={(e) => setProjectTypeId(e.target.value)}
+              options={[
+                { value: '', label: '-- Select Project Type --' },
+                ...projectTypes.map(pt => ({ value: String(pt.type_id), label: pt.type_name }))
+              ]}
+            />
+          </div>
+
+          <div className="grid-2-col">
+            <FormSelect
+              label="Country"
+              value={countryId}
+              onChange={(e) => setCountryId(e.target.value)}
+              options={[
+                { value: '', label: '-- Select Country --' },
+                ...countries.map(c => ({ value: String(c.country_id), label: c.country_name }))
+              ]}
+            />
+            <FormSelect
+              label="Community"
+              value={communityId}
+              onChange={(e) => setCommunityId(e.target.value)}
+              options={[
+                { value: '', label: '-- Select Community --' },
+                ...communities.map(cm => ({ value: String(cm.community_id), label: cm.community_name }))
+              ]}
+            />
+          </div>
+
+          <div className="grid-2-col">
+            <FormInput label="EMReads ID" type="text" value={emreadsId} onChange={e => setEmreadsId(e.target.value)} placeholder="External Reference ID" />
+            <FormInput label="Contact Email" type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="project@site.com" />
+          </div>
+
           
           <div className="form-group">
             <label className="form-label">Project Address <span style={{ color: '#ef4444' }}>*</span></label>
