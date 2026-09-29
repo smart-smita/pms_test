@@ -43,13 +43,20 @@ export class TaskService {
     if (data.task_name) {
       const existing = await this.taskRepo.findByNameAndProjectWbs(data.project_id, data.wbs_id, data.task_name);
       if (existing) {
-        return existing;
+        throw new Error(
+          `A task named "${data.task_name}" already exists under this project/WBS (task_id: ${existing.task_id}). ` +
+          `Use a unique name or update the existing task.`
+        );
       }
     }
 
     const assignedEmployeeIds = data.assigned_employee_ids || [];
-    if (assignedEmployeeIds.length > 1) {
-      throw new Error('A task can be assigned to ONLY ONE employee');
+    const requiredCount = Number(data.required_worker_count || 1);
+    if (assignedEmployeeIds.length > requiredCount) {
+      throw new Error(
+        `Cannot assign ${assignedEmployeeIds.length} employees to a task that requires only ${requiredCount} worker(s). ` +
+        `Increase required_worker_count or reduce the assignment list.`
+      );
     }
     const allocations = data.allocations || [];
     const dependencies = data.dependencies || [];
@@ -78,8 +85,13 @@ export class TaskService {
     if (!task) throw new Error('Task not found');
 
     const assignedEmployeeIds = data.assigned_employee_ids;
-    if (assignedEmployeeIds && assignedEmployeeIds.length > 1) {
-      throw new Error('A task can be assigned to ONLY ONE employee');
+    if (assignedEmployeeIds !== undefined) {
+      const requiredCount = Number(task.required_worker_count || data.required_worker_count || 1);
+      if (assignedEmployeeIds.length > requiredCount) {
+        throw new Error(
+          `Cannot assign ${assignedEmployeeIds.length} employees to a task that requires only ${requiredCount} worker(s).`
+        );
+      }
     }
     const allocations = data.allocations;
     const dependencies = data.dependencies;

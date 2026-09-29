@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock, BarChart2, Building2, Receipt, FileText, ClipboardCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, CheckSquare, MapPin, IndianRupee, FileBarChart, X, Bell, Settings, HelpCircle, Rocket, User, LogOut, Clock, BarChart2, Building2, Receipt, FileText, ClipboardCheck, ChevronDown, ChevronUp, Package } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -27,6 +27,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'gantt-chart', label: 'Gantt Chart', icon: BarChart2, isAllowed: hasPermission('tasks', 'view') },
     { id: 'timesheets', label: isEmployee ? 'My Timesheets' : 'Timesheets', icon: Clock, isAllowed: hasPermission('timesheets', 'view') },
     { id: 'attendance', label: 'GPS Attendance', icon: MapPin, isAllowed: hasPermission('attendance', 'view') },
+    { 
+      id: 'materials-menu', 
+      label: 'Material Management', 
+      icon: Package, 
+      isAllowed: !isEmployee && hasPermission('masters', 'view'),
+      children: [
+        { id: 'materials', label: 'Material Master', isAllowed: true },
+        { id: 'material-quotations', label: 'Material Quotations', isAllowed: true },
+        { id: 'material-surveys', label: 'Material Surveys', isAllowed: true }
+      ]
+    },
     { id: 'payments', label: 'Labour Payments', icon: IndianRupee, isAllowed: !isEmployee && hasPermission('payments', 'view') },
     { 
       id: 'reports', 
@@ -46,6 +57,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
   const isReportActive = currentPage.startsWith('reports');
   const [isReportsExpanded, setIsReportsExpanded] = useState(isReportActive);
 
+  // Check if current page is inside Materials
+  const isMaterialActive = ['materials', 'material-quotations', 'material-surveys'].includes(currentPage);
+  const [isMaterialsExpanded, setIsMaterialsExpanded] = useState(isMaterialActive);
 
   const filteredMenu = menuItems.filter((item) => item.isAllowed);
 
@@ -95,13 +109,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           {filteredMenu.map((item) => {
             const Icon = item.icon;
-            const isActive = currentPage === item.id || (item.id === 'reports' && isReportActive && item.children);
+            const isThisMenuActive = item.id === 'reports' ? isReportActive : (item.id === 'materials-menu' ? isMaterialActive : currentPage === item.id);
+            const isExpanded = item.id === 'reports' ? isReportsExpanded : isMaterialsExpanded;
+            const toggleExpand = () => {
+              if (item.id === 'reports') setIsReportsExpanded(!isReportsExpanded);
+              if (item.id === 'materials-menu') setIsMaterialsExpanded(!isMaterialsExpanded);
+            };
 
             if (item.children) {
               return (
                 <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
                   <button
-                    onClick={() => setIsReportsExpanded(!isReportsExpanded)}
+                    onClick={toggleExpand}
                     style={{
                       width: '100%',
                       display: 'flex',
@@ -110,8 +129,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                       padding: '0.75rem 1rem',
                       borderRadius: '12px',
                       border: 'none',
-                      background: isReportActive ? 'rgba(79, 70, 229, 0.1)' : 'transparent',
-                      color: isReportActive ? '#4f46e5' : 'var(--text-secondary)',
+                      background: isThisMenuActive ? 'rgba(79, 70, 229, 0.1)' : 'transparent',
+                      color: isThisMenuActive ? '#4f46e5' : 'var(--text-secondary)',
                       fontWeight: 500,
                       fontSize: '0.95rem',
                       cursor: 'pointer',
@@ -120,13 +139,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <Icon size={20} color={isReportActive ? '#4f46e5' : 'currentColor'} />
+                      <Icon size={20} color={isThisMenuActive ? '#4f46e5' : 'currentColor'} />
                       <span>{item.label}</span>
                     </div>
-                    {isReportsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </button>
                   
-                  {isReportsExpanded && (
+                  {isExpanded && (
                     <div style={{ paddingLeft: '3rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
                       {item.children.filter(child => child.isAllowed).map(child => {
                         const isChildActive = currentPage === child.id;
@@ -172,8 +191,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                   padding: '0.75rem 1rem',
                   borderRadius: '12px',
                   border: 'none',
-                  background: isActive ? '#4f46e5' : 'transparent',
-                  color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                  background: isThisMenuActive ? '#4f46e5' : 'transparent',
+                  color: isThisMenuActive ? '#ffffff' : 'var(--text-secondary)',
                   fontWeight: 500,
                   fontSize: '0.95rem',
                   cursor: 'pointer',
@@ -181,7 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Icon size={20} color={isActive ? '#ffffff' : 'currentColor'} />
+                <Icon size={20} color={isThisMenuActive ? '#ffffff' : 'currentColor'} />
                 <span>{item.label}</span>
               </button>
             );

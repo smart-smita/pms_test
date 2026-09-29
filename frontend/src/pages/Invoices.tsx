@@ -6,8 +6,8 @@ import { Badge } from '../components/common/Badge';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 import { apiRequest } from '../services/api';
-import { Invoice, BillingSchedule, MonthlyCompletedWork, Currency, Tax, Project, Customer, InvoicePayment, SiteSurvey, Discipline, InvoiceItem } from '../types';
-import { Plus, FileText, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2 } from 'lucide-react';
+import { Invoice, BillingSchedule, MonthlyCompletedWork, Currency, Tax, Country, Project, Customer, InvoicePayment, SiteSurvey, Discipline, InvoiceItem } from '../types';
+import { Plus, FileText, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +22,7 @@ export const Invoices: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [taxes, setTaxes] = useState<Tax[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [projectSurveys, setProjectSurveys] = useState<SiteSurvey[]>([]);
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
 
@@ -33,6 +34,7 @@ export const Invoices: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [invoiceCountryId, setInvoiceCountryId] = useState<string>('');
 
   // Invoice Modal State
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -46,6 +48,7 @@ export const Invoices: React.FC = () => {
   const [selectedCompletedWork, setSelectedCompletedWork] = useState<MonthlyCompletedWork | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<BillingSchedule | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [editingTax, setEditingTax] = useState<Tax | null>(null);
 
   // Form states
   const [invoiceForm, setInvoiceForm] = useState({
@@ -57,6 +60,10 @@ export const Invoices: React.FC = () => {
     survey_id: '',
     currency_id: '',
     tax_id: '',
+    tax_type: '',
+    cgst_amount: 0,
+    sgst_amount: 0,
+    igst_amount: 0,
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     subtotal_amount: 0,
@@ -91,8 +98,14 @@ export const Invoices: React.FC = () => {
 
   const [taxForm, setTaxForm] = useState({
     tax_name: '',
+    tax_code: '',
+    tax_type: 'VAT' as 'VAT' | 'GST' | 'CGST_SGST' | 'IGST' | 'SALES_TAX' | 'OTHER',
     tax_percentage: 0,
     country_id: '',
+    is_split: false,
+    cgst_percentage: 0,
+    sgst_percentage: 0,
+    status: 1,
   });
 
   // Fetch initial masters
@@ -107,16 +120,18 @@ export const Invoices: React.FC = () => {
   }, [activeTab, selectedProjectId]);
 
   const fetchMasters = async () => {
-    const [pRes, cRes, tRes, dRes] = await Promise.all([
+    const [pRes, cRes, tRes, dRes, coRes] = await Promise.all([
       apiRequest<Project[]>('/projects'),
       apiRequest<Currency[]>('/invoices/currencies'),
-      apiRequest<Tax[]>('/invoices/taxes'),
-      apiRequest<Discipline[]>('/masters/disciplines')
+      apiRequest<Tax[]>('/masters/taxes?all=true'),
+      apiRequest<Discipline[]>('/masters/disciplines'),
+      apiRequest<Country[]>('/masters/countries'),
     ]);
     if (pRes.success && pRes.data) setProjects(pRes.data);
     if (cRes.success && cRes.data) setCurrencies(cRes.data);
     if (tRes.success && tRes.data) setTaxes(tRes.data);
     if (dRes.success && dRes.data) setDisciplines(dRes.data);
+    if (coRes.success && coRes.data) setCountries(coRes.data);
   };
 
   const fetchInvoices = async () => {
@@ -217,7 +232,13 @@ export const Invoices: React.FC = () => {
       const defaultCurrency = currencies.find(c => c.is_base === 1) || currencies[0];
       const defaultTax = taxes[0];
       const taxRate = defaultTax ? Number(defaultTax.tax_percentage) : 0;
-      const taxAmt = (sub * taxRate) / 100;
+      const isSplit = defaultTax ? Boolean(defaultTax.is_split || defaultTax.tax_type === 'CGST_SGST') : false;
+      const cgstPct = defaultTax && isSplit ? Number(defaultTax.cgst_percentage || taxRate / 2) : 0;
+      const sgstPct = defaultTax && isSplit ? Number(defaultTax.sgst_percentage || taxRate / 2) : 0;
+      const cgstAmt = isSplit ? (sub * cgstPct) / 100 : 0;
+      const sgstAmt = isSplit ? (sub * sgstPct) / 100 : 0;
+      const taxAmt = isSplit ? cgstAmt + sgstAmt : (sub * taxRate) / 100;
+      const igstAmt = (!isSplit && defaultTax && defaultTax.tax_type === 'IGST') ? taxAmt : 0;
 
       // Fetch site surveys for this project
       const surveyRes = await apiRequest<SiteSurvey[]>(`/site-surveys?project_id=${cw.project_id}`);
@@ -236,6 +257,10 @@ export const Invoices: React.FC = () => {
         survey_id: '',
         currency_id: defaultCurrency ? String(defaultCurrency.currency_id) : '',
         tax_id: defaultTax ? String(defaultTax.tax_id) : '',
+        tax_type: defaultTax ? defaultTax.tax_type || '' : '',
+        cgst_amount: cgstAmt,
+        sgst_amount: sgstAmt,
+        igst_amount: igstAmt,
         invoice_date: new Date().toISOString().split('T')[0],
         due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         subtotal_amount: sub,
@@ -254,14 +279,25 @@ export const Invoices: React.FC = () => {
   };
 
   const handleRecalculateInvoiceTax = (taxIdStr: string, currentItems: InvoiceItem[]) => {
-    const selectedT = taxes.find(t => String(t.tax_id) === taxIdStr);
+    const selectedT = taxes.find((t) => String(t.tax_id) === taxIdStr);
     const taxRate = selectedT ? Number(selectedT.tax_percentage) : 0;
+    const isSplit = selectedT ? Boolean(selectedT.is_split || selectedT.tax_type === 'CGST_SGST') : false;
+    const cgstPct = selectedT && isSplit ? Number(selectedT.cgst_percentage || taxRate / 2) : 0;
+    const sgstPct = selectedT && isSplit ? Number(selectedT.sgst_percentage || taxRate / 2) : 0;
+
     const subtotal = currentItems.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-    const taxAmt = (subtotal * taxRate) / 100;
-    
-    setInvoiceForm(prev => ({
+    const cgstAmt = isSplit ? (subtotal * cgstPct) / 100 : 0;
+    const sgstAmt = isSplit ? (subtotal * sgstPct) / 100 : 0;
+    const taxAmt = isSplit ? cgstAmt + sgstAmt : (subtotal * taxRate) / 100;
+    const igstAmt = !isSplit && selectedT && selectedT.tax_type === 'IGST' ? taxAmt : 0;
+
+    setInvoiceForm((prev) => ({
       ...prev,
       tax_id: taxIdStr,
+      tax_type: selectedT ? selectedT.tax_type || '' : '',
+      cgst_amount: cgstAmt,
+      sgst_amount: sgstAmt,
+      igst_amount: igstAmt,
       subtotal_amount: subtotal,
       tax_amount: taxAmt,
       total_amount: subtotal + taxAmt,
@@ -269,15 +305,26 @@ export const Invoices: React.FC = () => {
   };
 
   const updateInvoiceItems = (newItems: InvoiceItem[]) => {
-    setInvoiceForm(prev => {
-      const selectedT = taxes.find(t => String(t.tax_id) === prev.tax_id);
+    setInvoiceForm((prev) => {
+      const selectedT = taxes.find((t) => String(t.tax_id) === prev.tax_id);
       const taxRate = selectedT ? Number(selectedT.tax_percentage) : 0;
+      const isSplit = selectedT ? Boolean(selectedT.is_split || selectedT.tax_type === 'CGST_SGST') : false;
+      const cgstPct = selectedT && isSplit ? Number(selectedT.cgst_percentage || taxRate / 2) : 0;
+      const sgstPct = selectedT && isSplit ? Number(selectedT.sgst_percentage || taxRate / 2) : 0;
+
       const subtotal = newItems.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-      const taxAmt = (subtotal * taxRate) / 100;
-      
+      const cgstAmt = isSplit ? (subtotal * cgstPct) / 100 : 0;
+      const sgstAmt = isSplit ? (subtotal * sgstPct) / 100 : 0;
+      const taxAmt = isSplit ? cgstAmt + sgstAmt : (subtotal * taxRate) / 100;
+      const igstAmt = !isSplit && selectedT && selectedT.tax_type === 'IGST' ? taxAmt : 0;
+
       return {
         ...prev,
         items: newItems,
+        tax_type: selectedT ? selectedT.tax_type || '' : '',
+        cgst_amount: cgstAmt,
+        sgst_amount: sgstAmt,
+        igst_amount: igstAmt,
         subtotal_amount: subtotal,
         tax_amount: taxAmt,
         total_amount: subtotal + taxAmt,
@@ -293,6 +340,11 @@ export const Invoices: React.FC = () => {
       survey_id: invoiceForm.survey_id ? Number(invoiceForm.survey_id) : null,
       currency_id: Number(invoiceForm.currency_id),
       tax_id: invoiceForm.tax_id ? Number(invoiceForm.tax_id) : null,
+      tax_type: invoiceForm.tax_type || null,
+      cgst_amount: invoiceForm.cgst_amount || 0,
+      sgst_amount: invoiceForm.sgst_amount || 0,
+      igst_amount: invoiceForm.igst_amount || 0,
+      tax_amount: invoiceForm.tax_amount || 0,
       invoice_date: invoiceForm.invoice_date,
       due_date: invoiceForm.due_date,
       items: invoiceForm.items,
@@ -361,7 +413,6 @@ export const Invoices: React.FC = () => {
   };
 
   const handleDownloadPdf = (invoiceId: number, invoiceNum: string) => {
-    const token = localStorage.getItem('token');
     const url = `/api/v1/invoices/${invoiceId}/pdf`;
     window.open(url, '_blank');
   };
@@ -382,22 +433,80 @@ export const Invoices: React.FC = () => {
     }
   };
 
-  const handleCreateTax = async (e: React.FormEvent) => {
+  const openAddTaxModal = () => {
+    setEditingTax(null);
+    setTaxForm({
+      tax_name: '',
+      tax_code: '',
+      tax_type: 'VAT',
+      tax_percentage: 0,
+      country_id: '',
+      is_split: false,
+      cgst_percentage: 0,
+      sgst_percentage: 0,
+      status: 1,
+    });
+    setIsTaxModalOpen(true);
+  };
+
+  const openEditTaxModal = (t: Tax) => {
+    setEditingTax(t);
+    setTaxForm({
+      tax_name: t.tax_name,
+      tax_code: t.tax_code || '',
+      tax_type: t.tax_type || 'VAT',
+      tax_percentage: Number(t.tax_percentage || 0),
+      country_id: t.country_id ? String(t.country_id) : '',
+      is_split: Boolean(t.is_split || t.tax_type === 'CGST_SGST'),
+      cgst_percentage: Number(t.cgst_percentage || 0),
+      sgst_percentage: Number(t.sgst_percentage || 0),
+      status: Number(t.status !== undefined ? t.status : 1),
+    });
+    setIsTaxModalOpen(true);
+  };
+
+  const handleSaveTax = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await apiRequest('/invoices/taxes', {
-      method: 'POST',
-      body: JSON.stringify({
-        ...taxForm,
-        country_id: taxForm.country_id ? Number(taxForm.country_id) : null,
-      }),
+    const payload = {
+      tax_name: taxForm.tax_name,
+      tax_code: taxForm.tax_code || undefined,
+      tax_type: taxForm.tax_type,
+      tax_percentage: Number(taxForm.tax_percentage),
+      country_id: taxForm.country_id ? Number(taxForm.country_id) : null,
+      is_split: taxForm.is_split ? 1 : 0,
+      cgst_percentage: taxForm.is_split ? Number(taxForm.cgst_percentage) : 0,
+      sgst_percentage: taxForm.is_split ? Number(taxForm.sgst_percentage) : 0,
+      status: taxForm.status,
+    };
+
+    const endpoint = editingTax ? `/masters/taxes/${editingTax.tax_id}` : '/masters/taxes';
+    const method = editingTax ? 'PUT' : 'POST';
+
+    const res = await apiRequest(endpoint, {
+      method,
+      body: JSON.stringify(payload),
     });
 
     if (res.success) {
-      showSuccess('Tax rule saved.');
+      showSuccess(editingTax ? 'Tax rule updated!' : 'Tax rule created!');
       setIsTaxModalOpen(false);
       fetchMasters();
     } else {
-      showError(res.message || 'Failed to save tax.');
+      showError(res.message || 'Failed to save tax rule.');
+    }
+  };
+
+  const handleToggleTaxStatus = async (t: Tax) => {
+    const newStatus = t.status === 1 ? 0 : 1;
+    const res = await apiRequest(`/masters/taxes/${t.tax_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (res.success) {
+      showSuccess(`Tax rule ${newStatus === 1 ? 'activated' : 'deactivated'}.`);
+      fetchMasters();
+    } else {
+      showError(res.message || 'Failed to update tax status.');
     }
   };
 
@@ -700,27 +809,54 @@ export const Invoices: React.FC = () => {
           </div>
 
           {/* Taxes Master */}
-          <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <div className="glass-card" style={{ padding: '1.5rem', gridColumn: 'span 2' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Percent size={18} color="#a855f7" /> Tax Configurations</h3>
-              {isAdminOrManager && <Button variant="secondary" onClick={() => setIsTaxModalOpen(true)}><Plus size={14} /> Add Tax Rule</Button>}
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Percent size={18} color="#a855f7" /> Country-Wise Tax Master</h3>
+              {isAdminOrManager && <Button variant="secondary" onClick={openAddTaxModal}><Plus size={14} /> Add Tax Rule</Button>}
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                  <th style={{ padding: '0.5rem' }}>Tax Code</th>
                   <th style={{ padding: '0.5rem' }}>Tax Name</th>
+                  <th style={{ padding: '0.5rem' }}>Type</th>
                   <th style={{ padding: '0.5rem' }}>Rate (%)</th>
+                  <th style={{ padding: '0.5rem' }}>Split Details</th>
                   <th style={{ padding: '0.5rem' }}>Country</th>
                   <th style={{ padding: '0.5rem' }}>Status</th>
+                  {isAdminOrManager && <th style={{ padding: '0.5rem', textAlign: 'center' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {taxes.map((t) => (
-                  <tr key={t.tax_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <tr key={t.tax_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: t.status === 1 ? 1 : 0.6 }}>
+                    <td style={{ padding: '0.5rem', fontFamily: 'monospace' }}>{t.tax_code || '-'}</td>
                     <td style={{ padding: '0.5rem', fontWeight: 600 }}>{t.tax_name}</td>
-                    <td style={{ padding: '0.5rem', color: '#a855f7' }}>{t.tax_percentage}%</td>
+                    <td style={{ padding: '0.5rem' }}><Badge variant="info">{t.tax_type || 'VAT'}</Badge></td>
+                    <td style={{ padding: '0.5rem', color: '#a855f7', fontWeight: 700 }}>{t.tax_percentage}%</td>
+                    <td style={{ padding: '0.5rem', fontSize: '0.78rem' }}>
+                      {t.is_split || t.tax_type === 'CGST_SGST' ? (
+                        <span style={{ color: '#38bdf8' }}>CGST ({t.cgst_percentage || t.tax_percentage / 2}%) + SGST ({t.sgst_percentage || t.tax_percentage / 2}%)</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Single Rate</span>
+                      )}
+                    </td>
                     <td style={{ padding: '0.5rem' }}>{t.country_name || 'All Countries'}</td>
-                    <td style={{ padding: '0.5rem' }}><Badge variant="success">Active</Badge></td>
+                    <td style={{ padding: '0.5rem' }}>
+                      {t.status === 1 ? <Badge variant="success">Active</Badge> : <Badge variant="danger">Inactive</Badge>}
+                    </td>
+                    {isAdminOrManager && (
+                      <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
+                          <button onClick={() => openEditTaxModal(t)} title="Edit Tax Rule" style={{ background: 'transparent', border: 'none', color: '#38bdf8', cursor: 'pointer', padding: '0.2rem' }}>
+                            <Edit2 size={14} />
+                          </button>
+                          <button onClick={() => handleToggleTaxStatus(t)} title={t.status === 1 ? 'Deactivate' : 'Activate'} style={{ background: 'transparent', border: 'none', color: t.status === 1 ? '#ef4444' : '#4ade80', cursor: 'pointer', padding: '0.2rem' }}>
+                            <Power size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -775,12 +911,24 @@ export const Invoices: React.FC = () => {
               required
             />
             <SearchableSelect
+              label="Country Filter (Tax Scope)"
+              value={invoiceCountryId}
+              onChange={(val) => setInvoiceCountryId(val)}
+              options={[
+                { value: '', label: '-- All Countries / Automatic --' },
+                ...countries.map((c) => ({ value: String(c.country_id), label: `${c.country_name} (${c.country_code})` })),
+              ]}
+            />
+            <SearchableSelect
               label="Select Tax Rule"
               value={invoiceForm.tax_id}
               onChange={(val) => handleRecalculateInvoiceTax(val, invoiceForm.items)}
               options={[
                 { value: '', label: '-- No Tax (0%) --' },
-                ...taxes.map((t) => ({ value: String(t.tax_id), label: `${t.tax_name} (${t.tax_percentage}%)` })),
+                ...(invoiceCountryId 
+                    ? taxes.filter(t => !t.country_id || String(t.country_id) === String(invoiceCountryId))
+                    : taxes
+                ).map((t) => ({ value: String(t.tax_id), label: `${t.tax_name} (${t.tax_percentage}%) ${t.country_name ? `[${t.country_name}]` : ''}` })),
               ]}
             />
             <SearchableSelect
@@ -911,18 +1059,36 @@ export const Invoices: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <span>Subtotal Amount:</span>
-              <strong>{invoiceForm.subtotal_amount.toLocaleString()}</strong>
+              <strong>{invoiceForm.subtotal_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#a855f7' }}>
-              <span>Tax Amount:</span>
-              <strong>+ {invoiceForm.tax_amount.toLocaleString()}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', color: '#38bdf8', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
+            {invoiceForm.cgst_amount > 0 || invoiceForm.sgst_amount > 0 ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                  <span>CGST Amount:</span>
+                  <strong>+ {invoiceForm.cgst_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                  <span>SGST Amount:</span>
+                  <strong>+ {invoiceForm.sgst_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                </div>
+              </>
+            ) : invoiceForm.igst_amount > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                <span>IGST Amount:</span>
+                <strong>+ {invoiceForm.igst_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#a855f7' }}>
+                <span>Tax Amount ({taxes.find(t => String(t.tax_id) === invoiceForm.tax_id)?.tax_name || 'Tax'}):</span>
+                <strong>+ {invoiceForm.tax_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', color: '#4ade80', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontWeight: 700 }}>
               <span>Grand Total:</span>
-              <strong>{invoiceForm.total_amount.toLocaleString()}</strong>
+              <strong>{invoiceForm.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
             </div>
           </div>
 
@@ -994,12 +1160,69 @@ export const Invoices: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Add Tax Modal */}
-      <Modal isOpen={isTaxModalOpen} onClose={() => setIsTaxModalOpen(false)} title="Add Tax Rule">
-        <form onSubmit={handleCreateTax}>
+      {/* Add / Edit Tax Modal */}
+      <Modal isOpen={isTaxModalOpen} onClose={() => setIsTaxModalOpen(false)} title={editingTax ? "Edit Tax Rule" : "Add Tax Rule"}>
+        <form onSubmit={handleSaveTax}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <FormInput label="Tax Name" placeholder="e.g. VAT 5%, GST 18%" value={taxForm.tax_name} onChange={(e) => setTaxForm({ ...taxForm, tax_name: e.target.value })} required />
-            <FormInput label="Tax Percentage (%)" type="number" step="0.01" value={String(taxForm.tax_percentage)} onChange={(e) => setTaxForm({ ...taxForm, tax_percentage: Number(e.target.value) })} required />
+            <FormInput label="Tax Name" placeholder="e.g. GST Intra-State 18%, UAE VAT 5%" value={taxForm.tax_name} onChange={(e) => setTaxForm({ ...taxForm, tax_name: e.target.value })} required />
+            <FormInput label="Tax Code (Optional)" placeholder="e.g. CGST_SGST_18, VAT5" value={taxForm.tax_code} onChange={(e) => setTaxForm({ ...taxForm, tax_code: e.target.value.toUpperCase() })} />
+            <FormSelect
+              label="Tax Type"
+              value={taxForm.tax_type}
+              onChange={(e) => {
+                const type = e.target.value as any;
+                const isSplit = type === 'CGST_SGST';
+                setTaxForm({ ...taxForm, tax_type: type, is_split: isSplit });
+              }}
+              options={[
+                { value: 'VAT', label: 'VAT (Value Added Tax)' },
+                { value: 'GST', label: 'GST (General Sales Tax)' },
+                { value: 'CGST_SGST', label: 'CGST + SGST (Intra-State India Split)' },
+                { value: 'IGST', label: 'IGST (Inter-State India)' },
+                { value: 'SALES_TAX', label: 'Sales Tax' },
+                { value: 'OTHER', label: 'Other Tax' },
+              ]}
+              required
+            />
+            <FormSelect
+              label="Country Scope"
+              value={taxForm.country_id}
+              onChange={(e) => setTaxForm({ ...taxForm, country_id: e.target.value })}
+              options={[
+                { value: '', label: '-- All Countries / Global --' },
+                ...countries.map((c) => ({ value: String(c.country_id), label: `${c.country_name} (${c.country_code})` })),
+              ]}
+            />
+            <FormInput label="Total Tax Rate (%)" type="number" step="0.01" value={String(taxForm.tax_percentage)} onChange={(e) => {
+              const val = Number(e.target.value);
+              setTaxForm({
+                ...taxForm,
+                tax_percentage: val,
+                cgst_percentage: taxForm.is_split ? val / 2 : taxForm.cgst_percentage,
+                sgst_percentage: taxForm.is_split ? val / 2 : taxForm.sgst_percentage,
+              });
+            }} required />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <input
+                type="checkbox"
+                id="is_split_check"
+                checked={taxForm.is_split}
+                onChange={(e) => setTaxForm({
+                  ...taxForm,
+                  is_split: e.target.checked,
+                  tax_type: e.target.checked ? 'CGST_SGST' : taxForm.tax_type,
+                  cgst_percentage: e.target.checked ? taxForm.tax_percentage / 2 : 0,
+                  sgst_percentage: e.target.checked ? taxForm.tax_percentage / 2 : 0,
+                })}
+              />
+              <label htmlFor="is_split_check" style={{ fontSize: '0.85rem', cursor: 'pointer' }}>Split Tax into CGST + SGST</label>
+            </div>
+            {taxForm.is_split && (
+              <>
+                <FormInput label="CGST Rate (%)" type="number" step="0.01" value={String(taxForm.cgst_percentage)} onChange={(e) => setTaxForm({ ...taxForm, cgst_percentage: Number(e.target.value) })} required />
+                <FormInput label="SGST Rate (%)" type="number" step="0.01" value={String(taxForm.sgst_percentage)} onChange={(e) => setTaxForm({ ...taxForm, sgst_percentage: Number(e.target.value) })} required />
+              </>
+            )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsTaxModalOpen(false)}>Cancel</Button>

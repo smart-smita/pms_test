@@ -6,37 +6,53 @@ export class InvoiceService {
   private projectRepo = new ProjectRepository();
 
   // ── Billing Schedules ──────────────────────────────────────────────────
-  async getSchedulesByProject(projectId: number): Promise<BillingScheduleRow[]> {
+  async getSchedulesByProject(projectId?: number): Promise<BillingScheduleRow[]> {
     return this.repo.getSchedulesByProject(projectId);
   }
 
   async generateBillingSchedules(data: {
     project_id: number;
-    quotation_id: number;
-    start_month: string; // YYYY-MM
-    contract_period_months: number;
-    total_amount: number;
+    quotation_id?: number;
+    start_month?: string; // YYYY-MM
+    contract_period_months?: number;
+    total_amount?: number;
   }): Promise<BillingScheduleRow[]> {
-    if (data.contract_period_months <= 0) {
-      throw new Error("Contract period must be greater than 0");
-    }
-    
     // Check if schedules already exist
     const existing = await this.repo.getSchedulesByProject(data.project_id);
     if (existing.length > 0) {
-      throw new Error("Billing schedules already exist for this project.");
+      return existing;
     }
 
-    const monthlyAmount = Math.round((data.total_amount / data.contract_period_months) * 100) / 100;
+    let quotationId = data.quotation_id;
+    let totalAmount = data.total_amount;
+    let periodMonths = data.contract_period_months || 12;
+    let startMonth = data.start_month || new Date().toISOString().slice(0, 7);
+
+    // If quotation info is missing, fetch from project's latest approved quotation
+    if (!quotationId || !totalAmount) {
+      const details = await this.projectRepo.getProject360Details(data.project_id);
+      if (!details?.quotation) {
+        throw new Error(
+          `Project ${data.project_id} has no approved quotation. ` +
+          `Create and approve a quotation before generating billing schedules.`
+        );
+      }
+      quotationId = details.quotation.quotation_id;
+      totalAmount = Number(details.quotation.total_amount);
+      if (!totalAmount || totalAmount <= 0) {
+        throw new Error(`Quotation ${quotationId} has a zero or invalid total amount.`);
+      }
+    }
+
+    const monthlyAmount = Math.round((totalAmount / periodMonths) * 100) / 100;
     
-    const [yearStr, monthStr] = data.start_month.split('-');
+    const [yearStr, monthStr] = startMonth.split('-');
     let year = parseInt(yearStr, 10);
     let month = parseInt(monthStr, 10);
 
     const schedules: Omit<BillingScheduleRow, 'schedule_id' | 'status' | 'created_at'>[] = [];
     
-    for (let i = 0; i < data.contract_period_months; i++) {
-      // Ensure month is 1-12
+    for (let i = 0; i < periodMonths; i++) {
       let m = month + i;
       let y = year;
       while (m > 12) {
@@ -45,16 +61,15 @@ export class InvoiceService {
       }
       const formattedMonth = `${y}-${m.toString().padStart(2, '0')}-01`;
       
-      // Calculate exact amount for last month to handle rounding errors
       let amount = monthlyAmount;
-      if (i === data.contract_period_months - 1) {
-        amount = data.total_amount - (monthlyAmount * (data.contract_period_months - 1));
+      if (i === periodMonths - 1) {
+        amount = totalAmount - (monthlyAmount * (periodMonths - 1));
         amount = Math.round(amount * 100) / 100;
       }
 
       schedules.push({
         project_id: data.project_id,
-        quotation_id: data.quotation_id,
+        quotation_id: quotationId,
         billing_month: formattedMonth,
         expected_amount: amount
       });
@@ -65,7 +80,7 @@ export class InvoiceService {
   }
 
   // ── Monthly Completed Work ───────────────────────────────────────────────
-  async getCompletedWorkByProject(projectId: number): Promise<MonthlyCompletedWorkRow[]> {
+  async getCompletedWorkByProject(projectId?: number): Promise<MonthlyCompletedWorkRow[]> {
     return this.repo.getCompletedWorkByProject(projectId);
   }
 
@@ -77,7 +92,6 @@ export class InvoiceService {
   }): Promise<number> {
     const schedule = await this.repo.getScheduleById(data.schedule_id);
     if (!schedule) throw new Error("Schedule not found");
-    if (schedule.status !== 'pending') throw new Error("Schedule is not pending");
 
     const id = await this.repo.createCompletedWork({
       schedule_id: data.schedule_id,
@@ -90,6 +104,10 @@ export class InvoiceService {
     return id;
   }
 
+  async updateCompletedWorkStatus(id: number, status: string, approvedBy?: number): Promise<void> {
+    await this.repo.updateCompletedWorkStatus(id, status, approvedBy);
+  }
+
   // ── Invoices ─────────────────────────────────────────────────────────────
   async getInvoices(projectId?: number): Promise<InvoiceRow[]> {
     return this.repo.getInvoices(projectId);
@@ -100,14 +118,19 @@ export class InvoiceService {
   }
 
   async generateInvoice(data: {
-    customer_id: number;
-    project_id: number;
-    quotation_id: number;
+    customer_id?: number;
+    project_id?: number;
+    quotation_id?: number;
     schedule_id: number;
     survey_id?: number | null;
     currency_id: number;
     tax_id?: number | null;
+    tax_type?: string | null;
     tax_percentage?: number;
+    cgst_amount?: number;
+    sgst_amount?: number;
+    igst_amount?: number;
+    tax_amount?: number;
     items: {
       discipline_id?: number | null;
       description: string;
@@ -122,11 +145,27 @@ export class InvoiceService {
       throw new Error("This month is already invoiced.");
     }
 
+    const projectId = data.project_id || schedule.project_id;
+    const quotationId = data.quotation_id || schedule.quotation_id;
+    
+    let customerId = data.customer_id;
+    if (!customerId) {
+      const project = await this.projectRepo.findById(projectId);
+      if (project?.customer_id) {
+        customerId = project.customer_id;
+      } else {
+        throw new Error(
+          `Project ${projectId} has no associated customer. ` +
+          `Set customer_id on the project before generating an invoice.`
+        );
+      }
+    }
+
     // Generate Invoice Number (e.g. INV-PRJ1-YYYYMM-01)
     const invoiceNumber = `INV-${data.project_id}-${Date.now().toString().slice(-6)}`;
     
     const subtotal = data.items.reduce((sum, item) => sum + Number(item.amount), 0);
-    const taxAmt = data.tax_percentage ? (subtotal * data.tax_percentage) / 100 : 0;
+    const taxAmt = data.tax_amount !== undefined ? Number(data.tax_amount) : (data.tax_percentage ? (subtotal * data.tax_percentage) / 100 : 0);
     const totalAmt = subtotal + taxAmt;
     
     const now = new Date();
@@ -135,13 +174,17 @@ export class InvoiceService {
 
     const id = await this.repo.createInvoice({
       invoice_number: invoiceNumber,
-      customer_id: data.customer_id,
-      project_id: data.project_id,
-      quotation_id: data.quotation_id,
+      customer_id: customerId,
+      project_id: projectId,
+      quotation_id: quotationId,
       schedule_id: data.schedule_id,
       survey_id: data.survey_id || null,
       currency_id: data.currency_id,
       tax_id: data.tax_id || null,
+      tax_type: data.tax_type || null,
+      cgst_amount: data.cgst_amount || 0,
+      sgst_amount: data.sgst_amount || 0,
+      igst_amount: data.igst_amount || 0,
       invoice_date: now.toISOString().split('T')[0],
       due_date: dueDate.toISOString().split('T')[0],
       subtotal_amount: subtotal,

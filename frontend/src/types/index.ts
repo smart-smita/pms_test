@@ -317,7 +317,12 @@ export interface Quotation {
   validity_date?: string;
   description?: string;
   subtotal_amount: number;
+  tax_id?: number | null;
+  tax_type?: string | null;
   tax_percentage: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   tax_amount: number;
   discount_amount: number;
   total_amount: number;
@@ -369,9 +374,14 @@ export interface Currency {
 export interface Tax {
   tax_id: number;
   tax_name: string;
+  tax_code?: string | null;
+  tax_type?: 'VAT' | 'GST' | 'CGST_SGST' | 'IGST' | 'SALES_TAX' | 'OTHER';
   tax_percentage: number;
   country_id?: number | null;
   country_name?: string | null;
+  is_split?: number;
+  cgst_percentage?: number;
+  sgst_percentage?: number;
   status: number;
   created_at?: string;
 }
@@ -440,7 +450,11 @@ export interface Invoice {
   currency_symbol?: string;
   tax_id?: number | null;
   tax_name?: string | null;
+  tax_type?: string | null;
   tax_percentage?: number | null;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   invoice_date: string;
   due_date: string;
   subtotal_amount: number;

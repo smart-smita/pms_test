@@ -55,9 +55,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
   const [projectTypeId, setProjectTypeId] = useState('');
   const [countryId, setCountryId] = useState('');
   const [communityId, setCommunityId] = useState('');
-  const [nationalityId, setNationalityId] = useState('');
-  const [emreadsId, setEmreadsId] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
+  const [budgetAmount, setBudgetAmount] = useState<string>('0');
   const [projectAddress, setProjectAddress] = useState('');
   const [radiusMeters, setRadiusMeters] = useState<number>(500);
   const [projectDate, setProjectDate] = useState(getFormattedDate());
@@ -124,9 +122,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
           setProjectTypeId(p.project_type_id ? String(p.project_type_id) : '');
           setCountryId(p.country_id ? String(p.country_id) : '');
           setCommunityId(p.community_id ? String(p.community_id) : '');
-          setNationalityId(p.nationality_id ? String(p.nationality_id) : '');
-          setEmreadsId(p.emreads_id || '');
-          setContactEmail(p.contact_email || '');
+          setBudgetAmount(p.budget_amount ? String(p.budget_amount) : '0');
           setProjectAddress(p.project_address || '');
           setRadiusMeters(p.radius_meters || 500);
           setProjectDate(getFormattedDate(p.project_date));
@@ -226,10 +222,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
       customer_id: customerId ? parseInt(customerId, 10) : undefined,
       project_type_id: projectTypeId ? parseInt(projectTypeId, 10) : undefined,
       country_id: countryId ? parseInt(countryId, 10) : undefined,
-      community_id: communityId ? parseInt(communityId, 10) : undefined,
-      nationality_id: nationalityId ? parseInt(nationalityId, 10) : undefined,
-      emreads_id: emreadsId || undefined,
-      contact_email: contactEmail || undefined,
+      budget_amount: budgetAmount ? parseFloat(budgetAmount) : 0,
       project_address: projectAddress,
       client_name: clientName,
       client_code: clientCode,
@@ -357,18 +350,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) =
           </div>
 
           <div className="grid-2-col">
-            <FormInput label="EMReads ID" type="text" value={emreadsId} onChange={e => setEmreadsId(e.target.value)} placeholder="External Reference ID" />
-            <FormInput label="Contact Email" type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="project@site.com" />
+            <FormInput label="Project Budget (₹)" type="number" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} placeholder="e.g. 500000" />
+            <FormInput label="Project Radius (meters)" type="number" value={radiusMeters} onChange={e => { setRadiusMeters(parseInt(e.target.value) || 500); setFormErrors(prev => ({...prev, radius_meters: ''})); }} required error={formErrors.radius_meters} />
           </div>
-
-          
-          <div className="form-group">
-            <label className="form-label">Project Address <span style={{ color: '#ef4444' }}>*</span></label>
-            <textarea className={`form-input ${formErrors.project_address ? 'invalid-input' : ''}`} rows={3} value={projectAddress} onChange={e => { setProjectAddress(e.target.value); setFormErrors(prev => ({...prev, project_address: ''})); }} placeholder="Full site address..." />
-            {formErrors.project_address && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{formErrors.project_address}</span>}
-          </div>
-
-          <FormInput label="Project Radius (meters)" type="number" value={radiusMeters} onChange={e => { setRadiusMeters(parseInt(e.target.value) || 500); setFormErrors(prev => ({...prev, radius_meters: ''})); }} required error={formErrors.radius_meters} />
           <FormInput label="Project Date" type="date" value={projectDate} onChange={e => { setProjectDate(e.target.value); setFormErrors(prev => ({...prev, project_date: ''})); }} required error={formErrors.project_date} />
           
           <div className="grid-2-col">

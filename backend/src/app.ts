@@ -38,6 +38,21 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: env.NODE_ENV });
 });
 
+app.get('/test-reports', async (_req, res) => {
+  try {
+    delete require.cache[require.resolve('./repositories/report.repository')];
+    const { ReportRepository } = require('./repositories/report.repository');
+    const repo = new ReportRepository();
+    const [profitLoss, plannedVsActual] = await Promise.all([
+      repo.getProjectProfitLossReport(),
+      repo.getPlannedVsActualReport()
+    ]);
+    res.json({ success: true, profitLoss, plannedVsActual });
+  } catch (error: any) {
+    res.status(200).json({ success: false, message: error.message, stack: error.stack });
+  }
+});
+
 // API Routes
 app.use('/api/v1', apiRoutes);
 

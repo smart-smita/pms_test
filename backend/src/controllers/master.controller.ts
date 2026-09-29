@@ -177,7 +177,8 @@ export class MasterController {
   getTaxes = async (req: Request, res: Response) => {
     try {
       const all = req.query.all === 'true';
-      const data = all ? await this.svc.getAllTaxes() : await this.svc.getTaxes();
+      const countryId = req.query.country_id ? Number(req.query.country_id) : undefined;
+      const data = all ? await this.svc.getAllTaxes(countryId) : await this.svc.getTaxes(countryId);
       return sendSuccess(res, 'Taxes retrieved', data);
     } catch (e: any) {
       return sendError(res, e.message, [], 500);

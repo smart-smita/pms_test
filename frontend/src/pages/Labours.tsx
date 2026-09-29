@@ -986,7 +986,8 @@ export const Labours: React.FC = () => {
                     <label className="form-label">EMREADS ID / Emirates ID (Optional)</label>
                     <input
                       type="text"
-                      placeholder="e.g. 784-1988-1234567-1"
+                      maxLength={25}
+                      placeholder="e.g. 784-1988-1234567-1 or 16-digit ID"
                       value={labourForm.emreads_id}
                       onChange={(e) => setLabourForm({ ...labourForm, emreads_id: e.target.value })}
                       className="form-input"

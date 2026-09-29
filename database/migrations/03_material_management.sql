@@ -1,0 +1,27 @@
+-- =============================================================================
+-- !! WARNING: THIS FILE IS DEPRECATED AND MUST NOT BE RUN !!
+-- =============================================================================
+-- This file previously contained DROP TABLE IF EXISTS statements for:
+--   vendor_payments, vendor_invoices, material_issues, grn_items,
+--   goods_receipt_notes, purchase_order_items, purchase_orders,
+--   material_indent_items, material_indents, purchase_orders,
+--   material_survey_items, material_surveys,
+--   material_quotation_items, material_quotations, materials
+-- Running it would DESTROY production data irreversibly.
+--
+-- The authoritative, safe schema for the Material Management module is defined
+-- in:  backend/src/migrate.ts  (Phase 6, items 38-47, ~lines 1179-1415)
+--
+-- That file uses CREATE TABLE IF NOT EXISTS (never DROP TABLE) and runs
+-- automatically on server startup via app.ts → runMigrations().
+--
+-- If you need to inspect the current material schema, run:
+--   node check_schema.js
+-- or query MySQL directly:
+--   SHOW CREATE TABLE materials;
+-- =============================================================================
+
+-- Safety guard: This SELECT will error out immediately if someone tries to execute
+-- this file on a live database, preventing any DROP statements from running.
+-- (The file contains no executable DROP statements anymore.)
+SELECT 'DEPRECATED FILE — DO NOT RUN. See backend/src/migrate.ts Phase 6 for the safe schema.' AS WARNING;

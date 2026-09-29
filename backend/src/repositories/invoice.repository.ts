@@ -32,6 +32,10 @@ export interface InvoiceRow {
   survey_id?: number | null;
   currency_id: number;
   tax_id: number | null;
+  tax_type?: string | null;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   invoice_date: string;
   due_date: string;
   subtotal_amount: number;
@@ -67,11 +71,20 @@ export interface InvoicePaymentRow {
 
 export class InvoiceRepository {
   // ── Billing Schedules ──────────────────────────────────────────────────
-  async getSchedulesByProject(projectId: number): Promise<BillingScheduleRow[]> {
-    const [rows] = await dbPool.query<RowDataPacket[]>(
-      `SELECT * FROM billing_schedules WHERE project_id = ? ORDER BY billing_month ASC`,
-      [projectId]
-    );
+  async getSchedulesByProject(projectId?: number): Promise<BillingScheduleRow[]> {
+    let sql = `SELECT bs.*, p.project_name, cust.customer_name,
+                      mcw.completed_work_id, mcw.completion_percentage, mcw.approved_amount, mcw.status AS work_status
+               FROM billing_schedules bs
+               LEFT JOIN projects p ON bs.project_id = p.project_id
+               LEFT JOIN customers cust ON p.customer_id = cust.customer_id
+               LEFT JOIN monthly_completed_work mcw ON bs.schedule_id = mcw.schedule_id`;
+    const params: any[] = [];
+    if (projectId) {
+      sql += ` WHERE bs.project_id = ?`;
+      params.push(projectId);
+    }
+    sql += ` ORDER BY bs.billing_month ASC`;
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
     return rows as BillingScheduleRow[];
   }
 
@@ -97,11 +110,19 @@ export class InvoiceRepository {
   }
 
   // ── Monthly Completed Work ───────────────────────────────────────────────
-  async getCompletedWorkByProject(projectId: number): Promise<MonthlyCompletedWorkRow[]> {
-    const [rows] = await dbPool.query<RowDataPacket[]>(
-      `SELECT * FROM monthly_completed_work WHERE project_id = ? ORDER BY schedule_id ASC`,
-      [projectId]
-    );
+  async getCompletedWorkByProject(projectId?: number): Promise<MonthlyCompletedWorkRow[]> {
+    let sql = `SELECT mcw.*, bs.billing_month, p.project_name, cust.customer_name
+               FROM monthly_completed_work mcw
+               LEFT JOIN billing_schedules bs ON mcw.schedule_id = bs.schedule_id
+               LEFT JOIN projects p ON mcw.project_id = p.project_id
+               LEFT JOIN customers cust ON p.customer_id = cust.customer_id`;
+    const params: any[] = [];
+    if (projectId) {
+      sql += ` WHERE mcw.project_id = ?`;
+      params.push(projectId);
+    }
+    sql += ` ORDER BY mcw.schedule_id ASC`;
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
     return rows as MonthlyCompletedWorkRow[];
   }
 
@@ -123,11 +144,32 @@ export class InvoiceRepository {
 
   // ── Invoices ─────────────────────────────────────────────────────────────
   async getInvoices(projectId?: number): Promise<InvoiceRow[]> {
-    let sql = `SELECT i.*, c.currency_code, c.symbol, t.tax_percentage, s.survey_code, s.report_file_url 
+    let sql = `SELECT i.*, 
+                      cust.customer_name, 
+                      p.project_name, 
+                      q.quotation_code, 
+                      bs.billing_month, 
+                      c.currency_code, 
+                      c.symbol AS currency_symbol, 
+                      t.tax_percentage, 
+                      t.tax_name, 
+                      s.survey_code, 
+                      s.attached_report_path AS report_file_url,
+                      COALESCE(pmt.paid_amount, 0) AS paid_amount
                FROM invoices i 
+               LEFT JOIN customers cust ON i.customer_id = cust.customer_id
+               LEFT JOIN projects p ON i.project_id = p.project_id
+               LEFT JOIN quotations q ON i.quotation_id = q.quotation_id
+               LEFT JOIN billing_schedules bs ON i.schedule_id = bs.schedule_id
                LEFT JOIN currencies c ON i.currency_id = c.currency_id
                LEFT JOIN taxes t ON i.tax_id = t.tax_id
-               LEFT JOIN site_surveys s ON i.survey_id = s.survey_id`;
+               LEFT JOIN site_surveys s ON i.survey_id = s.survey_id
+               LEFT JOIN (
+                 SELECT invoice_id, SUM(amount) AS paid_amount 
+                 FROM invoice_payments 
+                 WHERE status = 'completed' 
+                 GROUP BY invoice_id
+               ) pmt ON i.invoice_id = pmt.invoice_id`;
     const params: any[] = [];
     if (projectId) {
       sql += ` WHERE i.project_id = ?`;
@@ -140,11 +182,32 @@ export class InvoiceRepository {
 
   async getInvoiceById(id: number): Promise<InvoiceRow | null> {
     const [rows] = await dbPool.query<RowDataPacket[]>(
-      `SELECT i.*, c.currency_code, c.symbol, t.tax_percentage, t.tax_name, s.survey_code, s.report_file_url 
+      `SELECT i.*, 
+              cust.customer_name, 
+              p.project_name, 
+              q.quotation_code, 
+              bs.billing_month, 
+              c.currency_code, 
+              c.symbol AS currency_symbol, 
+              t.tax_percentage, 
+              t.tax_name, 
+              s.survey_code, 
+              s.attached_report_path AS report_file_url,
+              COALESCE(pmt.paid_amount, 0) AS paid_amount
        FROM invoices i 
+       LEFT JOIN customers cust ON i.customer_id = cust.customer_id
+       LEFT JOIN projects p ON i.project_id = p.project_id
+       LEFT JOIN quotations q ON i.quotation_id = q.quotation_id
+       LEFT JOIN billing_schedules bs ON i.schedule_id = bs.schedule_id
        LEFT JOIN currencies c ON i.currency_id = c.currency_id
        LEFT JOIN taxes t ON i.tax_id = t.tax_id 
        LEFT JOIN site_surveys s ON i.survey_id = s.survey_id
+       LEFT JOIN (
+         SELECT invoice_id, SUM(amount) AS paid_amount 
+         FROM invoice_payments 
+         WHERE status = 'completed' 
+         GROUP BY invoice_id
+       ) pmt ON i.invoice_id = pmt.invoice_id
        WHERE i.invoice_id = ?`,
       [id]
     );
@@ -167,13 +230,13 @@ export class InvoiceRepository {
     const [result] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO invoices (
         invoice_number, customer_id, project_id, quotation_id, schedule_id, survey_id,
-        currency_id, tax_id, invoice_date, due_date, subtotal_amount,
-        tax_amount, total_amount, status, created_by, approved_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        currency_id, tax_id, tax_type, cgst_amount, sgst_amount, igst_amount,
+        invoice_date, due_date, subtotal_amount, tax_amount, total_amount, status, created_by, approved_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.invoice_number, data.customer_id, data.project_id, data.quotation_id, data.schedule_id, data.survey_id || null,
-        data.currency_id, data.tax_id || null, data.invoice_date, data.due_date, data.subtotal_amount,
-        data.tax_amount, data.total_amount, data.status, data.created_by || null, data.approved_by || null
+        data.currency_id, data.tax_id || null, data.tax_type || null, data.cgst_amount || 0, data.sgst_amount || 0, data.igst_amount || 0,
+        data.invoice_date, data.due_date, data.subtotal_amount, data.tax_amount, data.total_amount, data.status, data.created_by || null, data.approved_by || null
       ]
     );
     return result.insertId;

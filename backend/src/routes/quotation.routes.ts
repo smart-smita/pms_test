@@ -15,4 +15,8 @@ router.put('/:id', requirePermission('quotations', 'update'), QuotationControlle
 router.patch('/:id/status', requirePermission('quotations', 'approve'), QuotationController.updateStatus);
 router.delete('/:id', requirePermission('quotations', 'delete'), QuotationController.delete);
 
+// Quotation → Project gate: POST /quotations/:id/create-project
+// Creates a project from an approved quotation. Requires projects:create permission.
+router.post('/:id/create-project', requirePermission('projects', 'create'), QuotationController.createProjectFromQuotation);
+
 export default router;

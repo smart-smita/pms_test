@@ -24,13 +24,19 @@ export class ProjectService {
       const existing = await this.projectRepo.findByCode(data.project_code);
       if (existing) throw new Error('Project code already exists');
 
-      // Create project using connection (Wait, repo uses dbPool. Let's just use dbPool for repo if we don't change repo. But for transaction to work, repo must use connection. Actually, we can just use connection for everything here)
+      // Create project using connection
       const [result] = await connection.execute(
-        `INSERT INTO projects (project_code, project_name, project_address, client_name, client_code, latitude, longitude, radius_meters, project_date, status, note)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (project_code, project_name, customer_id, project_type_id, country_id, community_id, nationality_id, budget_amount, project_address, client_name, client_code, latitude, longitude, radius_meters, project_date, status, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.project_code,
           data.project_name,
+          data.customer_id || null,
+          data.project_type_id || null,
+          data.country_id || null,
+          data.community_id || null,
+          data.nationality_id || null,
+          data.budget_amount || 0,
           data.project_address || null,
           data.client_name || null,
           data.client_code || null,
@@ -48,8 +54,6 @@ export class ProjectService {
         for (const wbs of data.wbs_allocations) {
           let wbsId = wbs.wbs_id;
           
-          // If wbs_id is missing, but wbs_name is provided, we might need to create it on the fly
-          // Since the user might enter a new WBS name
           if (!wbsId && wbs.wbs_name) {
              const [masterRes] = await connection.execute(
                 `INSERT INTO work_breakdown_structures (wbs_code, wbs_name) VALUES (?, ?)`,
@@ -89,10 +93,15 @@ export class ProjectService {
       const project = await this.projectRepo.findById(id);
       if (!project) throw new Error('Project not found');
 
-      // Update project master data using repo (Repo doesn't use connection. We will just use dbPool for repo since it's an isolated update, but wait, if it fails later, we want rollback. We must use connection.)
       const fields: string[] = [];
       const params: any[] = [];
       if (data.project_name !== undefined) { fields.push('project_name = ?'); params.push(data.project_name); }
+      if (data.customer_id !== undefined) { fields.push('customer_id = ?'); params.push(data.customer_id); }
+      if (data.project_type_id !== undefined) { fields.push('project_type_id = ?'); params.push(data.project_type_id); }
+      if (data.country_id !== undefined) { fields.push('country_id = ?'); params.push(data.country_id); }
+      if (data.community_id !== undefined) { fields.push('community_id = ?'); params.push(data.community_id); }
+      if (data.nationality_id !== undefined) { fields.push('nationality_id = ?'); params.push(data.nationality_id); }
+      if (data.budget_amount !== undefined) { fields.push('budget_amount = ?'); params.push(data.budget_amount); }
       if (data.project_address !== undefined) { fields.push('project_address = ?'); params.push(data.project_address); }
       if (data.client_name !== undefined) { fields.push('client_name = ?'); params.push(data.client_name); }
       if (data.client_code !== undefined) { fields.push('client_code = ?'); params.push(data.client_code); }

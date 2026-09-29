@@ -194,15 +194,21 @@ export class DashboardService {
     `);
 
     // 11. Invoice Metrics
-    let invScope = 'is_deleted = 0';
-    if (managerId) invScope += ` AND project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
+    let invScope = '1=1';
+    if (managerId) invScope += ` AND i.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})`;
     const [invRows] = await dbPool.execute<RowDataPacket[]>(`
       SELECT 
-        COUNT(invoice_id) AS total_invoices,
-        SUM(CASE WHEN status = 'pending' OR status = 'overdue' THEN 1 ELSE 0 END) AS pending_invoices_count,
-        SUM(total_amount) AS total_invoiced,
-        SUM(amount_paid) AS total_paid
-      FROM invoices
+        COUNT(i.invoice_id) AS total_invoices,
+        SUM(CASE WHEN i.status = 'pending' OR i.status = 'overdue' THEN 1 ELSE 0 END) AS pending_invoices_count,
+        COALESCE(SUM(i.total_amount), 0) AS total_invoiced,
+        COALESCE(SUM(pmt.total_paid), 0) AS total_paid
+      FROM invoices i
+      LEFT JOIN (
+        SELECT invoice_id, SUM(amount) AS total_paid
+        FROM invoice_payments
+        WHERE status = 'completed'
+        GROUP BY invoice_id
+      ) pmt ON i.invoice_id = pmt.invoice_id
       WHERE ${invScope}
     `);
 
@@ -236,7 +242,7 @@ export class DashboardService {
     // Check overdue invoices
     const [overdueInvRows] = await dbPool.execute<RowDataPacket[]>(`
       SELECT invoice_number, total_amount, due_date FROM invoices 
-      WHERE status = 'overdue' AND is_deleted = 0
+      WHERE status = 'overdue'
       ${managerId ? `AND project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ${managerId})` : ''}
       LIMIT 3
     `);

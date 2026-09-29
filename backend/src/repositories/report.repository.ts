@@ -803,7 +803,7 @@ export class ReportRepository {
         COALESCE((SELECT SUM(total_amount) FROM invoices WHERE project_id = p.project_id AND status IN ('paid', 'partially_paid')), 0) AS collected_value,
         COALESCE((SELECT SUM(budget_amount) FROM tasks WHERE project_id = p.project_id), 0) AS planned_cost,
         COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_cost,
-        COALESCE((SELECT SUM(actual_cost) FROM material_logs WHERE project_id = p.project_id), 0) AS actual_material_cost
+        COALESCE((SELECT SUM(amount) FROM material_transactions WHERE project_wbs_id IN (SELECT id FROM project_wbs WHERE project_id = p.project_id) AND txn_type = 'usage' AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_material_cost
       FROM projects p
       LEFT JOIN customers c ON p.customer_id = c.customer_id
       WHERE (p.is_deleted = 0 OR p.is_deleted IS NULL)
@@ -840,24 +840,26 @@ export class ReportRepository {
     let sql = `
       SELECT 
         p.project_name,
-        w.wbs_name,
+        COALESCE(w.wbs_name, w_direct.wbs_name, 'General') AS wbs_name,
         t.task_name,
-        t.estimated_hours AS planned_labour_hours,
+        COALESCE(t.estimated_hours, 0) AS planned_labour_hours,
         COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_hours,
-        t.budget_amount AS planned_labour_cost,
+        COALESCE(t.budget_amount, 0) AS planned_labour_cost,
         COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_cost,
-        COALESCE((SELECT SUM(planned_quantity) FROM material_planning WHERE task_id = t.task_id), 0) AS planned_material_quantity,
-        COALESCE((SELECT SUM(quantity) FROM material_logs WHERE task_id = t.task_id), 0) AS actual_material_quantity,
-        COALESCE((SELECT SUM(planned_cost) FROM material_planning WHERE task_id = t.task_id), 0) AS planned_material_cost,
-        COALESCE((SELECT SUM(actual_cost) FROM material_logs WHERE task_id = t.task_id), 0) AS actual_material_cost
+        COALESCE((SELECT SUM(estimated_quantity) FROM material_requirements mr WHERE mr.wbs_id = pw.id AND (mr.is_deleted = 0 OR mr.is_deleted IS NULL)), 0) AS planned_material_quantity,
+        COALESCE((SELECT SUM(qty) FROM material_transactions WHERE task_id = t.task_id AND txn_type = 'usage' AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_material_quantity,
+        COALESCE((SELECT SUM(estimated_quantity * rate_budgeted) FROM material_requirements mr WHERE mr.wbs_id = pw.id AND (mr.is_deleted = 0 OR mr.is_deleted IS NULL)), 0) AS planned_material_cost,
+        COALESCE((SELECT SUM(amount) FROM material_transactions WHERE task_id = t.task_id AND txn_type = 'usage' AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_material_cost
       FROM tasks t
       JOIN projects p ON t.project_id = p.project_id
-      LEFT JOIN project_wbs w ON t.wbs_id = w.id
+      LEFT JOIN project_wbs pw ON (t.wbs_id = pw.id OR (t.wbs_id = pw.wbs_id AND pw.project_id = t.project_id AND pw.deleted_at IS NULL))
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+      LEFT JOIN work_breakdown_structures w_direct ON t.wbs_id = w_direct.id
       WHERE (t.is_deleted = 0 OR t.is_deleted IS NULL)
     `;
     const params: any[] = [];
     if (filters?.project_id) { sql += ` AND t.project_id = ?`; params.push(filters.project_id); }
-    sql += ` ORDER BY p.project_name ASC, w.wbs_name ASC, t.task_name ASC`;
+    sql += ` ORDER BY p.project_name ASC, wbs_name ASC, t.task_name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
 
     return rows.map((r: any) => {

@@ -27,7 +27,7 @@ interface DataTableProps<T> {
   defaultPageSize?: number;
   pageSizeOptions?: number[];
   keyField?: string | keyof T;
-  keyExtractor?: (item: T) => any;
+  keyExtractor?: (item: T, index: number) => any;
   emptyMessage?: string;
 }
 
@@ -318,8 +318,14 @@ export function DataTable<T extends Record<string, any>>({
                   </td>
                 </tr>
               ) : (
-                paginatedData.map((row, rIdx) => (
-                  <tr key={keyExtractor ? keyExtractor(row) : (keyField && row[keyField as string] !== undefined ? String(row[keyField as string]) : rIdx)}>
+                paginatedData.map((row, rIdx) => {
+                  const rowKey = keyExtractor
+                    ? keyExtractor(row, rIdx)
+                    : keyField && row[keyField as string] !== undefined && row[keyField as string] !== null
+                    ? `${String(row[keyField as string])}_${rIdx}`
+                    : `row-${rIdx}`;
+                  return (
+                    <tr key={rowKey}>
                     {columns.map((col, cIdx) => (
                       <td key={cIdx} className={col.className}>
                         {col.render
@@ -332,8 +338,9 @@ export function DataTable<T extends Record<string, any>>({
                       </td>
                     ))}
                     {actions && <td style={{ textAlign: 'right' }}>{actions(row)}</td>}
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

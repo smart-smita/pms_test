@@ -93,4 +93,31 @@ export class QuotationController {
       next(err);
     }
   }
+
+  /**
+   * POST /quotations/:id/create-project
+   * Creates a project from an approved quotation (Customer → Quotation → Project gate).
+   */
+  static async createProjectFromQuotation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id;
+      const ipAddress = req.ip;
+      const { project_code, project_name, project_address, project_type_id, radius_meters } = req.body;
+
+      if (!project_code) {
+        return res.status(400).json({ success: false, message: 'project_code is required' });
+      }
+
+      const result = await QuotationService.createProjectFromQuotation(
+        id,
+        { project_code, project_name, project_address, project_type_id, radius_meters },
+        userId,
+        ipAddress
+      );
+      res.status(201).json({ success: true, message: 'Project created from quotation', data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

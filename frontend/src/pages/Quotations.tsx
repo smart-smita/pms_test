@@ -21,6 +21,8 @@ export const Quotations: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [disciplinesList, setDisciplinesList] = useState<Discipline[]>([]);
   const [termsTemplates, setTermsTemplates] = useState<TermsTemplate[]>([]);
+  const [taxesList, setTaxesList] = useState<any[]>([]);
+  const [selectedTaxId, setSelectedTaxId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -40,7 +42,7 @@ export const Quotations: React.FC = () => {
     quotation_date: new Date().toISOString().split('T')[0],
     validity_date: '',
     description: '',
-    tax_percentage: '5',
+    tax_percentage: '18',
     discount_amount: '0',
   });
 
@@ -54,6 +56,40 @@ export const Quotations: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingQuotation, setDeletingQuotation] = useState<{ id: number; code: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Create Project from Quotation modal
+  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+  const [createProjectQuotation, setCreateProjectQuotation] = useState<Quotation | null>(null);
+  const [createProjectForm, setCreateProjectForm] = useState({ project_code: '', project_name: '', project_address: '' });
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+
+  const openCreateProjectModal = (q: Quotation) => {
+    setCreateProjectQuotation(q);
+    setCreateProjectForm({
+      project_code: `PRJ-${q.quotation_code}`,
+      project_name: q.customer_name ? `${q.customer_name} Project` : '',
+      project_address: '',
+    });
+    setIsCreateProjectOpen(true);
+  };
+
+  const handleCreateProject = async () => {
+    if (!createProjectQuotation) return;
+    if (!createProjectForm.project_code.trim()) { showError('Project code is required.'); return; }
+    setIsCreatingProject(true);
+    const res = await apiRequest<{ project_id: number }>(`/quotations/${createProjectQuotation.quotation_id}/create-project`, {
+      method: 'POST',
+      body: JSON.stringify(createProjectForm),
+    });
+    setIsCreatingProject(false);
+    if (res.success && res.data) {
+      showSuccess(`Project created successfully (ID: ${res.data.project_id}). Navigate to Projects to view it.`);
+      setIsCreateProjectOpen(false);
+      fetchQuotations();
+    } else {
+      showError(res.message || 'Failed to create project from quotation.');
+    }
+  };
 
   const fetchQuotations = async () => {
     setIsLoading(true);
@@ -69,16 +105,18 @@ export const Quotations: React.FC = () => {
   };
 
   const fetchMasters = async () => {
-    const [cRes, pRes, dRes, tRes] = await Promise.all([
+    const [cRes, pRes, dRes, tRes, txRes] = await Promise.all([
       apiRequest<Customer[]>('/customers'),
       apiRequest<Project[]>('/projects'),
       apiRequest<Discipline[]>('/masters/disciplines'),
       apiRequest<TermsTemplate[]>('/terms-templates'),
+      apiRequest<any[]>('/masters/taxes'),
     ]);
     if (cRes.success && cRes.data) setCustomers(cRes.data);
     if (pRes.success && pRes.data) setProjects(pRes.data);
     if (dRes.success && dRes.data) setDisciplinesList(dRes.data);
     if (tRes.success && tRes.data) setTermsTemplates(tRes.data);
+    if (txRes.success && txRes.data) setTaxesList(txRes.data);
   };
 
   useEffect(() => {
@@ -89,15 +127,25 @@ export const Quotations: React.FC = () => {
     fetchQuotations();
   }, [filterCustomer, filterStatus]);
 
+  const selectedTax = taxesList.find((t) => String(t.tax_id) === selectedTaxId);
+  const taxPct = selectedTax ? Number(selectedTax.tax_percentage) : Number(formData.tax_percentage) || 0;
+  const isSplitTax = selectedTax ? Boolean(selectedTax.is_split || selectedTax.tax_type === 'CGST_SGST') : false;
+  const cgstPct = selectedTax && isSplitTax ? Number(selectedTax.cgst_percentage || taxPct / 2) : 0;
+  const sgstPct = selectedTax && isSplitTax ? Number(selectedTax.sgst_percentage || taxPct / 2) : 0;
+
   const calculateSubtotal = () => lineItems.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
   const subtotal = calculateSubtotal();
-  const taxPct = Number(formData.tax_percentage) || 0;
-  const taxAmount = (subtotal * taxPct) / 100;
   const discount = Number(formData.discount_amount) || 0;
-  const grandTotal = subtotal + taxAmount - discount;
+  const taxableAmount = Math.max(0, subtotal - discount);
+
+  const cgstAmount = isSplitTax ? (taxableAmount * cgstPct) / 100 : 0;
+  const sgstAmount = isSplitTax ? (taxableAmount * sgstPct) / 100 : 0;
+  const taxAmount = isSplitTax ? cgstAmount + sgstAmount : (taxableAmount * taxPct) / 100;
+  const grandTotal = taxableAmount + taxAmount;
 
   const openCreateModal = () => {
     setEditingQuotation(null);
+    setSelectedTaxId('');
     setFormData({
       quotation_code: '',
       customer_id: '',
@@ -105,7 +153,7 @@ export const Quotations: React.FC = () => {
       quotation_date: new Date().toISOString().split('T')[0],
       validity_date: '',
       description: '',
-      tax_percentage: '5',
+      tax_percentage: '18',
       discount_amount: '0',
     });
     setTermsSnapshots([]);
@@ -118,6 +166,7 @@ export const Quotations: React.FC = () => {
     const detailRes = await apiRequest<Quotation>(`/quotations/${q.quotation_id}`);
     const quotationData = detailRes.success && detailRes.data ? detailRes.data : q;
 
+    setSelectedTaxId(quotationData.tax_id ? String(quotationData.tax_id) : '');
     setFormData({
       quotation_code: quotationData.quotation_code,
       customer_id: String(quotationData.customer_id),
@@ -198,17 +247,22 @@ export const Quotations: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customer_id) { showError('Please select a customer.'); return; }
-    if (!formData.project_id) { showError('Please select a project.'); return; }
+    // project_id is optional in the quotation-first flow
 
     setIsSubmitting(true);
     const payload = {
       customer_id: Number(formData.customer_id),
-      project_id: Number(formData.project_id),
+      project_id: formData.project_id ? Number(formData.project_id) : null,
       quotation_code: formData.quotation_code || undefined,
       quotation_date: formData.quotation_date,
       validity_date: formData.validity_date || null,
       description: formData.description,
+      tax_id: selectedTax ? selectedTax.tax_id : null,
+      tax_type: selectedTax ? selectedTax.tax_type : null,
       tax_percentage: Number(formData.tax_percentage) || 0,
+      cgst_amount: cgstAmount,
+      sgst_amount: sgstAmount,
+      igst_amount: !isSplitTax && selectedTax && selectedTax.tax_type === 'IGST' ? taxAmount : 0,
       discount_amount: Number(formData.discount_amount) || 0,
       subtotal_amount: subtotal,
       tax_amount: taxAmount,
@@ -389,6 +443,16 @@ export const Quotations: React.FC = () => {
                   </Button>
                 </>
               )}
+              {isAdminOrManager && row.status === 'approved' && !row.project_id && (
+                <Button
+                  variant="secondary"
+                  onClick={() => openCreateProjectModal(row)}
+                  style={{ padding: '0.35rem 0.6rem', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)' }}
+                  title="Create a project from this approved quotation"
+                >
+                  <FolderKanban size={14} /> Create Project
+                </Button>
+              )}
               {isAdminOrManager && (
                 <Button
                   variant="secondary"
@@ -422,14 +486,13 @@ export const Quotations: React.FC = () => {
               required
             />
             <FormSelect
-              label="Project"
+              label="Project (Optional — leave blank to create one from this quotation after approval)"
               value={formData.project_id}
               onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
               options={[
-                { value: '', label: '-- Select Project --' },
+                { value: '', label: '-- No Project Yet --' },
                 ...projects.map((p) => ({ value: String(p.project_id), label: `${p.project_name} (${p.project_code})` })),
               ]}
-              required
             />
             <FormInput
               label="Quotation Date"
@@ -511,23 +574,55 @@ export const Quotations: React.FC = () => {
           </div>
 
           {/* Financial Summary */}
-          <div style={{ marginTop: '1.5rem', background: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-            <FormInput
-              label="Tax Percentage (%)"
-              type="number"
-              value={formData.tax_percentage}
-              onChange={(e) => setFormData({ ...formData, tax_percentage: e.target.value })}
-            />
-            <FormInput
-              label="Discount Amount (₹)"
-              type="number"
-              value={formData.discount_amount}
-              onChange={(e) => setFormData({ ...formData, discount_amount: e.target.value })}
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'right' }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Grand Total</div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#4ade80' }}>
-                ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          <div style={{ marginTop: '1.5rem', background: 'rgba(99,102,241,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <FormSelect
+                label="Tax Scheme / Rate"
+                value={selectedTaxId}
+                onChange={(e) => {
+                  const tId = e.target.value;
+                  setSelectedTaxId(tId);
+                  const st = taxesList.find((t) => String(t.tax_id) === tId);
+                  if (st) {
+                    setFormData((prev) => ({ ...prev, tax_percentage: String(st.tax_percentage) }));
+                  }
+                }}
+                options={[
+                  { value: '', label: '-- Custom Tax % --' },
+                  ...taxesList.map((t) => ({
+                    value: String(t.tax_id),
+                    label: `${t.tax_name} (${t.tax_percentage}%) ${t.country_name ? `[${t.country_name}]` : ''}`,
+                  })),
+                ]}
+              />
+              <FormInput
+                label="Tax Percentage (%)"
+                type="number"
+                value={formData.tax_percentage}
+                onChange={(e) => setFormData({ ...formData, tax_percentage: e.target.value })}
+              />
+              <FormInput
+                label="Discount Amount (₹)"
+                type="number"
+                value={formData.discount_amount}
+                onChange={(e) => setFormData({ ...formData, discount_amount: e.target.value })}
+              />
+            </div>
+
+            {/* Financial Breakdown Table */}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.85rem' }}>
+              <div>Subtotal: <strong>₹ {subtotal.toFixed(2)}</strong></div>
+              <div>Discount: <strong style={{ color: '#f87171' }}>- ₹ {discount.toFixed(2)}</strong></div>
+              {isSplitTax ? (
+                <>
+                  <div>CGST ({cgstPct}%): <strong style={{ color: '#38bdf8' }}>₹ {cgstAmount.toFixed(2)}</strong></div>
+                  <div>SGST ({sgstPct}%): <strong style={{ color: '#38bdf8' }}>₹ {sgstAmount.toFixed(2)}</strong></div>
+                </>
+              ) : (
+                <div>Tax ({taxPct}%): <strong style={{ color: '#38bdf8' }}>₹ {taxAmount.toFixed(2)}</strong></div>
+              )}
+              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#4ade80' }}>
+                Grand Total: ₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
@@ -543,17 +638,45 @@ export const Quotations: React.FC = () => {
                 label="Load from Template (Optional)"
                 value=""
                 onChange={(e) => {
-                  const tmpl = termsTemplates.find(t => String(t.template_id) === e.target.value);
-                  if (tmpl && tmpl.items && tmpl.items.length > 0) {
-                    if (termsSnapshots.length > 0) {
-                      if (!window.confirm("Changing the template will replace the current template-based terms. Continue?")) return;
+                  const val = e.target.value;
+                  if (!val) return;
+                  const tmpl = termsTemplates.find((t) => String(t.template_id) === val || t.template_name === val);
+                  if (tmpl) {
+                    let parsedItems: { title: string; description: string; sort_order: number }[] = [];
+                    if (tmpl.items && Array.isArray(tmpl.items) && tmpl.items.length > 0) {
+                      parsedItems = tmpl.items.map((item: any, idx: number) => ({
+                        title: item.title || `Condition ${idx + 1}`,
+                        description: item.description || item.terms_content || String(item),
+                        sort_order: item.sort_order ?? idx,
+                      }));
+                    } else if (tmpl.terms_content) {
+                      const lines = tmpl.terms_content.split('\n').filter((l: string) => l.trim().length > 0);
+                      if (lines.length > 1) {
+                        parsedItems = lines.map((line: string, idx: number) => {
+                          const match = line.match(/^(\d+[\.\)]\s*)(.*)/);
+                          const title = match ? `Condition ${match[1].trim()}` : `Condition ${idx + 1}`;
+                          const description = match ? match[2] : line;
+                          return { title, description, sort_order: idx };
+                        });
+                      } else {
+                        parsedItems = [{ title: tmpl.template_name, description: tmpl.terms_content, sort_order: 0 }];
+                      }
                     }
-                    setTermsSnapshots(tmpl.items.map((item: any) => ({ title: item.title, description: item.description, sort_order: item.sort_order })));
+
+                    if (parsedItems.length > 0) {
+                      if (termsSnapshots.length > 0) {
+                        if (!window.confirm("Loading this template will replace the current terms. Continue?")) return;
+                      }
+                      setTermsSnapshots(parsedItems);
+                    }
                   }
                 }}
                 options={[
                   { value: '', label: '-- Select Template --' },
-                  ...termsTemplates.map((t) => ({ value: String(t.template_id), label: t.template_name }))
+                  ...Array.from(new Map(termsTemplates.map((t) => [t.template_name, t])).values()).map((t) => ({
+                    value: String(t.template_id),
+                    label: t.template_name,
+                  })),
                 ]}
               />
             </div>
@@ -617,6 +740,45 @@ export const Quotations: React.FC = () => {
         recordName={deletingQuotation?.code || 'this quotation'}
         isLoading={isDeleting}
       />
+
+      {/* Create Project from Quotation Modal */}
+      <Modal
+        isOpen={isCreateProjectOpen}
+        onClose={() => setIsCreateProjectOpen(false)}
+        title={`Create Project from Quotation ${createProjectQuotation?.quotation_code || ''}`}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ padding: '0.75rem', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '0.85rem', color: '#94a3b8', border: '1px solid rgba(99,102,241,0.2)' }}>
+            This will create a new project seeded from the approved quotation data.
+            Project budget will be set to the quotation total.
+            Project WBS entries will be created from each discipline line item.
+          </div>
+          <FormInput
+            label="Project Code *"
+            placeholder="e.g. PRJ-2026-001"
+            value={createProjectForm.project_code}
+            onChange={(e) => setCreateProjectForm({ ...createProjectForm, project_code: e.target.value })}
+          />
+          <FormInput
+            label="Project Name"
+            placeholder="e.g. Unitglo Site A Civil Works"
+            value={createProjectForm.project_name}
+            onChange={(e) => setCreateProjectForm({ ...createProjectForm, project_name: e.target.value })}
+          />
+          <FormInput
+            label="Project Address (optional)"
+            placeholder="Site address..."
+            value={createProjectForm.project_address}
+            onChange={(e) => setCreateProjectForm({ ...createProjectForm, project_address: e.target.value })}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <Button variant="secondary" onClick={() => setIsCreateProjectOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateProject} disabled={isCreatingProject}>
+              {isCreatingProject ? 'Creating...' : '✓ Create Project'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

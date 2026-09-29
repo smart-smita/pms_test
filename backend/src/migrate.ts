@@ -469,13 +469,27 @@ export async function migrate() {
     await dbPool.query(`
       CREATE TABLE IF NOT EXISTS communities (
         community_id   INT AUTO_INCREMENT PRIMARY KEY,
-        community_name VARCHAR(150) NOT NULL,
+        community_name VARCHAR(150) NOT NULL UNIQUE,
         country_id     INT          DEFAULT NULL,
         state          VARCHAR(100) DEFAULT NULL,
         status         TINYINT(1)   NOT NULL DEFAULT 1,
         created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `).catch(() => {});
+
+    // Seed communities
+    const commSeed = [
+      ['Downtown Dubai', 'Dubai'],
+      ['Dubai Marina', 'Dubai'],
+      ['Business Bay', 'Dubai'],
+      ['Jumeirah Beach Residence', 'Dubai'],
+      ['Whitefield', 'Karnataka'],
+      ['Bandra West', 'Maharashtra'],
+      ['DLF Cyber City', 'Haryana']
+    ];
+    for (const [cName, cState] of commSeed) {
+      await dbPool.query(`INSERT IGNORE INTO communities (community_name, state) VALUES (?, ?)`, [cName, cState]);
+    }
 
     // 14. Project Types master (configurable)
     await dbPool.query(`
@@ -536,7 +550,7 @@ export async function migrate() {
     const docTypeSeed = [
       ['PASSPORT',        'Passport',                  'all',      1, 1, 1, 0, null,  1],
       ['VISA',            'Visa',                      'all',      1, 1, 1, 0, null,  2],
-      ['LABOUR_CARD',     'Labour Card',               'labour',   1, 1, 1, 0, null,  3],
+      ['LABOUR_CARD',     'Labour Card',               'all',      1, 1, 1, 0, null,  3],
       ['CONTRACT',        'Employment Contract',       'all',      1, 1, 1, 0, null,  4],
       ['NATIONAL_ID',     'National ID / Aadhaar',    'all',      0, 1, 0, 0, null,  5],
       ['PAN_CARD',        'PAN Card',                  'employee', 0, 1, 0, 0, null,  6],
@@ -698,7 +712,7 @@ export async function migrate() {
     await dbPool.query(`
       CREATE TABLE IF NOT EXISTS terms_templates (
         template_id     INT AUTO_INCREMENT PRIMARY KEY,
-        template_name   VARCHAR(150) NOT NULL,
+        template_name   VARCHAR(150) NOT NULL UNIQUE,
         country_id      INT          DEFAULT NULL COMMENT 'NULL = All countries',
         project_type_id INT          DEFAULT NULL COMMENT 'NULL = All project types',
         discipline_id   INT          DEFAULT NULL COMMENT 'NULL = All disciplines',
@@ -713,6 +727,44 @@ export async function migrate() {
         FOREIGN KEY (project_type_id) REFERENCES project_types(type_id) ON DELETE SET NULL,
         FOREIGN KEY (discipline_id) REFERENCES disciplines(discipline_id) ON DELETE SET NULL,
         FOREIGN KEY (created_by) REFERENCES employees(employee_id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // Seed default terms templates
+    const termsSeed = [
+      ['Standard Construction Contract Terms', '1. Payment terms: 30 days net from invoice date.\n2. All works to strictly follow local municipality guidelines and HSE standards.\n3. Retention rate of 5% applies until final completion.'],
+      ['Subcontractor Billing & Progress Terms', '1. Monthly progress billing against certified milestone completion.\n2. All safety compliance certificates required prior to payment release.'],
+      ['Civil & MEP Works General Terms', '1. Materials subject to on-site quality inspection and approval.\n2. Defect liability period is 12 months from handover date.']
+    ];
+    for (const [tName, tContent] of termsSeed) {
+      await dbPool.query(
+        `INSERT IGNORE INTO terms_templates (template_name, terms_content) VALUES (?, ?)`,
+        [tName, tContent]
+      );
+    }
+
+    // 23b. Employee Documents Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS employee_documents (
+        id                 INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id        INT          NOT NULL,
+        document_type      ENUM('passport', 'visa', 'national_id', 'labour_card', 'contract') NOT NULL,
+        document_number    VARCHAR(100) DEFAULT NULL,
+        issue_date         DATE         DEFAULT NULL,
+        expiry_date        DATE         DEFAULT NULL,
+        issuing_country    VARCHAR(100) DEFAULT NULL,
+        issuing_country_id INT          DEFAULT NULL,
+        document_file      VARCHAR(255) DEFAULT NULL,
+        file_size          INT          DEFAULT 0,
+        mime_type          VARCHAR(100) DEFAULT NULL,
+        sub_type           VARCHAR(50)  DEFAULT NULL COMMENT 'e.g., visa_type or contract_type',
+        status             ENUM('active', 'expiring_soon', 'expired', 'archived') NOT NULL DEFAULT 'active',
+        remarks            TEXT         DEFAULT NULL,
+        created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+        updated_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE,
+        INDEX idx_emp_doc (employee_id, document_type),
+        INDEX idx_emp_expiry (expiry_date, status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `).catch(() => {});
 
@@ -858,27 +910,62 @@ export async function migrate() {
     await dbPool.query(`
       CREATE TABLE IF NOT EXISTS taxes (
         tax_id INT AUTO_INCREMENT PRIMARY KEY,
+        tax_code VARCHAR(50) DEFAULT NULL,
         tax_name VARCHAR(100) NOT NULL,
-        tax_percentage DECIMAL(5,2) NOT NULL,
+        tax_type ENUM('VAT', 'GST', 'CGST_SGST', 'IGST', 'SALES_TAX', 'OTHER') NOT NULL DEFAULT 'VAT',
+        tax_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00,
         country_id INT DEFAULT NULL,
+        is_split TINYINT(1) DEFAULT 0,
+        cgst_percentage DECIMAL(5,2) DEFAULT 0.00,
+        sgst_percentage DECIMAL(5,2) DEFAULT 0.00,
         status TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (country_id) REFERENCES countries(country_id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `).catch(() => {});
 
-    // Seed default taxes (UAE VAT 5%, Indian GST 18%)
+    // Migration alters for existing taxes table
+    const taxAlters = [
+      `ALTER TABLE taxes ADD COLUMN tax_code VARCHAR(50) DEFAULT NULL`,
+      `ALTER TABLE taxes ADD COLUMN tax_type ENUM('VAT', 'GST', 'CGST_SGST', 'IGST', 'SALES_TAX', 'OTHER') NOT NULL DEFAULT 'VAT'`,
+      `ALTER TABLE taxes ADD COLUMN is_split TINYINT(1) DEFAULT 0`,
+      `ALTER TABLE taxes ADD COLUMN cgst_percentage DECIMAL(5,2) DEFAULT 0.00`,
+      `ALTER TABLE taxes ADD COLUMN sgst_percentage DECIMAL(5,2) DEFAULT 0.00`,
+      `ALTER TABLE quotations ADD COLUMN tax_id INT DEFAULT NULL`,
+      `ALTER TABLE quotations ADD COLUMN tax_type VARCHAR(50) DEFAULT NULL`,
+      `ALTER TABLE quotations ADD COLUMN cgst_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE quotations ADD COLUMN sgst_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE quotations ADD COLUMN igst_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(50) DEFAULT NULL`,
+      `ALTER TABLE invoices ADD COLUMN cgst_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE invoices ADD COLUMN sgst_amount DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE invoices ADD COLUMN igst_amount DECIMAL(15,2) DEFAULT 0.00`,
+    ];
+    for (const q of taxAlters) {
+      try { await dbPool.query(q); } catch (e: any) { /* column already added */ }
+    }
+
+    // Seed default taxes (UAE VAT 5%, India CGST+SGST 18%, India IGST 18%, Saudi VAT 15%, etc.)
     try {
-      const [countries]: any = await dbPool.query(`SELECT country_id, country_code FROM countries WHERE country_code IN ('AE', 'IN')`);
+      const [countries]: any = await dbPool.query(`SELECT country_id, country_code FROM countries`);
       const countryMap: Record<string, number> = {};
       for (const c of countries) { countryMap[c.country_code] = c.country_id; }
       
       const taxSeed = [
-        ['UAE VAT 5%', 5.00, countryMap['AE'] || null],
-        ['Indian GST 18%', 18.00, countryMap['IN'] || null]
+        ['UAE VAT 5%', 'VAT5', 'VAT', 5.00, countryMap['AE'] || null, 0, 0, 0],
+        ['GST Intra-State (CGST 9% + SGST 9%)', 'CGST_SGST_18', 'CGST_SGST', 18.00, countryMap['IN'] || null, 1, 9.00, 9.00],
+        ['GST Inter-State (IGST 18%)', 'IGST_18', 'IGST', 18.00, countryMap['IN'] || null, 0, 0, 0],
+        ['GST Intra-State (CGST 6% + SGST 6%)', 'CGST_SGST_12', 'CGST_SGST', 12.00, countryMap['IN'] || null, 1, 6.00, 6.00],
+        ['GST Inter-State (IGST 12%)', 'IGST_12', 'IGST', 12.00, countryMap['IN'] || null, 0, 0, 0],
+        ['Saudi VAT 15%', 'VAT15', 'VAT', 15.00, countryMap['SA'] || null, 0, 0, 0],
+        ['US Sales Tax 8.875%', 'SALES_TAX_US', 'SALES_TAX', 8.875, countryMap['US'] || null, 0, 0, 0],
+        ['UK Standard VAT 20%', 'VAT20_UK', 'VAT', 20.00, countryMap['GB'] || null, 0, 0, 0]
       ];
-      for (const [name, pct, cid] of taxSeed) {
-        await dbPool.query(`INSERT IGNORE INTO taxes (tax_name, tax_percentage, country_id) VALUES (?, ?, ?)`, [name, pct, cid]);
+      for (const [name, code, type, pct, cid, isSplit, cgst, sgst] of taxSeed) {
+        await dbPool.query(
+          `INSERT IGNORE INTO taxes (tax_name, tax_code, tax_type, tax_percentage, country_id, is_split, cgst_percentage, sgst_percentage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [name, code, type, pct, cid, isSplit, cgst, sgst]
+        );
       }
     } catch(err) { console.warn('Tax seed warning', err); }
 
@@ -1089,10 +1176,424 @@ export async function migrate() {
     await grantPerm2(rMap2['Admin'],       Object.keys(permMap3));
     await grantPerm2(rMap2['Manager'], ['site_surveys_view', 'site_surveys_create', 'site_surveys_update', 'site_surveys_verify']);
 
-    console.log('Phase 1, 2, 3, 4 & 5 PMS migrations complete.');
+    // ─── PHASE 6: Material Management System ──────────────────────────
+    console.log('Running Phase 6: Material Management System migration...');
+
+    // 38. Extend / Create Materials Master Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS materials (
+        material_id     INT AUTO_INCREMENT PRIMARY KEY,
+        material_code   VARCHAR(50)  DEFAULT NULL UNIQUE,
+        material_name   VARCHAR(150) NOT NULL,
+        category        VARCHAR(100) DEFAULT NULL,
+        description     TEXT         DEFAULT NULL,
+        unit            VARCHAR(50)  NOT NULL DEFAULT 'Nos',
+        brand_spec      VARCHAR(150) DEFAULT NULL,
+        hsn_sac_code    VARCHAR(50)  DEFAULT NULL,
+        tax_percentage  DECIMAL(5,2) DEFAULT 18.00,
+        rate            DECIMAL(15,2) DEFAULT 0.00,
+        min_stock_level DECIMAL(12,2) DEFAULT 0.00,
+        reorder_level   DECIMAL(12,2) DEFAULT 0.00,
+        vendor_id       INT          DEFAULT NULL,
+        status          ENUM('active', 'inactive') DEFAULT 'active',
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    const matAlters = [
+      `ALTER TABLE materials ADD COLUMN material_code VARCHAR(50) DEFAULT NULL UNIQUE`,
+      `ALTER TABLE materials ADD COLUMN brand_spec VARCHAR(150) DEFAULT NULL`,
+      `ALTER TABLE materials ADD COLUMN hsn_sac_code VARCHAR(50) DEFAULT NULL`,
+      `ALTER TABLE materials ADD COLUMN tax_percentage DECIMAL(5,2) DEFAULT 18.00`,
+      `ALTER TABLE materials ADD COLUMN min_stock_level DECIMAL(12,2) DEFAULT 0.00`,
+      `ALTER TABLE materials ADD COLUMN reorder_level DECIMAL(12,2) DEFAULT 0.00`,
+      `ALTER TABLE materials ADD COLUMN vendor_id INT DEFAULT NULL`,
+    ];
+    for (const q of matAlters) {
+      try { await dbPool.query(q); } catch (e: any) {}
+    }
+
+    // 39. Material Indents / Requirements Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS material_indents (
+        indent_id        INT AUTO_INCREMENT PRIMARY KEY,
+        indent_code      VARCHAR(50)  NOT NULL UNIQUE,
+        project_id       INT          NOT NULL,
+        wbs_id           INT          NOT NULL,
+        required_date    DATE         NOT NULL,
+        priority         ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+        required_by      INT          DEFAULT NULL,
+        remarks          TEXT         DEFAULT NULL,
+        status           ENUM('draft', 'submitted', 'approved', 'rejected', 'ordered') DEFAULT 'draft',
+        created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+        FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE CASCADE,
+        FOREIGN KEY (required_by) REFERENCES employees(employee_id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 40. Material Indent Line Items Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS material_indent_items (
+        item_id           INT AUTO_INCREMENT PRIMARY KEY,
+        indent_id         INT          NOT NULL,
+        material_id       INT          NOT NULL,
+        required_quantity DECIMAL(12,2) NOT NULL,
+        estimated_rate    DECIMAL(15,2) NOT NULL,
+        estimated_amount  DECIMAL(15,2) NOT NULL,
+        remarks           TEXT         DEFAULT NULL,
+        FOREIGN KEY (indent_id) REFERENCES material_indents(indent_id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 41. Purchase Orders (PO) Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS purchase_orders (
+        po_id                  INT AUTO_INCREMENT PRIMARY KEY,
+        po_number              VARCHAR(50)  NOT NULL UNIQUE,
+        po_date                DATE         NOT NULL,
+        project_id             INT          NOT NULL,
+        wbs_id                 INT          NOT NULL,
+        indent_id              INT          DEFAULT NULL,
+        vendor_name            VARCHAR(150) NOT NULL,
+        vendor_id              INT          DEFAULT NULL,
+        expected_delivery_date DATE         DEFAULT NULL,
+        subtotal_amount        DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        tax_amount             DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        total_amount           DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        payment_terms          TEXT         DEFAULT NULL,
+        delivery_address       TEXT         DEFAULT NULL,
+        terms_conditions       TEXT         DEFAULT NULL,
+        status                 ENUM('draft', 'issued', 'partially_received', 'completed', 'cancelled') DEFAULT 'draft',
+        created_by             INT          DEFAULT NULL,
+        created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+        FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 42. Purchase Order Items Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS purchase_order_items (
+        po_item_id      INT AUTO_INCREMENT PRIMARY KEY,
+        po_id           INT          NOT NULL,
+        material_id     INT          NOT NULL,
+        quantity        DECIMAL(12,2) NOT NULL,
+        unit_rate       DECIMAL(15,2) NOT NULL,
+        discount_amount DECIMAL(15,2) DEFAULT 0.00,
+        tax_percentage  DECIMAL(5,2) DEFAULT 0.00,
+        tax_amount      DECIMAL(15,2) DEFAULT 0.00,
+        total_amount    DECIMAL(15,2) NOT NULL,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders(po_id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 43. Goods Receipt Notes (GRN) Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS goods_receipt_notes (
+        grn_id                  INT AUTO_INCREMENT PRIMARY KEY,
+        grn_number              VARCHAR(50)  NOT NULL UNIQUE,
+        po_id                   INT          NOT NULL,
+        project_id              INT          NOT NULL,
+        wbs_id                  INT          NOT NULL,
+        vendor_name             VARCHAR(150) DEFAULT NULL,
+        delivery_date           DATE         NOT NULL,
+        delivery_challan_number VARCHAR(100) DEFAULT NULL,
+        invoice_number          VARCHAR(100) DEFAULT NULL,
+        store_location          VARCHAR(150) DEFAULT NULL,
+        remarks                 TEXT         DEFAULT NULL,
+        created_by              INT          DEFAULT NULL,
+        created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders(po_id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+        FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 44. GRN Line Items Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS grn_items (
+        grn_item_id       INT AUTO_INCREMENT PRIMARY KEY,
+        grn_id            INT          NOT NULL,
+        material_id       INT          NOT NULL,
+        ordered_quantity  DECIMAL(12,2) NOT NULL,
+        received_quantity DECIMAL(12,2) NOT NULL,
+        accepted_quantity DECIMAL(12,2) NOT NULL,
+        rejected_quantity DECIMAL(12,2) DEFAULT 0.00,
+        damaged_quantity  DECIMAL(12,2) DEFAULT 0.00,
+        remarks           TEXT         DEFAULT NULL,
+        FOREIGN KEY (grn_id) REFERENCES goods_receipt_notes(grn_id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 45. Material Issues / Consumption Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS material_issues (
+        issue_id      INT AUTO_INCREMENT PRIMARY KEY,
+        issue_code    VARCHAR(50)  NOT NULL UNIQUE,
+        project_id    INT          NOT NULL,
+        wbs_id        INT          NOT NULL,
+        task_id       INT          DEFAULT NULL,
+        material_id   INT          NOT NULL,
+        issue_date    DATE         NOT NULL,
+        quantity      DECIMAL(12,2) NOT NULL,
+        unit_rate     DECIMAL(15,2) NOT NULL,
+        total_cost    DECIMAL(15,2) NOT NULL,
+        issued_to_id  INT          DEFAULT NULL,
+        site_location VARCHAR(150) DEFAULT NULL,
+        remarks       TEXT         DEFAULT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+        FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE SET NULL,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 46. Vendor Invoices Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS vendor_invoices (
+        vendor_invoice_id INT AUTO_INCREMENT PRIMARY KEY,
+        invoice_number    VARCHAR(50)  NOT NULL UNIQUE,
+        invoice_date      DATE         NOT NULL,
+        po_id             INT          NOT NULL,
+        grn_id            INT          DEFAULT NULL,
+        project_id        INT          NOT NULL,
+        wbs_id            INT          NOT NULL,
+        vendor_name       VARCHAR(150) NOT NULL,
+        invoice_amount    DECIMAL(15,2) NOT NULL,
+        tax_amount       DECIMAL(15,2) DEFAULT 0.00,
+        payable_amount    DECIMAL(15,2) NOT NULL,
+        paid_amount       DECIMAL(15,2) DEFAULT 0.00,
+        balance_amount    DECIMAL(15,2) NOT NULL,
+        payment_status    ENUM('unpaid', 'partially_paid', 'paid', 'on_hold', 'cancelled') DEFAULT 'unpaid',
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders(po_id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+        FOREIGN KEY (wbs_id) REFERENCES project_wbs(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // 47. Vendor Payments Table
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS vendor_payments (
+        payment_id        INT AUTO_INCREMENT PRIMARY KEY,
+        vendor_invoice_id INT          NOT NULL,
+        payment_date      DATE         NOT NULL,
+        amount            DECIMAL(15,2) NOT NULL,
+        payment_mode      VARCHAR(50)  DEFAULT 'Bank Transfer',
+        reference_number  VARCHAR(100) DEFAULT NULL,
+        remarks           TEXT         DEFAULT NULL,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (vendor_invoice_id) REFERENCES vendor_invoices(vendor_invoice_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+
+    // Material Module Permissions
+    const matPermissions = [
+      ['materials', 'view', 'materials_view'],
+      ['materials', 'create', 'materials_create'],
+      ['materials', 'update', 'materials_update'],
+      ['materials', 'delete', 'materials_delete'],
+      ['materials', 'approve', 'materials_approve']
+    ];
+    for (const p of matPermissions) {
+      await dbPool.query(`INSERT IGNORE INTO permissions (module, action, permission_code) VALUES (?, ?, ?)`, p);
+    }
+
+    const [allPerms4]: any = await dbPool.query(`SELECT id, permission_code FROM permissions`);
+    const permMap4: Record<string, number> = {};
+    for (const p of allPerms4) { permMap4[p.permission_code] = p.id; }
+
+    await grantPerm2(rMap2['Super Admin'], Object.keys(permMap4));
+    await grantPerm2(rMap2['Admin'],       Object.keys(permMap4));
+    await grantPerm2(rMap2['Manager'], ['materials_view', 'materials_create', 'materials_update', 'materials_approve']);
+
+    console.log('Phase 1 through 6 PMS migrations complete.');
+
+    // ─── PHASE 7: Structural Gap Fixes ─────────────────────────────────────────
+    console.log('Running Phase 7: Structural gap fixes...');
+
+    // 48. task_dependencies — referenced by task.repository.ts but was never created
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS task_dependencies (
+        id                  INT AUTO_INCREMENT PRIMARY KEY,
+        task_id             INT NOT NULL COMMENT 'The dependent task',
+        predecessor_task_id INT NOT NULL COMMENT 'Must complete before task_id starts',
+        dependency_type     ENUM('FS','SS','FF','SF') NOT NULL DEFAULT 'FS'
+          COMMENT 'FS=Finish-to-Start, SS=Start-to-Start, FF=Finish-to-Finish, SF=Start-to-Finish',
+        lag_days            INT NOT NULL DEFAULT 0 COMMENT 'Positive=lag, negative=lead',
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_task_pred (task_id, predecessor_task_id),
+        FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE,
+        FOREIGN KEY (predecessor_task_id) REFERENCES tasks(task_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch(() => {});
+    console.log('Created task_dependencies table.');
+
+    // 49. Add rate_snapshot + cost columns to timesheets (employee history preservation)
+    const timesheetCostAlters = [
+      `ALTER TABLE timesheets ADD COLUMN rate_snapshot DECIMAL(10,2) DEFAULT NULL COMMENT 'Employee hourly_rate at time of log'`,
+      `ALTER TABLE timesheets ADD COLUMN cost DECIMAL(15,2) DEFAULT NULL COMMENT 'working_hours * rate_snapshot'`,
+    ];
+    for (const q of timesheetCostAlters) {
+      try { await dbPool.query(q); } catch (e: any) { /* column already added */ }
+    }
+    // Backfill existing timesheets with current hourly_rate (best-effort, not perfect)
+    await dbPool.query(`
+      UPDATE timesheets ts
+      JOIN employees e ON ts.employee_id = e.employee_id
+      SET ts.rate_snapshot = e.hourly_rate,
+          ts.cost = ROUND(ts.working_hours * e.hourly_rate, 2)
+      WHERE ts.rate_snapshot IS NULL
+    `).catch((e: any) => console.warn('Timesheet backfill warning:', e.message));
+    console.log('Added rate_snapshot and cost to timesheets.');
+
+    // 50. Convert MyISAM labour tables to InnoDB (enables FKs + transactions)
+    // Must drop FKs on child tables first, then alter engine, then re-add FKs
+    const myisamToInnodb = [
+      // labours — root table, convert first
+      `ALTER TABLE labours ENGINE=InnoDB`,
+      // labour_attendance — references labours, projects, project_wbs, tasks
+      `ALTER TABLE labour_attendance ENGINE=InnoDB`,
+      // labour_work_logs — references labours, projects, project_wbs, tasks
+      `ALTER TABLE labour_work_logs ENGINE=InnoDB`,
+      // labour_payments — references labours, projects
+      `ALTER TABLE labour_payments ENGINE=InnoDB`,
+      // labour_payment_items — references labour_payments, labour_work_logs
+      `ALTER TABLE labour_payment_items ENGINE=InnoDB`,
+    ];
+    for (const q of myisamToInnodb) {
+      try { await dbPool.query(q); } catch (e: any) {
+        console.warn(`InnoDB conversion warning (${q.split(' ')[2]}):`, e.message);
+      }
+    }
+    // Re-add unique constraints that MyISAM handled (InnoDB requires explicit UNIQUEs)
+    await dbPool.query(`ALTER TABLE labours ADD UNIQUE KEY uq_labour_contact (contact_number)`).catch(() => {});
+    await dbPool.query(`ALTER TABLE labours ADD UNIQUE KEY uq_labour_aadhar (aadhar_id)`).catch(() => {});
+    console.log('Converted labour tables to InnoDB.');
+
+    // 51. Quotation-first flow: make quotations.project_id nullable
+    // This allows creating a quotation before a project exists.
+    await dbPool.query(`
+      ALTER TABLE quotations MODIFY COLUMN project_id INT DEFAULT NULL
+    `).catch((e: any) => console.warn('quotations.project_id nullable alter:', e.message));
+
+    // Remove the FK so nulls are allowed (FK re-added as nullable-safe)
+    // Note: MySQL requires dropping the FK by name — we use a safe approach
+    await dbPool.query(`
+      ALTER TABLE quotations
+        DROP FOREIGN KEY IF EXISTS quotations_ibfk_2
+    `).catch(() => {});
+    // Re-add FK allowing NULL (ON DELETE SET NULL)
+    await dbPool.query(`
+      ALTER TABLE quotations
+        ADD CONSTRAINT fk_quotations_project
+        FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE SET NULL
+    `).catch(() => {});
+    console.log('Made quotations.project_id nullable for quotation-first flow.');
+
+    // 52. Add source_quotation_id to projects (links project to the quotation that spawned it)
+    await dbPool.query(`ALTER TABLE projects ADD COLUMN source_quotation_id INT DEFAULT NULL AFTER customer_id`)
+      .catch(() => {});
+    await dbPool.query(`
+      ALTER TABLE projects
+        ADD CONSTRAINT fk_projects_source_quotation
+        FOREIGN KEY (source_quotation_id) REFERENCES quotations(quotation_id) ON DELETE SET NULL
+    `).catch(() => {});
+    console.log('Added source_quotation_id to projects.');
+
+    // 53. Add priority to tasks
+    await dbPool.query(`
+      ALTER TABLE tasks ADD COLUMN priority ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium' AFTER status
+    `).catch(() => {});
+    // Fix any existing rows with status = '' (invalid enum, set to 'pending')
+    await dbPool.query(`UPDATE tasks SET status = 'pending' WHERE status = '' OR status IS NULL`).catch(() => {});
+    console.log('Added priority to tasks, fixed empty status rows.');
+
+    // 54. Cost-split columns on project_wbs (planned budget traceability)
+    const wbsCostAlters = [
+      `ALTER TABLE project_wbs ADD COLUMN planned_labour_cost DECIMAL(15,2) DEFAULT 0.00 COMMENT 'Planned employee cost for this WBS'`,
+      `ALTER TABLE project_wbs ADD COLUMN planned_material_cost DECIMAL(15,2) DEFAULT 0.00 COMMENT 'Planned material cost for this WBS'`,
+      `ALTER TABLE project_wbs ADD COLUMN planned_other_cost DECIMAL(15,2) DEFAULT 0.00 COMMENT 'Planned subcontract/other cost for this WBS'`,
+      `ALTER TABLE project_wbs ADD COLUMN quotation_discipline_id INT DEFAULT NULL COMMENT 'FK to quotation_disciplines line that spawned this WBS row'`,
+    ];
+    for (const q of wbsCostAlters) {
+      try { await dbPool.query(q); } catch (e: any) { /* column already added */ }
+    }
+
+    // 55. Cost-split columns on tasks
+    const taskCostAlters = [
+      `ALTER TABLE tasks ADD COLUMN planned_labour_cost DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE tasks ADD COLUMN planned_material_cost DECIMAL(15,2) DEFAULT 0.00`,
+      `ALTER TABLE tasks ADD COLUMN planned_other_cost DECIMAL(15,2) DEFAULT 0.00`,
+    ];
+    for (const q of taskCostAlters) {
+      try { await dbPool.query(q); } catch (e: any) { /* column already added */ }
+    }
+    console.log('Added cost-split columns to project_wbs and tasks.');
+
+    // 56. GST / tax fields on customers (required for Indian invoice compliance)
+    const customerTaxAlters = [
+      `ALTER TABLE customers ADD COLUMN gst_number VARCHAR(20) DEFAULT NULL COMMENT 'GST Registration Number (India)'`,
+      `ALTER TABLE customers ADD COLUMN pan_number VARCHAR(15) DEFAULT NULL COMMENT 'PAN Number (India)'`,
+      `ALTER TABLE customers ADD COLUMN tax_id INT DEFAULT NULL COMMENT 'Default tax configuration for this customer'`,
+      `ALTER TABLE customers ADD COLUMN currency_id INT DEFAULT NULL COMMENT 'Default billing currency'`,
+      `ALTER TABLE customers ADD COLUMN billing_state VARCHAR(100) DEFAULT NULL COMMENT 'State for place-of-supply determination'`,
+    ];
+    for (const q of customerTaxAlters) {
+      try { await dbPool.query(q); } catch (e: any) { /* column already added */ }
+    }
+    console.log('Added GST/PAN/currency/billing_state to customers.');
+
+    // 57. Add Phase 7 permissions for materials module (ensure correct codes exist)
+    const phase7Perms = [
+      ['materials', 'view',   'materials_view'],
+      ['materials', 'create', 'materials_create'],
+      ['materials', 'update', 'materials_update'],
+      ['materials', 'delete', 'materials_delete'],
+      ['materials', 'approve','materials_approve'],
+    ];
+    for (const p of phase7Perms) {
+      await dbPool.query(`INSERT IGNORE INTO permissions (module, action, permission_code) VALUES (?, ?, ?)`, p);
+    }
+
+    // Grant to Admin/Super Admin
+    const [allPerms7]: any = await dbPool.query(`SELECT id, permission_code FROM permissions`);
+    const permMap7: Record<string, number> = {};
+    for (const p of allPerms7) { permMap7[p.permission_code] = p.id; }
+    const [rRows7]: any = await dbPool.query(`SELECT role_id AS id, role_name FROM roles`);
+    const rMap7: Record<string, number> = {};
+    for (const r of rRows7) { rMap7[r.role_name] = r.id; }
+    const grantP7 = async (roleId: number | undefined, codes: string[]) => {
+      if (!roleId) return;
+      for (const code of codes) {
+        const pId = permMap7[code];
+        if (pId) await dbPool.query(`INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)`, [roleId, pId]);
+      }
+    };
+    await grantP7(rMap7['Super Admin'], Object.keys(permMap7));
+    await grantP7(rMap7['Admin'],       Object.keys(permMap7));
+    await grantP7(rMap7['Manager'], ['materials_view', 'materials_create', 'materials_update', 'materials_approve']);
+
+    console.log('Phase 7 structural gap fixes complete.');
+
+    // Run Demo Project Dataset Seed automatically
+    try {
+      const { runDemoSeed } = await import('./seed_demo');
+      await runDemoSeed();
+    } catch (e: any) {
+      console.warn('Demo seed failed:', e.message);
+    }
 
   } catch (error) {
     console.error('Migration failed:', error);
   }
 }
+
+
 

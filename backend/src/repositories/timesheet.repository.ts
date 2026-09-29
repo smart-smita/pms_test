@@ -115,9 +115,18 @@ export class TimesheetRepository {
     working_hours: number;
     comment?: string | null;
   }): Promise<number> {
+    // Snapshot the employee's hourly rate at the moment of logging — rate changes
+    // must not retroactively alter historical cost records.
+    const [empRows] = await dbPool.execute<RowDataPacket[]>(
+      `SELECT hourly_rate FROM employees WHERE employee_id = ?`,
+      [data.employee_id]
+    );
+    const rateSnapshot = empRows.length > 0 ? Number(empRows[0].hourly_rate || 0) : 0;
+    const cost = Math.round(data.working_hours * rateSnapshot * 100) / 100;
+
     const [result] = await dbPool.execute<ResultSetHeader>(
-      `INSERT INTO timesheets (project_id, wbs_id, task_id, employee_id, log_date, working_hours, comment)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO timesheets (project_id, wbs_id, task_id, employee_id, log_date, working_hours, comment, rate_snapshot, cost)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.project_id,
         data.wbs_id || null,
@@ -126,10 +135,13 @@ export class TimesheetRepository {
         data.log_date,
         data.working_hours,
         data.comment || null,
+        rateSnapshot,
+        cost,
       ]
     );
     return result.insertId;
   }
+
 
   async update(id: number, data: Partial<TimesheetRow>): Promise<boolean> {
     const fields: string[] = [];

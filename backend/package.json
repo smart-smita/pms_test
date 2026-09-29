@@ -7,7 +7,10 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "migrate": "ts-node-dev --transpile-only src/migrate.ts"
+    "migrate": "ts-node-dev --transpile-only src/migrate.ts",
+    "db:copy": "node copy_db.js",
+    "db:migrate": "ts-node-dev --transpile-only scripts/runner.ts",
+    "seed": "node scripts/seed_demo.js"
   },
   "dependencies": {
     "@types/bcrypt": "^5.0.2",

@@ -17,8 +17,8 @@ export class QuotationService {
 
   static async create(data: CreateQuotationDTO, disciplines: QuotationDisciplineDTO[], userId?: number, ipAddress?: string) {
     if (!data.customer_id) throw new Error('Customer ID is required');
-    if (!data.project_id) throw new Error('Project ID is required');
     if (!data.quotation_date) throw new Error('Quotation date is required');
+    // project_id is optional — quotations can be created before a project is raised
 
     // Calculate subtotal from disciplines if provided
     let subtotal = 0;
@@ -83,5 +83,20 @@ export class QuotationService {
     if (!quotation) throw new Error(`Quotation with ID ${id} not found`);
 
     return generateQuotationPDF(quotation, res);
+  }
+
+  static async createProjectFromQuotation(
+    quotationId: number,
+    overrides: {
+      project_code: string;
+      project_name?: string;
+      project_address?: string;
+      project_type_id?: number | null;
+      radius_meters?: number;
+    },
+    userId?: number,
+    ipAddress?: string
+  ) {
+    return QuotationRepository.createProjectFromQuotation(quotationId, overrides, userId, ipAddress);
   }
 }

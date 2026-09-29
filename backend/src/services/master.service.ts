@@ -109,15 +109,18 @@ export class MasterService {
   }
 
   // ── Taxes ─────────────────────────────────────────────────────────────────
-  async getTaxes(): Promise<TaxRow[]> {
-    return this.repo.findAllTaxes(true);
+  async getTaxes(countryId?: number): Promise<TaxRow[]> {
+    return this.repo.findAllTaxes(true, countryId);
   }
 
-  async getAllTaxes(): Promise<TaxRow[]> {
-    return this.repo.findAllTaxes(false);
+  async getAllTaxes(countryId?: number): Promise<TaxRow[]> {
+    return this.repo.findAllTaxes(false, countryId);
   }
 
-  async createTax(data: { tax_name: string; tax_percentage: number; country_id?: number | null }): Promise<TaxRow[]> {
+  async createTax(data: {
+    tax_name: string; tax_code?: string | null; tax_type?: string; tax_percentage: number;
+    country_id?: number | null; is_split?: number; cgst_percentage?: number; sgst_percentage?: number;
+  }): Promise<TaxRow[]> {
     if (!data.tax_name?.trim()) throw new Error('Tax name is required');
     if (data.tax_percentage === undefined) throw new Error('Tax percentage is required');
     await this.repo.createTax(data);

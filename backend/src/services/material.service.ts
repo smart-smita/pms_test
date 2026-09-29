@@ -3,29 +3,58 @@ import { MaterialRepository } from '../repositories/material.repository';
 export class MaterialService {
   private repo = new MaterialRepository();
 
-  async getMaterials() {
-    return await this.repo.findAll();
+  // ── Master ─────────────────────────────────────────────────────────────
+  async getMaterials(filters: any) {
+    return this.repo.getMaterials(filters);
   }
-
   async getMaterialById(id: number) {
-    const m = await this.repo.findById(id);
-    if (!m) throw new Error('Material not found');
-    return m;
+    return this.repo.getMaterialById(id);
   }
-
   async createMaterial(data: any) {
-    const id = await this.repo.create(data);
-    return await this.repo.findById(id);
+    return this.repo.createMaterial(data);
   }
-
   async updateMaterial(id: number, data: any) {
-    await this.repo.update(id, data);
-    return await this.repo.findById(id);
+    return this.repo.updateMaterial(id, data);
+  }
+  async deleteMaterial(id: number) {
+    return this.repo.deleteMaterial(id);
   }
 
-  async deleteMaterial(id: number) {
-    const m = await this.repo.findById(id);
-    if (!m) throw new Error('Material not found');
-    return await this.repo.delete(id);
+  // ── Quotations ─────────────────────────────────────────────────────────
+  async getQuotations(filters: any) {
+    return this.repo.getQuotations(filters);
+  }
+  async getQuotationById(id: number) {
+    return this.repo.getQuotationById(id);
+  }
+  async createQuotation(data: any) {
+    const items = data.items || [];
+    return this.repo.createQuotation(data, items);
+  }
+  async updateQuotationStatus(id: number, status: string) {
+    return this.repo.updateQuotationStatus(id, status);
+  }
+
+  // ── Surveys ────────────────────────────────────────────────────────────
+  async getSurveys(filters: any) {
+    return this.repo.getSurveys(filters);
+  }
+  async getSurveyById(id: number) {
+    return this.repo.getSurveyById(id);
+  }
+  async createSurvey(data: any) {
+    const items = data.items || [];
+    return this.repo.createSurvey(data, items);
+  }
+  async updateSurveyStatus(id: number, status: string) {
+    return this.repo.updateSurveyStatus(id, status);
+  }
+
+  // ── Reports ────────────────────────────────────────────────────────────
+  async getProjectMaterialReport(projectId?: number) {
+    return this.repo.getProjectMaterialReport(projectId);
+  }
+  async getProjectCostSummary(projectId: number) {
+    return this.repo.getProjectCostSummary(projectId);
   }
 }

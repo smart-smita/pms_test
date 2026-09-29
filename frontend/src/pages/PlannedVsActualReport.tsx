@@ -133,7 +133,7 @@ export const PlannedVsActualReport: React.FC = () => {
         <DataTable
           columns={columns}
           data={data}
-          keyField="task_name"
+          keyExtractor={(r, idx) => `${r.project_name || ''}-${r.wbs_name || ''}-${r.task_name || ''}-${r.task_id || idx}-${idx}`}
           isLoading={loading}
           emptyMessage="No planned vs actual data available."
         />

@@ -76,9 +76,16 @@ export interface CurrencyRow {
 // ─── Tax ────────────────────────────────────────────────────────────────────
 export interface TaxRow {
   tax_id: number;
+  tax_code?: string | null;
   tax_name: string;
+  tax_type?: 'VAT' | 'GST' | 'CGST_SGST' | 'IGST' | 'SALES_TAX' | 'OTHER';
   tax_percentage: number;
   country_id: number | null;
+  country_name?: string | null;
+  country_code?: string | null;
+  is_split?: number;
+  cgst_percentage?: number;
+  sgst_percentage?: number;
   status: number;
 }
 
@@ -277,23 +284,45 @@ export class MasterRepository {
   }
 
   // ── Taxes ─────────────────────────────────────────────────────────────────
-  async findAllTaxes(activeOnly = true): Promise<TaxRow[]> {
-    const sql = activeOnly
-      ? `SELECT * FROM taxes WHERE status = 1 ORDER BY tax_name ASC`
-      : `SELECT * FROM taxes ORDER BY tax_name ASC`;
-    const [rows] = await dbPool.query<RowDataPacket[]>(sql);
+  async findAllTaxes(activeOnly = true, countryId?: number): Promise<TaxRow[]> {
+    let sql = activeOnly
+      ? `SELECT t.*, c.country_name, c.country_code FROM taxes t LEFT JOIN countries c ON t.country_id = c.country_id WHERE t.status = 1`
+      : `SELECT t.*, c.country_name, c.country_code FROM taxes t LEFT JOIN countries c ON t.country_id = c.country_id WHERE 1=1`;
+    const params: any[] = [];
+    if (countryId) {
+      sql += ` AND (t.country_id = ? OR t.country_id IS NULL)`;
+      params.push(countryId);
+    }
+    sql += ` ORDER BY t.tax_name ASC`;
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
     return rows as TaxRow[];
   }
 
   async findTaxById(id: number): Promise<TaxRow | null> {
-    const [rows] = await dbPool.query<RowDataPacket[]>(`SELECT * FROM taxes WHERE tax_id = ?`, [id]);
+    const [rows] = await dbPool.query<RowDataPacket[]>(
+      `SELECT t.*, c.country_name, c.country_code FROM taxes t LEFT JOIN countries c ON t.country_id = c.country_id WHERE t.tax_id = ?`,
+      [id]
+    );
     return (rows[0] as TaxRow) || null;
   }
 
-  async createTax(data: { tax_name: string; tax_percentage: number; country_id?: number | null }): Promise<number> {
+  async createTax(data: {
+    tax_name: string; tax_code?: string | null; tax_type?: string; tax_percentage: number;
+    country_id?: number | null; is_split?: number; cgst_percentage?: number; sgst_percentage?: number;
+  }): Promise<number> {
     const [result] = await dbPool.query<ResultSetHeader>(
-      `INSERT INTO taxes (tax_name, tax_percentage, country_id) VALUES (?, ?, ?)`,
-      [data.tax_name, data.tax_percentage, data.country_id || null]
+      `INSERT INTO taxes (tax_name, tax_code, tax_type, tax_percentage, country_id, is_split, cgst_percentage, sgst_percentage)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        data.tax_name,
+        data.tax_code || null,
+        data.tax_type || 'VAT',
+        data.tax_percentage,
+        data.country_id || null,
+        data.is_split || 0,
+        data.cgst_percentage || 0,
+        data.sgst_percentage || 0,
+      ]
     );
     return result.insertId;
   }
@@ -301,7 +330,7 @@ export class MasterRepository {
   async updateTax(id: number, data: Partial<TaxRow>): Promise<boolean> {
     const fields: string[] = [];
     const params: any[] = [];
-    const editable: (keyof TaxRow)[] = ['tax_name', 'tax_percentage', 'country_id', 'status'];
+    const editable: (keyof TaxRow)[] = ['tax_name', 'tax_code', 'tax_type', 'tax_percentage', 'country_id', 'is_split', 'cgst_percentage', 'sgst_percentage', 'status'];
     for (const key of editable) {
       if (data[key] !== undefined) { fields.push(`${key} = ?`); params.push(data[key]); }
     }

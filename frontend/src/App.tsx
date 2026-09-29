@@ -26,6 +26,9 @@ import { Quotations } from './pages/Quotations';
 import { SiteSurveys } from './pages/SiteSurveys';
 import { Invoices } from './pages/Invoices';
 import { PlannedVsActualReport } from './pages/PlannedVsActualReport';
+import { Materials } from './pages/Materials';
+import { MaterialQuotations } from './pages/MaterialQuotations';
+import { MaterialSurveys } from './pages/MaterialSurveys';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { RequirePermission } from './components/common/RequirePermission';
 import { PWAInstallPrompt } from './components/common/PWAInstallPrompt';
@@ -105,6 +108,12 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="reports" action="view" fallback={fallback}><PlannedVsActualReport /></RequirePermission>;
       case 'settings':
         return <Settings />;
+      case 'materials':
+        return <RequirePermission module="materials" action="view" fallback={fallback}><Materials /></RequirePermission>;
+      case 'material-quotations':
+        return <RequirePermission module="materials" action="view" fallback={fallback}><MaterialQuotations /></RequirePermission>;
+      case 'material-surveys':
+        return <RequirePermission module="materials" action="view" fallback={fallback}><MaterialSurveys /></RequirePermission>;
       case 'masters': 
         return <RequirePermission module="masters" action="manage" fallback={fallback}><Masters /></RequirePermission>;
       case 'support':
