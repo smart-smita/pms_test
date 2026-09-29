@@ -69,7 +69,7 @@ export class InvoiceService {
 
       schedules.push({
         project_id: data.project_id,
-        quotation_id: quotationId,
+        quotation_id: quotationId as number,
         billing_month: formattedMonth,
         expected_amount: amount
       });
