@@ -24,7 +24,7 @@ export interface Timesheet {
   created_at: string;
 }
 
-export const Timesheets: React.FC = () => {
+export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: string) => void }> = ({ projectId, onNavigate }) => {
   const { user, hasPermission } = useAuth();
   const isEmployee = user?.role_name === 'Employee';
 
@@ -36,12 +36,18 @@ export const Timesheets: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Filter States
-  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedProject, setSelectedProject] = useState(projectId ? String(projectId) : '');
   const [selectedWbs, setSelectedWbs] = useState('');
   const [selectedTask, setSelectedTask] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  useEffect(() => {
+    if (projectId) {
+      setSelectedProject(String(projectId));
+    }
+  }, [projectId]);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -142,31 +148,39 @@ export const Timesheets: React.FC = () => {
   };
 
   const handleOpenCreate = () => {
-    setEditingTs(null);
-    setForm({
-      project_id: '',
-      wbs_id: '',
-      task_id: '',
-      employee_id: isEmployee && user ? String(user.employee_id) : '',
-      log_date: new Date().toISOString().split('T')[0],
-      working_hours: 8,
-      comment: '',
-    });
-    setShowModal(true);
+    if (onNavigate && projectId) {
+      onNavigate(`project/workspace/${projectId}/timesheets/new`);
+    } else {
+      setEditingTs(null);
+      setForm({
+        project_id: projectId ? String(projectId) : '',
+        wbs_id: '',
+        task_id: '',
+        employee_id: isEmployee && user ? String(user.employee_id) : '',
+        log_date: new Date().toISOString().split('T')[0],
+        working_hours: 8,
+        comment: '',
+      });
+      setShowModal(true);
+    }
   };
 
   const handleOpenEdit = (ts: Timesheet) => {
-    setEditingTs(ts);
-    setForm({
-      project_id: String(ts.project_id),
-      wbs_id: ts.wbs_id ? String(ts.wbs_id) : '',
-      task_id: String(ts.task_id),
-      employee_id: String(ts.employee_id),
-      log_date: ts.log_date,
-      working_hours: Number(ts.working_hours),
-      comment: ts.comment || '',
-    });
-    setShowModal(true);
+    if (onNavigate && projectId) {
+      onNavigate(`project/workspace/${projectId}/timesheets/${ts.timesheet_id}/edit`);
+    } else {
+      setEditingTs(ts);
+      setForm({
+        project_id: String(ts.project_id),
+        wbs_id: ts.wbs_id ? String(ts.wbs_id) : '',
+        task_id: String(ts.task_id),
+        employee_id: String(ts.employee_id),
+        log_date: ts.log_date,
+        working_hours: Number(ts.working_hours),
+        comment: ts.comment || '',
+      });
+      setShowModal(true);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

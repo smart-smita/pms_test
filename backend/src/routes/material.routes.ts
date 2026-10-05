@@ -31,4 +31,14 @@ router.patch('/surveys/:id/status', requirePermission('materials', 'approve'), c
 router.get('/reports/project-material', requirePermission('materials', 'view'), ctrl.getProjectMaterialReport);
 router.get('/reports/cost-summary/:projectId', requirePermission('materials', 'view'), ctrl.getProjectCostSummary);
 
+// Project Materials (Material WBS Tracking)
+router.get('/project-materials', requirePermission('materials', 'view'), ctrl.getProjectMaterials);
+router.get('/project-materials/:id', requirePermission('materials', 'view'), ctrl.getProjectMaterialById);
+router.post('/project-materials', requirePermission('materials', 'create'), ctrl.createProjectMaterial);
+router.put('/project-materials/:id', requirePermission('materials', 'update'), ctrl.updateProjectMaterial);
+router.delete('/project-materials/:id', requirePermission('materials', 'delete'), ctrl.deleteProjectMaterial);
+router.post('/project-materials/:id/log', requirePermission('materials', 'update'), ctrl.logProjectMaterialAction);
+router.get('/project-materials/:id/logs', requirePermission('materials', 'view'), ctrl.getProjectMaterialLogs);
+
 export default router;
+

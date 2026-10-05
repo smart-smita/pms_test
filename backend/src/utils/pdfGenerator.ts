@@ -145,7 +145,7 @@ export const generateQuotationPDF = (quotation: any, res: Response) => {
     .text(`Quotation Code: ${quotation.quotation_code}`, 50, detailsTop + 15)
     .text(`Revision No: ${quotation.revision_number || 1}`, 50, detailsTop + 30)
     .text(`Status: ${(quotation.status || 'draft').toUpperCase()}`, 50, detailsTop + 45)
-    .text(`Validity Date: ${quotation.validity_date ? new Date(quotation.validity_date).toLocaleDateString() : 'N/A'}`, 50, detailsTop + 60);
+
 
   doc.font('Helvetica-Bold').text('Customer & Project', 300, detailsTop);
   doc.font('Helvetica')
@@ -170,21 +170,36 @@ export const generateQuotationPDF = (quotation: any, res: Response) => {
     .text('Rate', 380, tableTop + 5, { width: 70, align: 'right' })
     .text('Amount', 460, tableTop + 5, { width: 80, align: 'right' });
 
+  const curSym = quotation.currency_symbol || quotation.currency_code || '₹';
+  const disciplines = quotation.disciplines || [];
+  
+  let labourSub = 0;
+  let materialSub = 0;
+  for (const d of disciplines) {
+    const isMat = d.wbs_type === 'material';
+    const lineAmt = Number(d.amount || 0);
+    if (isMat) materialSub += lineAmt;
+    else labourSub += lineAmt;
+  }
+  const netSub = labourSub + materialSub;
+  const discountAmt = Number(quotation.discount_amount || 0);
+  const taxableAmt = Math.max(0, netSub - discountAmt);
+
   // ── Table Content ───────────────────────────────────────────────────────
   doc.fillColor('#000000').font('Helvetica');
   let itemTop = tableTop + 25;
 
-  const disciplines = quotation.disciplines || [];
   if (disciplines.length === 0) {
-    doc.text('No discipline line items listed.', 60, itemTop);
+    doc.text('No WBS line items listed.', 60, itemTop);
     itemTop += 20;
   } else {
     for (const d of disciplines) {
-      doc.text(d.discipline_name || 'Discipline', 60, itemTop);
+      const typeTag = d.wbs_type === 'material' ? '[MAT]' : (d.wbs_type === 'both' ? '[BOTH]' : '[LAB]');
+      doc.text(`${typeTag} ${d.discipline_name || 'Item'}`, 60, itemTop, { width: 190 });
       doc.text(String(d.quantity || 1), 260, itemTop, { width: 50, align: 'right' });
-      doc.text(d.unit || 'lump_sum', 320, itemTop, { width: 50, align: 'right' });
-      doc.text(Number(d.rate || 0).toFixed(2), 380, itemTop, { width: 70, align: 'right' });
-      doc.text(Number(d.amount || 0).toFixed(2), 460, itemTop, { width: 80, align: 'right' });
+      doc.text(d.unit || 'Nos', 320, itemTop, { width: 50, align: 'right' });
+      doc.text(`${curSym} ${Number(d.rate || 0).toFixed(2)}`, 380, itemTop, { width: 70, align: 'right' });
+      doc.text(`${curSym} ${Number(d.amount || 0).toFixed(2)}`, 460, itemTop, { width: 80, align: 'right' });
       itemTop += 20;
     }
   }
@@ -193,28 +208,79 @@ export const generateQuotationPDF = (quotation: any, res: Response) => {
   let totalTop = itemTop + 15;
   doc.moveTo(50, totalTop - 5).lineTo(550, totalTop - 5).stroke();
 
-  doc.font('Helvetica-Bold').text('Subtotal:', 340, totalTop);
-  doc.font('Helvetica').text(Number(quotation.subtotal_amount || 0).toFixed(2), 460, totalTop, { width: 80, align: 'right' });
+  doc.font('Helvetica').text('Labour Subtotal:', 300, totalTop);
+  doc.text(`${curSym} ${labourSub.toFixed(2)}`, 460, totalTop, { width: 80, align: 'right' });
 
-  const taxPct = Number(quotation.tax_percentage || 0);
-  doc.font('Helvetica-Bold').text(`Tax (${taxPct}%):`, 340, totalTop + 18);
-  doc.font('Helvetica').text(Number(quotation.tax_amount || 0).toFixed(2), 460, totalTop + 18, { width: 80, align: 'right' });
+  doc.text('Material Subtotal:', 300, totalTop + 15);
+  doc.text(`${curSym} ${materialSub.toFixed(2)}`, 460, totalTop + 15, { width: 80, align: 'right' });
 
-  doc.font('Helvetica-Bold').text('Discount:', 340, totalTop + 36);
-  doc.font('Helvetica').text(Number(quotation.discount_amount || 0).toFixed(2), 460, totalTop + 36, { width: 80, align: 'right' });
+  doc.font('Helvetica-Bold').text('Net Subtotal:', 300, totalTop + 30);
+  doc.font('Helvetica').text(`${curSym} ${netSub.toFixed(2)}`, 460, totalTop + 30, { width: 80, align: 'right' });
 
-  doc.moveTo(340, totalTop + 54).lineTo(550, totalTop + 54).stroke();
-  doc.font('Helvetica-Bold').fontSize(11).text('Grand Total:', 340, totalTop + 60);
-  doc.font('Helvetica-Bold').fontSize(11).text(Number(quotation.total_amount || 0).toFixed(2), 460, totalTop + 60, { width: 80, align: 'right' });
+  doc.text('Discount:', 300, totalTop + 45);
+  doc.text(`- ${curSym} ${discountAmt.toFixed(2)}`, 460, totalTop + 45, { width: 80, align: 'right' });
 
-  // ── Terms & Conditions ────────────────────────────────────────────────
-  if (quotation.terms_conditions) {
-    const termsTop = totalTop + 90;
-    doc.fontSize(10).font('Helvetica-Bold').text('Terms & Conditions:', 50, termsTop);
-    doc.fontSize(9).font('Helvetica').text(quotation.terms_conditions, 50, termsTop + 15, { width: 500 });
+  doc.font('Helvetica-Bold').text('Taxable Amount:', 300, totalTop + 60);
+  doc.font('Helvetica').text(`${curSym} ${taxableAmt.toFixed(2)}`, 460, totalTop + 60, { width: 80, align: 'right' });
+
+  // Taxes breakdown
+  let taxOffset = totalTop + 75;
+  const qTaxes = quotation.taxes || [];
+  if (qTaxes.length > 0) {
+    for (const t of qTaxes) {
+      doc.font('Helvetica').text(`${t.tax_name} (${t.tax_percentage}%):`, 300, taxOffset);
+      doc.text(`${curSym} ${Number(t.tax_amount || 0).toFixed(2)}`, 460, taxOffset, { width: 80, align: 'right' });
+      taxOffset += 15;
+    }
+  } else {
+    const taxPct = Number(quotation.tax_percentage || 0);
+    doc.font('Helvetica').text(`Tax (${taxPct}%):`, 300, taxOffset);
+    doc.text(`${curSym} ${Number(quotation.tax_amount || 0).toFixed(2)}`, 460, taxOffset, { width: 80, align: 'right' });
+    taxOffset += 15;
   }
 
-  doc.fontSize(9).font('Helvetica').text('Thank you for choosing HTCO ERP for your project engineering requirements.', 50, 730, { align: 'center', width: 500 });
+  doc.moveTo(300, taxOffset).lineTo(550, taxOffset).stroke();
+  taxOffset += 6;
+
+  doc.font('Helvetica-Bold').fontSize(11).text('Grand Total:', 300, taxOffset);
+  doc.font('Helvetica-Bold').fontSize(11).text(`${curSym} ${Number(quotation.total_amount || 0).toFixed(2)}`, 460, taxOffset, { width: 80, align: 'right' });
+
+  // ── Terms & Conditions ────────────────────────────────────────────────
+  let termsTop = taxOffset + 25;
+  const snapshots = quotation.terms_snapshots || [];
+  if (snapshots.length > 0 || quotation.terms_conditions) {
+    doc.fontSize(10).font('Helvetica-Bold').text('Terms & Conditions:', 50, termsTop);
+    termsTop += 15;
+
+    // Group terms snapshots by template_name
+    const grouped: { [key: string]: typeof snapshots } = {};
+    for (const s of snapshots) {
+      const grp = s.template_name || 'Custom & General Conditions';
+      if (!grouped[grp]) grouped[grp] = [];
+      grouped[grp].push(s);
+    }
+
+    let groupIdx = 1;
+    for (const [groupName, groupTerms] of Object.entries(grouped)) {
+      doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#334155').text(`${groupIdx}. ${groupName}`, 50, termsTop);
+      termsTop += 13;
+
+      for (const s of groupTerms) {
+        const mandTag = s.is_mandatory ? '[Mandatory]' : '[Optional]';
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text(`   • ${s.title} ${mandTag}: `, 50, termsTop, { continued: true });
+        doc.font('Helvetica').text(s.description || '', { width: 480 });
+        termsTop += 13;
+      }
+      groupIdx++;
+      termsTop += 4;
+    }
+
+    if (quotation.terms_conditions && Object.keys(grouped).length === 0) {
+      doc.fontSize(9).font('Helvetica').text(quotation.terms_conditions, 50, termsTop, { width: 500 });
+    }
+  }
+
+  doc.fontSize(9).font('Helvetica').text('Thank you for choosing HTCO ERP for your project engineering requirements.', 50, 740, { align: 'center', width: 500 });
 
   doc.end();
 };

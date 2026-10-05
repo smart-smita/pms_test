@@ -73,9 +73,23 @@ export interface LabourWorkLog {
   payment_status: 'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled';
 }
 
-export const Labours: React.FC = () => {
+export interface LaboursProps {
+  projectId?: number;
+  isEmbedded?: boolean;
+  defaultTab?: 'registry' | 'work_logs';
+  initialAction?: 'create';
+  onNavigate?: (page: string) => void;
+}
+
+export const Labours: React.FC<LaboursProps> = ({
+  projectId: propProjectId,
+  isEmbedded,
+  defaultTab = 'registry',
+  initialAction,
+  onNavigate,
+}) => {
   const { hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState<'registry' | 'work_logs'>('registry');
+  const [activeTab, setActiveTab] = useState<'registry' | 'work_logs'>(defaultTab);
 
   const [labours, setLabours] = useState<Labour[]>([]);
   const [workLogs, setWorkLogs] = useState<LabourWorkLog[]>([]);
@@ -86,7 +100,7 @@ export const Labours: React.FC = () => {
   // Filters
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState('');
-  const [selectedProject, setSelectedProject] = useState('');
+  const [selectedProject, setSelectedProject] = useState(propProjectId ? propProjectId.toString() : '');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -100,10 +114,11 @@ export const Labours: React.FC = () => {
   // Create / Edit Labour Form State
   const [showAddLabour, setShowAddLabour] = useState(false);
   const [editingLabour, setEditingLabour] = useState<Labour | null>(null);
-  const [formSection, setFormSection] = useState<'basic' | 'identity' | 'visa' | 'contract'>('basic');
+  const [formSection, setFormSection] = useState<'basic' | 'identity' | 'visa'>('basic');
 
   const initialLabourForm = {
     name: '',
+    email: '',
     contact_number: '',
     aadhar_id: '',
     labour_type: 'direct_labour' as 'contractor' | 'direct_labour',
@@ -119,12 +134,6 @@ export const Labours: React.FC = () => {
     passport_expiry_date: '',
     passport_file_base64: '',
     passport_file_name: '',
-    // Labour Card
-    labour_card_number: '',
-    labour_card_issue_date: '',
-    labour_card_expiry_date: '',
-    labour_card_file_base64: '',
-    labour_card_file_name: '',
     // Visa
     visa_number: '',
     visa_type: 'Employment Visa',
@@ -132,16 +141,16 @@ export const Labours: React.FC = () => {
     visa_expiry_date: '',
     visa_file_base64: '',
     visa_file_name: '',
-    // Contract
-    contract_number: '',
-    contract_type: 'Direct Employment',
-    contract_start_date: '',
-    contract_end_date: '',
-    contract_file_base64: '',
-    contract_file_name: '',
   };
 
   const [labourForm, setLabourForm] = useState(initialLabourForm);
+
+  // Inline validation errors
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (field: string) => {
+    if (formErrors[field]) setFormErrors((prev) => { const n = { ...prev }; delete n[field]; return n; });
+  };
 
   // Profile Details Modal
   const [detailsModalLabourId, setDetailsModalLabourId] = useState<number | null>(null);
@@ -176,6 +185,22 @@ export const Labours: React.FC = () => {
     labourId: 0,
     labourName: '',
   });
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
+
+  useEffect(() => {
+    if (initialAction === 'create') {
+      setShowAddLabour(true);
+      setShowAddWorkLog(false);
+      setEditingLabour(null);
+      setFormSection('basic');
+      setLabourForm(initialLabourForm);
+    }
+  }, [initialAction]);
 
   useEffect(() => {
     fetchData();
@@ -251,7 +276,7 @@ export const Labours: React.FC = () => {
   });
 
   const handleFileUpload = (
-    fieldPrefix: 'passport' | 'labour_card' | 'visa' | 'contract',
+    fieldPrefix: 'passport' | 'visa',
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -273,6 +298,38 @@ export const Labours: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  const validateBasicTab = (): boolean => {
+    const errors: Record<string, string> = {};
+    let isValid = true;
+    
+    if (!labourForm.name.trim()) {
+      errors.name = 'Labour / Contractor name is required.';
+      isValid = false;
+    }
+    if (!labourForm.email.trim()) {
+      errors.email = 'Email address is required.';
+      isValid = false;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(labourForm.email.trim())) {
+      errors.email = 'Invalid email format.';
+      isValid = false;
+    }
+    
+    const contactClean = labourForm.contact_number.trim();
+    if (!contactClean) {
+      errors.contact_number = 'Contact number is required.';
+      isValid = false;
+    } else {
+      const cleanDigits = contactClean.replace(/[\s+-]/g, '');
+      if (cleanDigits.length < 7 || cleanDigits.length > 15) {
+        errors.contact_number = 'Contact number must be between 7 and 15 digits.';
+        isValid = false;
+      }
+    }
+    
+    setFormErrors(prev => ({ ...prev, ...errors }));
+    return isValid;
+  };
+
   const handleCreateOrUpdateLabour = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -280,47 +337,42 @@ export const Labours: React.FC = () => {
     const contactClean = labourForm.contact_number.trim();
     const aadharClean = labourForm.aadhar_id.trim();
 
-    if (!nameClean) {
-      showError('Labour name is required.');
+    // Build inline errors
+    const errors: Record<string, string> = {};
+
+    if (!validateBasicTab()) return;
+
+    if (aadharClean && !/^\d{12}$/.test(aadharClean))
+      errors.aadhar_id = 'Aadhaar ID must be exactly 12 digits.';
+
+    if (
+      labourForm.passport_issue_date &&
+      labourForm.passport_expiry_date &&
+      new Date(labourForm.passport_issue_date) > new Date(labourForm.passport_expiry_date)
+    ) errors.passport_dates = 'Passport: Issue date cannot be after expiry date.';
+
+    if (
+      labourForm.visa_issue_date &&
+      labourForm.visa_expiry_date &&
+      new Date(labourForm.visa_issue_date) > new Date(labourForm.visa_expiry_date)
+    ) errors.visa_dates = 'Visa: Issue date cannot be after expiry date.';
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      // Scroll to first error by switching to the relevant tab
+      if (errors.name || errors.contact_number || errors.aadhar_id) setFormSection('basic');
+      else if (errors.passport_dates) setFormSection('identity');
+      else if (errors.visa_dates) setFormSection('visa');
       return;
     }
 
-    // Optional phone validation: 7-15 digits
-    if (contactClean) {
-      const cleanDigits = contactClean.replace(/[\s+-]/g, '');
-      if (cleanDigits.length < 7 || cleanDigits.length > 15) {
-        showError('Contact number must be between 7 and 15 digits.');
-        return;
-      }
-    }
-
-    // Optional Aadhaar: if entered, must be 12 digits
-    if (aadharClean && !/^\d{12}$/.test(aadharClean)) {
-      showError('Aadhaar ID must be exactly 12 digits.');
-      return;
-    }
-
-    // Validate dates: issue date cannot be after expiry date
-    const checkDatePair = (issue?: string, expiry?: string, label?: string) => {
-      if (issue && expiry && new Date(issue) > new Date(expiry)) {
-        throw new Error(`${label}: Issue date cannot be after expiry date.`);
-      }
-    };
-
-    try {
-      checkDatePair(labourForm.passport_issue_date, labourForm.passport_expiry_date, 'Passport');
-      checkDatePair(labourForm.visa_issue_date, labourForm.visa_expiry_date, 'Visa');
-      checkDatePair(labourForm.labour_card_issue_date, labourForm.labour_card_expiry_date, 'Labour Card');
-      checkDatePair(labourForm.contract_start_date, labourForm.contract_end_date, 'Contract');
-    } catch (err: any) {
-      showError(err.message);
-      return;
-    }
+    setFormErrors({});
 
     try {
       const payload: any = {
         name: nameClean,
-        contact_number: contactClean || null,
+        email: labourForm.email.trim(),
+        contact_number: contactClean,
         aadhar_id: aadharClean || null,
         labour_type: labourForm.labour_type,
         contractor_id: labourForm.contractor_id ? Number(labourForm.contractor_id) : null,
@@ -352,27 +404,6 @@ export const Labours: React.FC = () => {
         };
       }
 
-      if (labourForm.labour_card_number || labourForm.labour_card_file_base64) {
-        payload.labour_card = {
-          document_number: labourForm.labour_card_number,
-          issue_date: labourForm.labour_card_issue_date || null,
-          expiry_date: labourForm.labour_card_expiry_date || null,
-          file_base64: labourForm.labour_card_file_base64 || null,
-          file_name: labourForm.labour_card_file_name || null,
-        };
-      }
-
-      if (labourForm.contract_number || labourForm.contract_file_base64) {
-        payload.contract = {
-          document_number: labourForm.contract_number,
-          contract_type: labourForm.contract_type,
-          start_date: labourForm.contract_start_date || null,
-          end_date: labourForm.contract_end_date || null,
-          file_base64: labourForm.contract_file_base64 || null,
-          file_name: labourForm.contract_file_name || null,
-        };
-      }
-
       let res;
       if (editingLabour) {
         res = await apiService.put(`/labours/${editingLabour.labour_id}`, payload);
@@ -381,9 +412,10 @@ export const Labours: React.FC = () => {
       }
 
       if (res.success) {
-        showSuccess(editingLabour ? 'Labour updated successfully!' : 'Labour registered successfully with documents!');
+        showSuccess(editingLabour ? 'Labour updated successfully!' : 'Labour registered successfully!');
         setEditingLabour(null);
         setLabourForm(initialLabourForm);
+        setFormErrors({});
         setShowAddLabour(false);
         fetchData();
       } else {
@@ -622,9 +654,11 @@ export const Labours: React.FC = () => {
                 setEditingLabour(item);
                 setShowAddLabour(true);
                 setFormSection('basic');
+                setFormErrors({});
                 setLabourForm({
                   ...initialLabourForm,
                   name: item.name,
+                  email: item.email || '',
                   contact_number: item.contact_number || '',
                   aadhar_id: item.aadhar_id || '',
                   labour_type: item.labour_type,
@@ -730,20 +764,74 @@ export const Labours: React.FC = () => {
   ];
 
   return (
-    <div className="page-body">
+    <div className="page-body" style={{ padding: isEmbedded ? 0 : undefined }}>
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title flex items-center gap-2">
-            <Users size={24} />
-            Labour & Contractor Management
-          </h1>
-          <p className="page-subtitle">
-            Task-wise, date-wise labour work log tracking and rate calculations.
-          </p>
-        </div>
+      {!isEmbedded ? (
+        <div className="page-header">
+          <div>
+            <h1 className="page-title flex items-center gap-2">
+              <Users size={24} />
+              Labour & Contractor Management
+            </h1>
+            <p className="page-subtitle">
+              Task-wise, date-wise labour work log tracking and rate calculations.
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {hasPermission('labours', 'create') && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !showAddLabour;
+                  setShowAddLabour(nextState);
+                  if (nextState) {
+                    setShowAddWorkLog(false);
+                    setEditingLabour(null);
+                    setFormSection('basic');
+                    setFormErrors({});
+                    setLabourForm(initialLabourForm);
+                  }
+                }}
+                className="btn btn-primary"
+              >
+                <Plus size={16} />
+                Add Labour
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !showAddWorkLog;
+                setShowAddWorkLog(nextState);
+                if (nextState) {
+                  setShowAddLabour(false);
+                  setEditingWorkLog(null);
+                  setWorkLogForm({
+                    labour_id: '',
+                    project_id: '',
+                    wbs_id: '',
+                    task_id: '',
+                    work_date: new Date().toISOString().split('T')[0],
+                    in_time: '',
+                    out_time: '',
+                    total_working_hours: 8,
+                    rate_type: 'hourly',
+                    rate: 500,
+                    work_description: '',
+                  });
+                }
+              }}
+              className="btn btn-blue"
+            >
+              <Clock size={16} />
+              + Add Task Work Log
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
           {hasPermission('labours', 'create') && (
             <button
               type="button"
@@ -793,7 +881,7 @@ export const Labours: React.FC = () => {
             + Add Task Work Log
           </button>
         </div>
-      </div>
+      )}
 
       {/* Add / Edit Labour Form Card */}
       {showAddLabour && (
@@ -816,13 +904,12 @@ export const Labours: React.FC = () => {
             </button>
           </div>
 
-          {/* Form Tabs: Basic, Identity, Visa, Contract */}
+          {/* Form Tabs: Basic, Identity, Visa */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
             {[
               { key: 'basic', label: '1. Basic Information' },
               { key: 'identity', label: '2. Identity & Govt Documents' },
               { key: 'visa', label: '3. Visa & Immigration' },
-              { key: 'contract', label: '4. Labour Card & Contract' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -855,12 +942,13 @@ export const Labours: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="Enter full name or contractor agency name"
                       value={labourForm.name}
-                      onChange={(e) => setLabourForm({ ...labourForm, name: e.target.value })}
+                      onChange={(e) => { setLabourForm({ ...labourForm, name: e.target.value }); clearFieldError('name'); }}
                       className="form-input"
+                      style={formErrors.name ? { borderColor: '#ef4444' } : {}}
                     />
+                    {formErrors.name && <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.2rem', display: 'block' }}>{formErrors.name}</span>}
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -883,18 +971,44 @@ export const Labours: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid-3-col mb-4">
+                <div className="grid-2-col mb-4">
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Contact Number (Optional)</label>
+                    <label className="form-label">Email Address <span className="text-danger">*</span></label>
+                    <input
+                      type="email"
+                      placeholder="e.g. worker@example.com"
+                      value={labourForm.email}
+                      onChange={(e) => { setLabourForm({ ...labourForm, email: e.target.value }); clearFieldError('email'); }}
+                      className="form-input"
+                      style={formErrors.email ? { borderColor: '#ef4444' } : {}}
+                    />
+                    {formErrors.email && <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.2rem', display: 'block' }}>{formErrors.email}</span>}
+                  </div>
+                  
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Contact Number <span className="text-danger">*</span></label>
                     <input
                       type="text"
                       placeholder="e.g. +971 50 1234567 or 9876543210"
                       value={labourForm.contact_number}
-                      onChange={(e) => setLabourForm({ ...labourForm, contact_number: e.target.value })}
+                      onChange={(e) => { setLabourForm({ ...labourForm, contact_number: e.target.value }); clearFieldError('contact_number'); }}
+                      onBlur={() => {
+                        const clean = labourForm.contact_number.trim();
+                        if (clean) {
+                          const digits = clean.replace(/[\s+-]/g, '');
+                          if (digits.length < 7 || digits.length > 15)
+                            setFormErrors((prev) => ({ ...prev, contact_number: 'Contact number must be 7–15 digits.' }));
+                          else clearFieldError('contact_number');
+                        }
+                      }}
                       className="form-input"
+                      style={formErrors.contact_number ? { borderColor: '#ef4444' } : {}}
                     />
+                    {formErrors.contact_number && <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.2rem', display: 'block' }}>{formErrors.contact_number}</span>}
                   </div>
+                </div>
 
+                <div className="grid-3-col mb-4">
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Country</label>
                     <select
@@ -1001,9 +1115,17 @@ export const Labours: React.FC = () => {
                       maxLength={12}
                       placeholder="12-digit Aadhaar (e.g. 123456789012)"
                       value={labourForm.aadhar_id}
-                      onChange={(e) => setLabourForm({ ...labourForm, aadhar_id: e.target.value.replace(/\D/g, '') })}
+                      onChange={(e) => { setLabourForm({ ...labourForm, aadhar_id: e.target.value.replace(/\D/g, '') }); clearFieldError('aadhar_id'); }}
+                      onBlur={() => {
+                        const v = labourForm.aadhar_id.trim();
+                        if (v && !/^\d{12}$/.test(v))
+                          setFormErrors((prev) => ({ ...prev, aadhar_id: 'Aadhaar ID must be exactly 12 digits.' }));
+                        else clearFieldError('aadhar_id');
+                      }}
                       className="form-input"
+                      style={formErrors.aadhar_id ? { borderColor: '#ef4444' } : {}}
                     />
+                    {formErrors.aadhar_id && <span style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.2rem', display: 'block' }}>{formErrors.aadhar_id}</span>}
                   </div>
                 </div>
 
@@ -1151,127 +1273,6 @@ export const Labours: React.FC = () => {
               </div>
             )}
 
-            {/* TAB 4: LABOUR CARD & CONTRACT */}
-            {formSection === 'contract' && (
-              <div>
-                {/* Labour Card Subsection */}
-                <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
-                  <h4 style={{ margin: '0 0 0.75rem 0', color: '#f59e0b', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <CreditCard size={16} /> Labour Card Details (Optional)
-                  </h4>
-                  <div className="grid-3-col mb-3">
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Labour Card Number</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. LC-998822"
-                        value={labourForm.labour_card_number}
-                        onChange={(e) => setLabourForm({ ...labourForm, labour_card_number: e.target.value })}
-                        className="form-input"
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Issue Date</label>
-                      <input
-                        type="date"
-                        value={labourForm.labour_card_issue_date}
-                        onChange={(e) => setLabourForm({ ...labourForm, labour_card_issue_date: e.target.value })}
-                        className="form-input"
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Expiry Date</label>
-                      <input
-                        type="date"
-                        value={labourForm.labour_card_expiry_date}
-                        onChange={(e) => setLabourForm({ ...labourForm, labour_card_expiry_date: e.target.value })}
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="form-label">Upload Labour Card Copy</label>
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-                      onChange={(e) => handleFileUpload('labour_card', e)}
-                      className="form-input"
-                    />
-                    {labourForm.labour_card_file_name && (
-                      <span style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '0.25rem', display: 'block' }}>
-                        Attached: {labourForm.labour_card_file_name}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Contract Subsection */}
-                <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
-                  <h4 style={{ margin: '0 0 0.75rem 0', color: '#10b981', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Briefcase size={16} /> Contract Details (Optional)
-                  </h4>
-                  <div className="grid-2-col mb-3">
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Contract Number</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. CON-2026-004"
-                        value={labourForm.contract_number}
-                        onChange={(e) => setLabourForm({ ...labourForm, contract_number: e.target.value })}
-                        className="form-input"
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Contract Type</label>
-                      <select
-                        value={labourForm.contract_type}
-                        onChange={(e) => setLabourForm({ ...labourForm, contract_type: e.target.value })}
-                        className="form-select"
-                      >
-                        <option value="Direct Employment">Direct Employment</option>
-                        <option value="Subcontractor Agreement">Subcontractor Agreement</option>
-                        <option value="Fixed-Term Project">Fixed-Term Project</option>
-                        <option value="Daily Wage">Daily Wage</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid-2-col mb-3">
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Contract Start Date</label>
-                      <input
-                        type="date"
-                        value={labourForm.contract_start_date}
-                        onChange={(e) => setLabourForm({ ...labourForm, contract_start_date: e.target.value })}
-                        className="form-input"
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Contract End Date</label>
-                      <input
-                        type="date"
-                        value={labourForm.contract_end_date}
-                        onChange={(e) => setLabourForm({ ...labourForm, contract_end_date: e.target.value })}
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="form-label">Upload Contract Document</label>
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-                      onChange={(e) => handleFileUpload('contract', e)}
-                      className="form-input"
-                    />
-                    {labourForm.contract_file_name && (
-                      <span style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '0.25rem', display: 'block' }}>
-                        Attached: {labourForm.contract_file_name}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Bottom Actions */}
             <div className="flex justify-between items-center pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
@@ -1280,8 +1281,7 @@ export const Labours: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (formSection === 'contract') setFormSection('visa');
-                      else if (formSection === 'visa') setFormSection('identity');
+                      if (formSection === 'visa') setFormSection('identity');
                       else if (formSection === 'identity') setFormSection('basic');
                     }}
                     className="btn btn-outline"
@@ -1290,13 +1290,16 @@ export const Labours: React.FC = () => {
                     ← Previous Tab
                   </button>
                 )}
-                {formSection !== 'contract' && (
+                {formSection !== 'visa' && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (formSection === 'basic') setFormSection('identity');
-                      else if (formSection === 'identity') setFormSection('visa');
-                      else if (formSection === 'visa') setFormSection('contract');
+                      if (formSection === 'basic') {
+                        if (!validateBasicTab()) return;
+                        setFormSection('identity');
+                      } else if (formSection === 'identity') {
+                        setFormSection('visa');
+                      }
                     }}
                     className="btn btn-secondary"
                     style={{ fontSize: '0.85rem' }}
@@ -1312,13 +1315,15 @@ export const Labours: React.FC = () => {
                   onClick={() => {
                     setShowAddLabour(false);
                     setEditingLabour(null);
+                    setFormErrors({});
+                    setFormSection('basic');
                   }}
                   className="btn btn-outline"
                 >
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  {editingLabour ? 'Update Labour & Documents' : 'Register Labour & Save Documents'}
+                  {editingLabour ? 'Update Labour' : 'Register Labour'}
                 </button>
               </div>
             </div>
@@ -1576,21 +1581,23 @@ export const Labours: React.FC = () => {
             />
           </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Project</label>
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="form-select"
-            >
-              <option value="">All Projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!propProjectId && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Project</label>
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="form-select"
+              >
+                <option value="">All Projects</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Labour Type</label>
@@ -1674,7 +1681,7 @@ export const Labours: React.FC = () => {
                 <X size={18} />
               </button>
             </div>
-            <div className="modal-body" style={{ padding: '1.25rem 0' }}>
+            <div className="modal-body" style={{ padding: '1.25rem' }}>
               <p style={{ marginBottom: '1rem', color: 'var(--text-primary)' }}>
                 Are you sure you want to delete worker/contractor <strong>{deleteTarget.name}</strong> (ID: LAB-{String(deleteTarget.labour_id).padStart(3, '0')})?
               </p>
@@ -1698,7 +1705,7 @@ export const Labours: React.FC = () => {
                         {deleteDeps.subWorkersCount > 0 && <li>{deleteDeps.subWorkersCount} sub-worker(s) linked to this contractor</li>}
                       </ul>
                       <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Force deleting will permanently clean up associated logs and unlink sub-workers.
+                        Deleting this record will soft-delete it. It will be hidden from lists, but its associated work logs and sub-workers will remain intact for historical reporting.
                       </p>
                     </div>
                   </div>

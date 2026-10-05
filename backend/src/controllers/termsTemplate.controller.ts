@@ -8,6 +8,8 @@ export class TermsTemplateController {
         country_id: req.query.country_id ? Number(req.query.country_id) : undefined,
         project_type_id: req.query.project_type_id ? Number(req.query.project_type_id) : undefined,
         discipline_id: req.query.discipline_id ? Number(req.query.discipline_id) : undefined,
+        status: req.query.status !== undefined ? Number(req.query.status) : undefined,
+        all: req.query.all === 'true' || req.query.all === '1',
       };
 
       const templates = await TermsTemplateService.getAll(filters);
@@ -47,6 +49,20 @@ export class TermsTemplateController {
 
       const template = await TermsTemplateService.update(id, req.body, userId, ipAddress);
       res.json({ success: true, message: 'Terms Template updated successfully', data: template });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async toggleStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const status = Number(req.body.status !== undefined ? req.body.status : 1);
+      const userId = (req as any).user?.employee_id;
+      const ipAddress = req.ip;
+
+      const template = await TermsTemplateService.toggleStatus(id, status, userId, ipAddress);
+      res.json({ success: true, message: `Terms Template ${status === 1 ? 'activated' : 'deactivated'} successfully`, data: template });
     } catch (err) {
       next(err);
     }

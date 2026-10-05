@@ -158,4 +158,80 @@ export class MaterialController {
       return sendError(res, e.message, [], 500);
     }
   };
+
+  // ── Project Materials (Material WBS Tracking) ───────────────────────────
+  getProjectMaterials = async (req: Request, res: Response) => {
+    try {
+      const data = await this.svc.getProjectMaterials(req.query);
+      return sendSuccess(res, 'Project materials retrieved', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  getProjectMaterialById = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const data = await this.svc.getProjectMaterialById(id);
+      if (!data) return sendError(res, 'Record not found', [], 404);
+      return sendSuccess(res, 'Project material details', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  createProjectMaterial = async (req: Request, res: Response) => {
+    try {
+      const { project_id, wbs_id, material_name } = req.body;
+      if (!project_id || !wbs_id || !material_name) {
+        return sendError(res, 'project_id, wbs_id, and material_name are required', [], 400);
+      }
+      const id = await this.svc.createProjectMaterial(req.body);
+      return sendSuccess(res, 'Project material created', { id }, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  updateProjectMaterial = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const ok = await this.svc.updateProjectMaterial(id, req.body);
+      if (!ok) return sendError(res, 'Record not found or not modified', [], 400);
+      return sendSuccess(res, 'Project material updated');
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  deleteProjectMaterial = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      await this.svc.deleteProjectMaterial(id);
+      return sendSuccess(res, 'Project material deleted');
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  logProjectMaterialAction = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      await this.svc.logProjectMaterialAction(id, req.body);
+      return sendSuccess(res, `Material ${req.body.action_type || 'action'} logged successfully`);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  getProjectMaterialLogs = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const data = await this.svc.getProjectMaterialLogs(id);
+      return sendSuccess(res, 'Material logs retrieved', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
 }
+

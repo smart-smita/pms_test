@@ -8,6 +8,7 @@ import { apiRequest } from '../../services/api';
 import { EntityDocument, DocumentType } from '../../types';
 import { FileText, Upload, Trash2, Calendar, AlertTriangle, CheckCircle, ExternalLink, Plus } from 'lucide-react';
 import { showSuccess, showError } from '../../utils/toast';
+import { getDocumentUrl } from '../../utils/documentHelper';
 
 interface DocumentModalProps {
   isOpen: boolean;
@@ -313,7 +314,7 @@ export const DocumentModal: React.FC<DocumentModalProps> = ({
                   {renderExpiryBadge(doc)}
                   {doc.file_path && (
                     <a
-                      href={doc.file_path}
+                      href={getDocumentUrl(doc.file_path)}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{

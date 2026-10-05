@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = (module: string, action: string): boolean => {
     if (!user) return false;
     // Admin / Super Admin has full permission
-    if (user.role_name === 'Admin') return true;
+    if (user.role_name === 'Admin' || user.role_name === 'Super Admin') return true;
     
     // Restrict Edit, Delete, and Status modification actions strictly to Admin / SuperAdmin
     if (action === 'update' || action === 'delete' || action === 'status') {

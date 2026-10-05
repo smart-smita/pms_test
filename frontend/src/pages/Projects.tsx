@@ -8,10 +8,11 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest } from '../services/api';
 import { Project, Customer, Country, ProjectType } from '../types';
-import { Plus, Edit, Trash2, MapPin, RefreshCw, Eye, FolderKanban, Building2, Globe, Layers, IndianRupee } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, RefreshCw, Eye, FolderKanban, Building2, Globe, Layers, IndianRupee, Paperclip } from 'lucide-react';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { Project360Modal } from '../components/projects/Project360Modal';
+import { DocumentManagerModal } from '../components/common/DocumentManagerModal';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,6 +31,10 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
   const [filterType, setFilterType] = useState('');
   const [filterCountry, setFilterCountry] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  // Documents Modal
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docProject, setDocProject] = useState<Project | null>(null);
 
   // 360 Workspace Modal
   const [is360ModalOpen, setIs360ModalOpen] = useState(false);
@@ -103,8 +108,7 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
   };
 
   const open360Modal = (projectId: number) => {
-    setSelected360ProjectId(projectId);
-    setIs360ModalOpen(true);
+    onNavigate(`projects/workspace/${projectId}`);
   };
 
   const handleDelete = (id: number, name: string) => {
@@ -353,11 +357,22 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               <Button
                 variant="secondary"
+                onClick={() => {
+                  setDocProject(row);
+                  setIsDocModalOpen(true);
+                }}
+                style={{ padding: '0.35rem 0.65rem', color: '#38bdf8' }}
+                title="Manage Project Documents (Drawings, Permissions, Site docs, etc.)"
+              >
+                <Paperclip size={14} /> Docs
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => open360Modal(row.project_id)}
                 style={{ padding: '0.35rem 0.65rem', background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)' }}
-                title="View Scope, Disciplines, Invoices & Payments 360°"
+                title="Open Project Workspace"
               >
-                <Eye size={14} /> 360° View
+                <Eye size={14} /> Workspace
               </Button>
               {isAdminOrManager && (
                 <>
@@ -380,6 +395,20 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
           )}
         />
       </div>
+
+      {/* Project Documents Modal */}
+      {docProject && (
+        <DocumentManagerModal
+          isOpen={isDocModalOpen}
+          onClose={() => {
+            setIsDocModalOpen(false);
+            setDocProject(null);
+          }}
+          entityType="project"
+          entityId={docProject.project_id}
+          entityName={docProject.project_name}
+        />
+      )}
 
       {/* 360 Workspace Modal */}
       <Project360Modal

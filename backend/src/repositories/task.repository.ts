@@ -29,9 +29,24 @@ export class TaskRepository {
         p.longitude AS project_longitude,
         p.radius_meters AS project_radius_meters,
         COALESCE(w.wbs_name, w_direct.wbs_name) AS wbs_name,
-        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE task_id = t.task_id), 0) +
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) +
         COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_hours,
+        COALESCE((SELECT SUM(cost) FROM timesheets WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) +
         COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE task_id = t.task_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost,
+        (
+          SELECT MIN(work_date) FROM (
+            SELECT log_date AS work_date, task_id FROM timesheets WHERE (is_deleted = 0 OR is_deleted IS NULL)
+            UNION ALL
+            SELECT work_date, task_id FROM labour_work_logs WHERE (is_deleted = 0 OR is_deleted IS NULL)
+          ) AS combined_dates WHERE combined_dates.task_id = t.task_id
+        ) AS computed_actual_start_date,
+        (
+          SELECT MAX(work_date) FROM (
+            SELECT log_date AS work_date, task_id FROM timesheets WHERE (is_deleted = 0 OR is_deleted IS NULL)
+            UNION ALL
+            SELECT work_date, task_id FROM labour_work_logs WHERE (is_deleted = 0 OR is_deleted IS NULL)
+          ) AS combined_dates WHERE combined_dates.task_id = t.task_id
+        ) AS computed_actual_end_date,
         COUNT(DISTINCT ta.employee_id) AS assigned_worker_count
       FROM tasks t
       JOIN projects p ON t.project_id = p.project_id AND p.is_deleted = 0
@@ -120,11 +135,14 @@ export class TaskRepository {
         completion_percentage: compPct,
         allocation_status: allocStatus,
         actual_cost: Number(r.actual_cost || 0),
+        actual_start_date: r.computed_actual_start_date || r.actual_start_date,
+        actual_end_date: r.computed_actual_end_date || r.actual_end_date,
         assigned_worker_count: assignedCount,
         is_understaffed: assignedCount < requiredCount,
         productivity_status: productivityStatus,
         assigned_employees: assignedEmployees,
         assigned_labours: await this.getAssignedLabours(r.task_id),
+        used_materials: await this.getTaskUsedMaterials(r.task_id),
         dependencies: await this.getDependencies(r.task_id),
       } as unknown as TaskRow);
     }
@@ -327,6 +345,51 @@ export class TaskRepository {
            useAddr, useAddr, useLat, useLng, useLat, useLng]
         );
       }
+    }
+  }
+
+  async getTaskUsedMaterials(taskId: number): Promise<any[]> {
+    try {
+      await dbPool.execute(`
+        CREATE TABLE IF NOT EXISTS task_used_materials (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          task_id INT NOT NULL,
+          project_id INT NOT NULL,
+          wbs_id INT NULL,
+          material_id INT NULL,
+          material_name VARCHAR(255) NOT NULL,
+          quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          unit VARCHAR(50) NULL,
+          rate DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          used_date DATE NULL,
+          notes TEXT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      const [rows] = await dbPool.execute<RowDataPacket[]>(
+        `SELECT * FROM task_used_materials WHERE task_id = ? ORDER BY id ASC`,
+        [taskId]
+      );
+      return rows;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async saveTaskUsedMaterials(taskId: number, projectId: number, wbsId: number | null, materials: any[]): Promise<void> {
+    await this.getTaskUsedMaterials(taskId);
+    await dbPool.execute(`DELETE FROM task_used_materials WHERE task_id = ?`, [taskId]);
+    for (const m of materials) {
+      const name = m.material_name || m.name || 'Used Material';
+      const qty = Number(m.quantity || 0);
+      const rate = Number(m.rate || m.cost_per_unit || 0);
+      const amount = Number(m.amount || (qty * rate));
+      await dbPool.execute(
+        `INSERT INTO task_used_materials (task_id, project_id, wbs_id, material_id, material_name, quantity, unit, rate, amount, used_date, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [taskId, projectId, wbsId || null, m.material_id || null, name, qty, m.unit || 'Nos', rate, amount, m.used_date || null, m.notes || null]
+      );
     }
   }
 

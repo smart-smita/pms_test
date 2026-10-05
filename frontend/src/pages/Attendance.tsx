@@ -11,7 +11,7 @@ import { showSuccess, showError } from '../utils/toast';
 import { MapPin, LogIn, LogOut, Navigation, Clock, Edit2, Trash2, Users, HardHat, Filter, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export const Attendance: React.FC = () => {
+export const Attendance: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
@@ -23,7 +23,13 @@ export const Attendance: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Filter State
-  const [filterProjectId, setFilterProjectId] = useState<number>(0);
+  const [filterProjectId, setFilterProjectId] = useState<number>(projectId || 0);
+
+  useEffect(() => {
+    if (projectId) {
+      setFilterProjectId(projectId);
+    }
+  }, [projectId]);
 
   // Check In / Punch on Behalf Modal
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);

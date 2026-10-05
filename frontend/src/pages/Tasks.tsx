@@ -10,13 +10,13 @@ import { apiRequest, parseApiErrors, apiService } from '../services/api';
 import { Task, Project, Employee } from '../types';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw, Package } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { LogHistoryModal } from '../components/common/LogHistoryModal';
 import { LabourCombobox } from '../components/common/LabourCombobox';
 
-export const Tasks: React.FC = () => {
+export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProjectId }) => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin';
   const canManage = user?.role_name === 'Admin' || user?.role_name === 'Manager';
@@ -29,7 +29,7 @@ export const Tasks: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Cascading Filter State
-  const [filterProjectId, setFilterProjectId] = useState<number>(0);
+  const [filterProjectId, setFilterProjectId] = useState<number>(propProjectId || 0);
   const [filterWbsId, setFilterWbsId] = useState<number>(0);
   const [filterDisciplines, setFilterDisciplines] = useState<any[]>([]);
 
@@ -60,6 +60,16 @@ export const Tasks: React.FC = () => {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [dependencies, setDependencies] = useState<{predecessor_task_id: number, dependency_type: string, lag_days?: number}[]>([]);
+  const [usedMaterials, setUsedMaterials] = useState<any[]>([]);
+  const [materialForm, setMaterialForm] = useState({
+    material_id: '',
+    material_name: '',
+    quantity: '',
+    unit: 'Nos',
+    rate: '',
+    used_date: new Date().toISOString().split('T')[0],
+    notes: '',
+  });
 
   // Auto-calculate Worker Count based on allocated labour workers count
   useEffect(() => {
@@ -168,7 +178,7 @@ export const Tasks: React.FC = () => {
     }
   }, [filterProjectId]);
 
-  // Form WBS fetch
+  // Form WBS fetch (all WBS types)
   useEffect(() => {
     if (projectId) {
       apiRequest<any[]>(`/projects/${projectId}/wbs`).then((res) => {
@@ -192,6 +202,7 @@ export const Tasks: React.FC = () => {
     setWbsId(0);
     setAssignedEmployeeId(user?.employee_id || '');
     setAllocations([]);
+    setUsedMaterials([]);
     setTaskName('');
     setDescription('');
     setWorkerCount(1);
@@ -216,6 +227,7 @@ export const Tasks: React.FC = () => {
     setAssignedEmployeeId(t.assigned_employees && t.assigned_employees.length > 0 ? t.assigned_employees[0].employee_id : '');
     
     setAllocations([]);
+    setUsedMaterials((t as any).used_materials || []);
     apiService.get<any[]>(`/tasks/${t.task_id}/allocations`).then(res => {
       if (res.success && res.data) {
         const task = t;
@@ -415,6 +427,7 @@ export const Tasks: React.FC = () => {
       task_address: taskAddress,
       latitude: latitude ? parseFloat(latitude) : undefined,
       longitude: longitude ? parseFloat(longitude) : undefined,
+      used_materials: usedMaterials,
       dependencies: dependencies
     };
 
@@ -626,24 +639,26 @@ export const Tasks: React.FC = () => {
             <Filter size={16} style={{ color: '#6366f1' }} /> Filter Tasks:
           </div>
 
-          <div style={{ minWidth: '200px' }}>
-            <select
-              className="form-input"
-              value={filterProjectId}
-              onChange={(e) => {
-                setFilterProjectId(parseInt(e.target.value, 10) || 0);
-                setFilterWbsId(0);
-              }}
-              style={{ padding: '0.45rem 0.75rem', fontSize: '0.875rem' }}
-            >
-              <option value={0}>All Projects</option>
-              {projects.map((p) => (
-                <option key={p.project_id} value={p.project_id}>
-                  {p.project_name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!propProjectId && (
+            <div style={{ minWidth: '200px' }}>
+              <select
+                className="form-input"
+                value={filterProjectId}
+                onChange={(e) => {
+                  setFilterProjectId(parseInt(e.target.value, 10) || 0);
+                  setFilterWbsId(0);
+                }}
+                style={{ padding: '0.45rem 0.75rem', fontSize: '0.875rem' }}
+              >
+                <option value={0}>All Projects</option>
+                {projects.map((p) => (
+                  <option key={p.project_id} value={p.project_id}>
+                    {p.project_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ minWidth: '200px' }}>
             <select
@@ -834,107 +849,134 @@ export const Tasks: React.FC = () => {
       {/* Task Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingTask ? 'Edit Task' : 'Create New Task'}>
         <form noValidate onSubmit={handleSubmit}>
-          {/* 1. Project */}
-          <FormSelect
-            label="Project *"
-            value={projectId}
-            onChange={(e) => {
-              const pid = parseInt(e.target.value, 10) || 0;
-              setProjectId(pid);
-              setWbsId(0);
-              setFormErrors((prev) => ({ ...prev, project_id: '', wbs_id: '' }));
-              // Auto-fill address and GPS from selected project
-              if (!editingTask) {
-                const proj = projects.find(p => p.project_id === pid);
-                if (proj) {
-                  setTaskAddress(proj.project_address || '');
-                  setLatitude((proj as any).latitude || '');
-                  setLongitude((proj as any).longitude || '');
-                }
-              }
-            }}
-            options={[
-              { value: 0, label: '-- Select Project --' },
-              ...projects.map((p) => ({ value: p.project_id, label: p.project_name })),
-            ]}
-            required
-            error={formErrors.project_id}
-          />
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Task Details</h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+              <FormSelect
+                label="Project *"
+                value={projectId}
+                onChange={(e) => {
+                  const pid = parseInt(e.target.value, 10) || 0;
+                  setProjectId(pid);
+                  setWbsId(0);
+                  setFormErrors((prev) => ({ ...prev, project_id: '', wbs_id: '' }));
+                  if (!editingTask) {
+                    const proj = projects.find(p => p.project_id === pid);
+                    if (proj) {
+                      setTaskAddress(proj.project_address || '');
+                      setLatitude((proj as any).latitude || '');
+                      setLongitude((proj as any).longitude || '');
+                    }
+                  }
+                }}
+                options={[
+                  { value: 0, label: '-- Select Project --' },
+                  ...projects.map((p) => ({ value: p.project_id, label: p.project_name })),
+                ]}
+                required
+                error={formErrors.project_id}
+              />
+              <FormInput
+                label="Task Code"
+                type="text"
+                value={editingTask ? editingTask.task_id.toString() : 'Auto-Generate'}
+                readOnly
+                disabled
+              />
+              <FormInput
+                label="Task Name *"
+                type="text"
+                value={taskName}
+                placeholder="Enter task name"
+                onChange={(e) => {
+                  setTaskName(e.target.value);
+                  setFormErrors((prev) => ({ ...prev, task_name: '' }));
+                }}
+                required
+                error={formErrors.task_name}
+              />
+              <FormSelect
+                label="WBS *"
+                value={wbsId}
+                onChange={(e) => {
+                  setWbsId(parseInt(e.target.value, 10) || 0);
+                  setFormErrors((prev) => ({ ...prev, wbs_id: '' }));
+                }}
+                options={[
+                  { value: 0, label: 'Select WBS' },
+                  ...projectWbs.map((w) => ({ value: w.id, label: w.wbs_name })),
+                ]}
+                required
+                error={formErrors.wbs_id}
+              />
+            </div>
 
-          {/* 2. WBS */}
-          <FormSelect
-            label="WBS (Discipline) *"
-            value={wbsId}
-            onChange={(e) => {
-              setWbsId(parseInt(e.target.value, 10) || 0);
-              setFormErrors((prev) => ({ ...prev, wbs_id: '' }));
-            }}
-            options={[
-              { value: 0, label: '-- Select WBS --' },
-              ...projectWbs.map((w) => ({ value: w.id, label: w.wbs_name })),
-            ]}
-            required
-            error={formErrors.wbs_id}
-          />
-
-          {/* 3. Employee Allocation (Single Dropdown) */}
-          <FormSelect
-            label="Employee Name *"
-            value={assignedEmployeeId}
-            onChange={(e) => {
-              setAssignedEmployeeId(e.target.value);
-              setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
-            }}
-            options={[
-              { value: '', label: '-- Select Employee --' },
-              ...employees.map((emp) => ({
-                value: emp.employee_id,
-                label: `${emp.name} (${emp.role_name || emp.employee_code || 'Employee'})`,
-              })),
-            ]}
-            error={formErrors.assigned_employee_ids}
-            required
-          />
-
-
-
-          {/* 4. Task Name */}
-          <FormInput
-            label="Task Name *"
-            type="text"
-            value={taskName}
-            onChange={(e) => {
-              setTaskName(e.target.value);
-              setFormErrors((prev) => ({ ...prev, task_name: '' }));
-            }}
-            required
-            error={formErrors.task_name}
-          />
-
-          {/* 5. Description */}
-          <div className="form-group">
-            <label className="form-label">Description</label>
-            <textarea className="form-input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              <FormInput
+                label="Start Date *"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setFormErrors((prev) => ({ ...prev, start_date: '' }));
+                }}
+                required
+                error={formErrors.start_date}
+              />
+              <FormInput
+                label="End Date *"
+                type="date"
+                value={targetDate}
+                onChange={(e) => {
+                  setTargetDate(e.target.value);
+                  setFormErrors((prev) => ({ ...prev, target_date: '' }));
+                }}
+                required
+                error={formErrors.target_date}
+              />
+              <FormSelect
+                label="Status *"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                options={[
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'in-progress', label: 'In Progress' },
+                  { value: 'completed', label: 'Completed' },
+                  { value: 'delayed', label: 'Delayed' },
+                  { value: 'on-hold', label: 'On Hold' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                ]}
+                required
+              />
+            </div>
           </div>
 
-          {/* 6 & 7. Worker Count & Working Hours */}
-          <div className="grid-2-col">
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Assignment</h3>
             <div>
-              <FormInput
-                label="Worker Count *"
-                type="number"
-                value={workerCount}
-                readOnly
-                style={{ background: 'var(--input-bg-solid)', opacity: 0.85, cursor: 'not-allowed' }}
-                required
-                error={formErrors.required_worker_count}
+              <FormSelect
+                label="Assign Employee (Task Manager / Lead)"
+                value={assignedEmployeeId}
+                onChange={(e) => {
+                  setAssignedEmployeeId(e.target.value);
+                  setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
+                }}
+                options={[
+                  { value: '', label: 'Search employee...' },
+                  ...employees.map((emp) => ({
+                    value: emp.employee_id,
+                    label: `${emp.name} (${emp.role_name || emp.employee_code || 'Employee'})`,
+                  })),
+                ]}
+                error={formErrors.assigned_employee_ids}
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '-0.3rem', marginBottom: '0.5rem' }}>
-                Auto-updated from allocated labour workers ({allocations.length} allocated)
-              </span>
             </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
             <FormInput
-              label="Working Hours *"
+              label="Planned Hours"
               type="number"
               step="any"
               min="0"
@@ -943,72 +985,64 @@ export const Tasks: React.FC = () => {
                 setWorkingHours(e.target.value === '' ? '' : parseFloat(e.target.value));
                 setFormErrors((prev) => ({ ...prev, estimated_hours: '' }));
               }}
-              required
               error={formErrors.estimated_hours}
             />
-          </div>
-
-          {/* 8. Start Date & Time */}
-          <div className="grid-2-col">
             <FormInput
-              label="Start Date *"
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setFormErrors((prev) => ({ ...prev, start_date: '' }));
-              }}
-              required
-              error={formErrors.start_date}
+              label="Actual Hours"
+              type="number"
+              value={editingTask?.actual_hours || 0.00}
+              readOnly
+              disabled
             />
             <FormInput
-              label="Start Time *"
-              type="time"
-              value={startTime}
-              onChange={(e) => {
-                setStartTime(e.target.value);
-                setFormErrors((prev) => ({ ...prev, start_time: '' }));
-              }}
-              required
-              error={formErrors.start_time}
+              label="Remaining Hours"
+              type="number"
+              value={editingTask ? Math.max((Number(editingTask.estimated_hours || 0) - Number(editingTask.actual_hours || 0)), 0) : workingHours || 0.00}
+              readOnly
+              disabled
             />
           </div>
 
-          {/* 9. End Date & Time */}
-          <div className="grid-2-col">
-            <FormInput
-              label="End Date *"
-              type="date"
-              value={targetDate}
-              onChange={(e) => {
-                setTargetDate(e.target.value);
-                setFormErrors((prev) => ({ ...prev, target_date: '' }));
-              }}
-              required
-              error={formErrors.target_date}
-            />
-            <FormInput
-              label="End Time *"
-              type="time"
-              value={targetTime}
-              onChange={(e) => {
-                setTargetTime(e.target.value);
-                setFormErrors((prev) => ({ ...prev, target_time: '' }));
-              }}
-              required
-              error={formErrors.target_time}
+          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <label className="form-label">Description</label>
+            <textarea 
+              className="form-input" 
+              rows={4} 
+              value={description} 
+              onChange={(e) => setDescription(e.target.value)} 
+              placeholder="Enter task description..." 
             />
           </div>
 
           {/* 10. Task Dependencies */}
           <div className="form-group" style={{ marginBottom: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
             <div style={{ background: '#3b82f6', color: 'white', padding: '0.75rem 1rem', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-              Task Dependencies (Optional)
+              Task Dependencies / Predecessor (Optional)
             </div>
             <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', padding: '1.5rem', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                Select predecessor tasks that must be completed before this task can start.
-              </p>
+              <div style={{ background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem', fontSize: '0.85rem', lineHeight: '1.4' }}>
+                <strong style={{ color: 'var(--text-primary)' }}>What is a Predecessor Task?</strong>
+                <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                  A <strong>Predecessor Task</strong> is a prerequisite task that must finish before this task can start (Finish-to-Start dependency).
+                  It sequences tasks in the <strong>Gantt Chart</strong> and project timeline. If a predecessor task is delayed or shifted, dependent tasks automatically adjust their schedule.
+                </p>
+              </div>
+
+              {!projectId ? (
+                <div style={{ padding: '0.75rem 1rem', background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1.25rem', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>💡</span>
+                  <span><strong>Step 1 Required:</strong> Please select a <strong>Project</strong> at the top of this form to view and link its tasks as predecessors.</span>
+                </div>
+              ) : tasks.filter(t => Number(t.project_id) === Number(projectId) && (!editingTask || Number(t.task_id) !== Number(editingTask.task_id))).length === 0 ? (
+                <div style={{ padding: '0.75rem 1rem', background: 'rgba(234, 179, 8, 0.1)', color: '#ca8a04', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1.25rem', border: '1px solid rgba(234, 179, 8, 0.25)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>ℹ️</span>
+                  <span>No other tasks found in this project yet. This will be the project's first task (no predecessor needed).</span>
+                </div>
+              ) : (
+                <div style={{ padding: '0.5rem 0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1.25rem', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                  ✓ Found {tasks.filter(t => Number(t.project_id) === Number(projectId) && (!editingTask || Number(t.task_id) !== Number(editingTask.task_id))).length} existing tasks in this project available as predecessors.
+                </div>
+              )}
               
               <FormSelect
                 label="Select Predecessor Task"
@@ -1021,12 +1055,21 @@ export const Tasks: React.FC = () => {
                     setDependencies([]);
                   }
                 }}
-                options={[
-                  { value: '', label: '-- None --' },
-                  ...tasks
-                    .filter(t => t.project_id === projectId && t.task_id !== editingTask?.task_id)
-                    .map(t => ({ value: t.task_id, label: t.task_name }))
-                ]}
+                options={
+                  !projectId
+                    ? [{ value: '', label: '-- Select a Project above first --' }]
+                    : tasks.filter(t => Number(t.project_id) === Number(projectId) && (!editingTask || Number(t.task_id) !== Number(editingTask.task_id))).length === 0
+                      ? [{ value: '', label: '-- No existing tasks in this project (First task) --' }]
+                      : [
+                          { value: '', label: '-- None (Independent Task - No Predecessor) --' },
+                          ...tasks
+                            .filter(t => Number(t.project_id) === Number(projectId) && (!editingTask || Number(t.task_id) !== Number(editingTask.task_id)))
+                            .map(t => ({
+                              value: t.task_id,
+                              label: `#${t.task_id} - ${t.task_name} [${(t.status || 'pending').toUpperCase()}${t.target_date ? ` · Target: ${t.target_date.split('T')[0]}` : ''}]`
+                            }))
+                        ]
+                }
               />
             </div>
           </div>
@@ -1240,6 +1283,199 @@ export const Tasks: React.FC = () => {
                             {allocations.length} Allocations
                           </span>
                         </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Used Materials Allocation */}
+          <div className="form-group" style={{ marginBottom: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+            <div style={{ background: '#10b981', color: 'white', padding: '0.75rem 1rem', borderTopLeftRadius: '8px', borderTopRightRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+              <Package size={16} /> Used Materials Allocation (Quantities & Costs to match Quotation)
+            </div>
+            <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', padding: '1.5rem', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                Add used material records for this task with quantity and rate to match against planned quotation materials.
+              </p>
+
+              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                <div className="grid-3-col" style={{ gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Material Name / Master</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={materialForm.material_name}
+                      onChange={(e) => setMaterialForm({ ...materialForm, material_name: e.target.value })}
+                      placeholder="Enter material name..."
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Used Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={materialForm.used_date}
+                      onChange={(e) => setMaterialForm({ ...materialForm, used_date: e.target.value })}
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Quantity</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="form-input"
+                      value={materialForm.quantity}
+                      onChange={(e) => setMaterialForm({ ...materialForm, quantity: e.target.value })}
+                      placeholder="Qty..."
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid-3-col" style={{ gap: '1rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Unit</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={materialForm.unit}
+                      onChange={(e) => setMaterialForm({ ...materialForm, unit: e.target.value })}
+                      placeholder="e.g. Nos, Kg, Bags, Mtr"
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Cost / Rate per Unit (₹)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="form-input"
+                      value={materialForm.rate}
+                      onChange={(e) => setMaterialForm({ ...materialForm, rate: e.target.value })}
+                      placeholder="Rate..."
+                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Total Amount (₹)</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        className="form-input"
+                        readOnly
+                        disabled
+                        value={(Number(materialForm.quantity || 0) * Number(materialForm.rate || 0)).toFixed(2)}
+                        style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', flex: 1, background: '#e2e8f0' }}
+                      />
+                      <Button
+                        type="button"
+                        variant="primary"
+                        disabled={!materialForm.material_name || !materialForm.quantity}
+                        onClick={() => {
+                          const qty = Number(materialForm.quantity || 0);
+                          const rt = Number(materialForm.rate || 0);
+                          const amt = qty * rt;
+                          setUsedMaterials([
+                            ...usedMaterials,
+                            {
+                              material_name: materialForm.material_name,
+                              used_date: materialForm.used_date,
+                              quantity: qty,
+                              unit: materialForm.unit,
+                              rate: rt,
+                              amount: amt,
+                            }
+                          ]);
+                          setMaterialForm({
+                            material_id: '',
+                            material_name: '',
+                            quantity: '',
+                            unit: 'Nos',
+                            rate: '',
+                            used_date: new Date().toISOString().split('T')[0],
+                            notes: '',
+                          });
+                        }}
+                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', height: '36px', background: '#10b981', borderColor: '#10b981' }}
+                      >
+                        <Plus size={14} /> Add Material
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table of Used Materials */}
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.8rem', textAlign: 'left' }}>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Date</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Material Name</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Quantity & Unit</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Rate (₹)</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Total Amount (₹)</th>
+                      <th style={{ padding: '0.75rem', width: '50px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usedMaterials.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          No materials logged for this task.
+                        </td>
+                      </tr>
+                    ) : (
+                      usedMaterials.map((m, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                          <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
+                            {m.used_date ? new Date(m.used_date).toLocaleDateString('en-GB') : '-'}
+                          </td>
+                          <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', fontWeight: 600 }}>
+                            {m.material_name}
+                          </td>
+                          <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
+                            {m.quantity} {m.unit || 'Nos'}
+                          </td>
+                          <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
+                            ₹{Number(m.rate || 0).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            ₹{Number(m.amount || 0).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...usedMaterials];
+                                next.splice(idx, 1);
+                                setUsedMaterials(next);
+                              }}
+                              style={{ background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', padding: '0.3rem', borderRadius: '4px' }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {usedMaterials.length > 0 && (
+                    <tfoot style={{ background: 'var(--bg-secondary)', fontWeight: 600 }}>
+                      <tr>
+                        <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right' }}>Total Material Cost:</td>
+                        <td style={{ padding: '0.75rem', color: '#10b981' }}>
+                          ₹{usedMaterials.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2)}
+                        </td>
+                        <td></td>
                       </tr>
                     </tfoot>
                   )}

@@ -94,3 +94,13 @@ export function calculateExpiryStatus(expiryDateStr?: string | null): ClientExpi
     badgeStyle: { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' },
   };
 }
+
+export function getDocumentUrl(filePath?: string | null): string {
+  if (!filePath) return '#';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  const rootUrl = baseUrl.replace('/api/v1', '');
+  return `${rootUrl}${filePath.startsWith('/') ? '' : '/'}${filePath}`;
+}

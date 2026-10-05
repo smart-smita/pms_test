@@ -14,13 +14,21 @@ import { RequirePermission } from '../components/common/RequirePermission';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { DocumentModal } from '../components/common/DocumentModal';
 import { useAuth } from '../context/AuthContext';
+import { getDocumentUrl } from '../utils/documentHelper';
 
-export const Employees: React.FC = () => {
+interface EmployeesProps {
+  isEmbedded?: boolean;
+  initialAction?: 'create';
+  onNavigate?: (page: string) => void;
+}
+
+export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction, onNavigate }) => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [countries, setCountries] = useState<{ country_id: number; country_name: string; country_code: string }[]>([]);
+  const [nationalities, setNationalities] = useState<{ nationality_id: number; nationality_name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
@@ -35,6 +43,11 @@ export const Employees: React.FC = () => {
   const [employeeCode, setEmployeeCode] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [department, setDepartment] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [nationalityId, setNationalityId] = useState<number | ''>('');
+  const [countryId, setCountryId] = useState<number | ''>('');
+  const [emreadsId, setEmreadsId] = useState('');
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState<number>(3); // 1=Admin, 2=Manager, 3=Employee
   const [reportsToId, setReportsToId] = useState<number | ''>('');
@@ -48,7 +61,7 @@ export const Employees: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Employee Documents & Immigration Form States
-  const [docSectionTab, setDocSectionTab] = useState<'passport' | 'visa' | 'national_id' | 'labour_card' | 'contract'>('passport');
+  const [docSectionTab, setDocSectionTab] = useState<'passport' | 'visa' | 'national_id'>('passport');
 
   const [passportForm, setPassportForm] = useState({
     document_number: '',
@@ -78,24 +91,12 @@ export const Employees: React.FC = () => {
     file_name: '',
   });
 
-  const [labourCardForm, setLabourCardForm] = useState({
-    document_number: '',
-    issue_date: '',
-    expiry_date: '',
-    issuing_country: '',
-    file_base64: '',
-    file_name: '',
-  });
 
-  const [contractForm, setContractForm] = useState({
-    document_number: '',
-    contract_type: 'Permanent',
-    start_date: '',
-    end_date: '',
-    issuing_country: '',
-    file_base64: '',
-    file_name: '',
-  });
+
+  // Import CSV State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importData, setImportData] = useState<any[]>([]);
 
   // Delete Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -108,6 +109,82 @@ export const Employees: React.FC = () => {
     empId: 0,
     empName: '',
   });
+
+
+  const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+      
+      const lines = text.split('\n');
+      if (lines.length < 2) return showError("CSV file is empty or missing data rows");
+      
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const parsedData = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const values = lines[i].split(',').map(v => v.trim());
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index];
+        });
+        parsedData.push(row);
+      }
+      
+      setImportData(parsedData);
+    };
+    reader.readAsText(file);
+  };
+
+  const processImport = async () => {
+    if (importData.length === 0) return showError("No data to import");
+    setIsImporting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const row of importData) {
+      try {
+        const payload = {
+          name: row.name || row['employee name'],
+          email: row.email,
+          contact_number: row.contact_number || row.contact,
+          role_id: Number(row.role_id || 4), // Default to employee role
+          department: row.department || '',
+          hourly_rate: Number(row.hourly_rate || row.salary || 0),
+          status: row.status || 'active',
+          password: row.password || 'password123'
+        };
+
+        if (!payload.name || !payload.email) {
+          throw new Error("Missing required fields");
+        }
+
+        const res = await apiRequest('/employees', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+
+        if (res.success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch (err) {
+        errorCount++;
+      }
+    }
+
+    setIsImporting(false);
+    setIsImportModalOpen(false);
+    setImportData([]);
+    showSuccess(`Import complete: ${successCount} added, ${errorCount} failed.`);
+    fetchEmployees();
+  };
 
   const fetchEmployees = async () => {
     setIsLoading(true);
@@ -126,6 +203,10 @@ export const Employees: React.FC = () => {
     const countryRes = await apiRequest<any[]>('/masters/countries');
     if (countryRes.success && countryRes.data) {
       setCountries(countryRes.data);
+    }
+    const nationalityRes = await apiRequest<any[]>('/masters/nationalities');
+    if (nationalityRes.success && nationalityRes.data) {
+      setNationalities(nationalityRes.data);
     }
     setIsLoading(false);
   };
@@ -146,13 +227,19 @@ export const Employees: React.FC = () => {
         }
       });
     } else {
-      setModalWbsList(wbsOptions);
+      setModalWbsList([]);
     }
-  }, [assignedProjectId, wbsOptions]);
+  }, [assignedProjectId]);
 
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    if (initialAction === 'create') {
+      openCreateModal();
+    }
+  }, [initialAction]);
 
   const openViewDetails = async (empId: number) => {
     setIsLoadingDetails(true);
@@ -172,8 +259,6 @@ export const Employees: React.FC = () => {
     setPassportForm({ document_number: '', issue_date: '', expiry_date: '', issuing_country: '', file_base64: '', file_name: '' });
     setVisaForm({ document_number: '', visa_type: 'Employment', issue_date: '', expiry_date: '', issuing_country: '', file_base64: '', file_name: '' });
     setNationalIdForm({ document_number: '', issue_date: '', expiry_date: '', issuing_country: '', file_base64: '', file_name: '' });
-    setLabourCardForm({ document_number: '', issue_date: '', expiry_date: '', issuing_country: '', file_base64: '', file_name: '' });
-    setContractForm({ document_number: '', contract_type: 'Permanent', start_date: '', end_date: '', issuing_country: '', file_base64: '', file_name: '' });
   };
 
   const handleFileUpload = (
@@ -206,6 +291,11 @@ export const Employees: React.FC = () => {
     setEmployeeCode(`EMP${Math.floor(100 + Math.random() * 900)}`);
     setName('');
     setEmail('');
+    setDepartment('');
+    setContactNumber('');
+    setNationalityId('');
+    setCountryId('');
+    setEmreadsId('');
     setPassword('Employee@123');
     setRoleId(3);
     setReportsToId('');
@@ -224,6 +314,11 @@ export const Employees: React.FC = () => {
     setEmployeeCode(emp.employee_code);
     setName(emp.name);
     setEmail(emp.email);
+    setDepartment((emp as any).department || '');
+    setContactNumber((emp as any).contact_number || '');
+    setNationalityId((emp as any).nationality_id || '');
+    setCountryId((emp as any).country_id || '');
+    setEmreadsId((emp as any).emreads_id || '');
     setPassword('');
     setRoleId(emp.role_id);
     setReportsToId(emp.reporting_to_id || emp.reports_to_id || '');
@@ -272,27 +367,6 @@ export const Employees: React.FC = () => {
           file_name: nid.document_file ? 'Existing Document Attached' : '',
         });
       }
-      if (d.labour_card) {
-        setLabourCardForm({
-          document_number: d.labour_card.document_number || '',
-          issue_date: d.labour_card.issue_date ? d.labour_card.issue_date.split('T')[0] : '',
-          expiry_date: d.labour_card.expiry_date ? d.labour_card.expiry_date.split('T')[0] : '',
-          issuing_country: d.labour_card.issuing_country || '',
-          file_base64: '',
-          file_name: d.labour_card.document_file ? 'Existing Document Attached' : '',
-        });
-      }
-      if (d.contract) {
-        setContractForm({
-          document_number: d.contract.document_number || '',
-          contract_type: d.contract.sub_type || 'Permanent',
-          start_date: d.contract.issue_date ? d.contract.issue_date.split('T')[0] : '',
-          end_date: d.contract.expiry_date ? d.contract.expiry_date.split('T')[0] : '',
-          issuing_country: d.contract.issuing_country || '',
-          file_base64: '',
-          file_name: d.contract.document_file ? 'Existing Document Attached' : '',
-        });
-      }
     }
   };
 
@@ -329,8 +403,6 @@ export const Employees: React.FC = () => {
     if (!checkRange(passportForm.issue_date, passportForm.expiry_date, 'Passport')) return false;
     if (!checkRange(visaForm.issue_date, visaForm.expiry_date, 'Visa')) return false;
     if (!checkRange(nationalIdForm.issue_date, nationalIdForm.expiry_date, 'Emirates ID / National ID')) return false;
-    if (!checkRange(labourCardForm.issue_date, labourCardForm.expiry_date, 'Labour Card')) return false;
-    if (!checkRange(contractForm.start_date, contractForm.end_date, 'Employee Contract')) return false;
 
     return true;
   };
@@ -349,19 +421,22 @@ export const Employees: React.FC = () => {
       passport: passportForm.document_number || passportForm.file_base64 || passportForm.expiry_date ? passportForm : undefined,
       visa: visaForm.document_number || visaForm.file_base64 || visaForm.expiry_date ? visaForm : undefined,
       national_id: nationalIdForm.document_number || nationalIdForm.file_base64 || nationalIdForm.expiry_date ? nationalIdForm : undefined,
-      labour_card: labourCardForm.document_number || labourCardForm.file_base64 || labourCardForm.expiry_date ? labourCardForm : undefined,
-      contract: contractForm.document_number || contractForm.file_base64 || contractForm.end_date ? contractForm : undefined,
     };
 
     if (editingEmp) {
       const payload: any = {
         name,
         email,
+        department,
+        contact_number: contactNumber,
         role_id: roleId,
         reporting_to_id: reportsToId ? Number(reportsToId) : null,
         assigned_project_id: assignedProjectId ? Number(assignedProjectId) : null,
         assigned_wbs_id: assignedWbsId ? Number(assignedWbsId) : null,
         hourly_rate: hourlyRate,
+        nationality_id: nationalityId ? Number(nationalityId) : null,
+        country_id: countryId ? Number(countryId) : null,
+        emreads_id: emreadsId,
         status,
         ...docPayload,
       };
@@ -385,12 +460,17 @@ export const Employees: React.FC = () => {
           employee_code: employeeCode,
           name,
           email,
+          department,
+          contact_number: contactNumber,
           password,
           role_id: roleId,
           reporting_to_id: reportsToId ? Number(reportsToId) : null,
           assigned_project_id: assignedProjectId ? Number(assignedProjectId) : null,
           assigned_wbs_id: assignedWbsId ? Number(assignedWbsId) : null,
           hourly_rate: hourlyRate,
+          nationality_id: nationalityId ? Number(nationalityId) : null,
+          country_id: countryId ? Number(countryId) : null,
+          emreads_id: emreadsId,
           status,
           ...docPayload,
         }),
@@ -418,6 +498,8 @@ export const Employees: React.FC = () => {
     { header: 'Code', accessor: 'employee_code', sortKey: 'employee_code' },
     { header: 'Name', accessor: 'name', sortKey: 'name' },
     { header: 'Email', accessor: 'email', sortKey: 'email' },
+    { header: 'Department', accessor: (r: any) => r.department || '-', sortKey: 'department' },
+    { header: 'Contact', accessor: (r: any) => r.contact_number || '-' },
     {
       header: 'Role',
       accessor: (r) => (
@@ -461,17 +543,35 @@ export const Employees: React.FC = () => {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Employees</h1>
-          <p className="page-subtitle">Manage system users, roles, profiles, and immigration documents</p>
+      {!isEmbedded ? (
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Employees</h1>
+            <p className="page-subtitle">Manage system users, roles, profiles, and immigration documents</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <RequirePermission module="employees" action="create">
+              <Button variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+                <Download size={16} /> Import CSV
+              </Button>
+              <Button variant="primary" onClick={openCreateModal}>
+                <Plus size={18} /> Add Employee
+              </Button>
+            </RequirePermission>
+          </div>
         </div>
-        <RequirePermission module="employees" action="create">
-          <Button variant="primary" onClick={openCreateModal}>
-            <Plus size={18} /> Add Employee
-          </Button>
-        </RequirePermission>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
+          <RequirePermission module="employees" action="create">
+            <Button variant="secondary" onClick={() => setIsImportModalOpen(true)}>
+              <Download size={16} /> Import CSV
+            </Button>
+            <Button variant="primary" onClick={openCreateModal}>
+              <Plus size={18} /> Add Employee
+            </Button>
+          </RequirePermission>
+        </div>
+      )}
 
       <div className="glass-card">
         <DataTable
@@ -630,6 +730,14 @@ export const Employees: React.FC = () => {
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.email}</strong>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Department</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.department || 'N/A'}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Contact Number</span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.contact_number || 'N/A'}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Role</span>
                       <Badge variant="info">{selectedDetails.employee.role_name}</Badge>
                     </div>
@@ -664,7 +772,7 @@ export const Employees: React.FC = () => {
                           <div>Issue: {selectedDetails.passport?.issue_date ? new Date(selectedDetails.passport.issue_date).toLocaleDateString() : 'N/A'}</div>
                           <div>Expiry: {selectedDetails.passport?.expiry_date ? new Date(selectedDetails.passport.expiry_date).toLocaleDateString() : 'N/A'}</div>
                           {selectedDetails.passport?.file_path && (
-                            <a href={selectedDetails.passport.file_path} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
+                            <a href={getDocumentUrl(selectedDetails.passport.file_path)} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
                               <Download size={13} /> View Passport File
                             </a>
                           )}
@@ -683,7 +791,7 @@ export const Employees: React.FC = () => {
                           <div>Country: <strong>{selectedDetails.visa?.issuing_country || 'N/A'}</strong></div>
                           <div>Expiry: {selectedDetails.visa?.expiry_date ? new Date(selectedDetails.visa.expiry_date).toLocaleDateString() : 'N/A'}</div>
                           {selectedDetails.visa?.file_path && (
-                            <a href={selectedDetails.visa.file_path} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
+                            <a href={getDocumentUrl(selectedDetails.visa.file_path)} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
                               <Download size={13} /> View Visa File
                             </a>
                           )}
@@ -701,73 +809,13 @@ export const Employees: React.FC = () => {
                           <div>Country: <strong>{selectedDetails.emreads?.issuing_country || 'N/A'}</strong></div>
                           <div>Expiry: {selectedDetails.emreads?.expiry_date ? new Date(selectedDetails.emreads.expiry_date).toLocaleDateString() : 'N/A'}</div>
                           {selectedDetails.emreads?.file_path && (
-                            <a href={selectedDetails.emreads.file_path} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
+                            <a href={getDocumentUrl(selectedDetails.emreads.file_path)} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
                               <Download size={13} /> View National ID File
                             </a>
                           )}
                         </div>
                       </div>
 
-                      {/* Labour Card */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                          <strong style={{ color: '#f59e0b', fontSize: '0.9rem' }}>Labour / Work Permit</strong>
-                          {renderDocBadge(selectedDetails.labour_card?.expiry_calc)}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', color: 'var(--text-secondary)' }}>
-                          <div>Number: <strong style={{ color: 'var(--text-primary)' }}>{selectedDetails.labour_card?.document_number || 'N/A'}</strong></div>
-                          <div>Country: <strong>{selectedDetails.labour_card?.issuing_country || 'N/A'}</strong></div>
-                          <div>Expiry: {selectedDetails.labour_card?.expiry_date ? new Date(selectedDetails.labour_card.expiry_date).toLocaleDateString() : 'N/A'}</div>
-                          {selectedDetails.labour_card?.file_path && (
-                            <a href={selectedDetails.labour_card.file_path} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
-                              <Download size={13} /> View Labour Card File
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Employee Contract */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', gridColumn: 'span 2' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                          <strong style={{ color: '#ec4899', fontSize: '0.9rem' }}>Employment Contract</strong>
-                          {renderDocBadge(selectedDetails.contract?.expiry_calc)}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                          <div>Contract #: <strong style={{ color: 'var(--text-primary)' }}>{selectedDetails.contract?.document_number || 'N/A'}</strong></div>
-                          <div>Contract Type: <strong>{selectedDetails.contract?.sub_type || selectedDetails.contract?.notes || 'Permanent'}</strong></div>
-                          <div>Country: <strong>{selectedDetails.contract?.issuing_country || 'N/A'}</strong></div>
-                          <div>Start Date: {selectedDetails.contract?.issue_date ? new Date(selectedDetails.contract.issue_date).toLocaleDateString() : 'N/A'}</div>
-                          <div>End Date: {selectedDetails.contract?.expiry_date ? new Date(selectedDetails.contract.expiry_date).toLocaleDateString() : 'N/A'}</div>
-                          {selectedDetails.contract?.file_path && (
-                            <div>
-                              <a href={selectedDetails.contract.file_path} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
-                                <Download size={13} /> View Contract PDF
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab 3: Reporting Manager Details */}
-                {detailsTab === 'manager' && (
-                  <div style={{ background: 'rgba(99, 102, 241, 0.05)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <ShieldCheck size={18} color="#6366f1" /> Reporting Manager Account Details
-                    </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                      <div>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Name</span>
-                        <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{selectedDetails.reporting_manager.name}</strong>
-                      </div>
-                      {selectedDetails.reporting_manager.code && (
-                        <div>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Employee Code</span>
-                          <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{selectedDetails.reporting_manager.code}</strong>
-                        </div>
-                      )}
                       {selectedDetails.reporting_manager.email && (
                         <div>
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block' }}>Manager Email ID</span>
@@ -891,6 +939,11 @@ export const Employees: React.FC = () => {
 
           <FormInput label="Full Name" type="text" value={name} onChange={(e) => { setName(e.target.value); setFormErrors(prev => ({...prev, name: ''})); }} required error={formErrors.name} />
           <FormInput label="Email Address" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setFormErrors(prev => ({...prev, email: ''})); }} required error={formErrors.email} />
+          
+          <div className="grid-2-col">
+            <FormInput label="Department" type="text" value={department} onChange={(e) => setDepartment(e.target.value)} />
+            <FormInput label="Contact Number" type="text" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} />
+          </div>
 
           <FormInput
             label={editingEmp ? 'New Password (leave blank to keep current)' : 'Password'}
@@ -900,6 +953,28 @@ export const Employees: React.FC = () => {
             required={!editingEmp}
             error={formErrors.password}
           />
+
+          <div className="grid-2-col">
+            <FormSelect
+              label="Nationality"
+              value={nationalityId}
+              onChange={(e) => setNationalityId(e.target.value ? Number(e.target.value) : '')}
+              options={[
+                { value: '', label: '-- Select Nationality --' },
+                ...nationalities.map((n) => ({ value: n.nationality_id, label: n.nationality_name })),
+              ]}
+            />
+            <FormSelect
+              label="Country"
+              value={countryId}
+              onChange={(e) => setCountryId(e.target.value ? Number(e.target.value) : '')}
+              options={[
+                { value: '', label: '-- Select Country --' },
+                ...countries.map((c) => ({ value: c.country_id, label: c.country_name })),
+              ]}
+            />
+          </div>
+          <FormInput label="Emirates ID / National ID" type="text" value={emreadsId} onChange={(e) => setEmreadsId(e.target.value)} />
 
           <div className="grid-2-col">
             <FormSelect
@@ -932,9 +1007,8 @@ export const Employees: React.FC = () => {
               value={assignedProjectId}
               onChange={(e) => {
                 const newPid = e.target.value ? parseInt(e.target.value, 10) : '';
-                const isWbsValid = assignedWbsId && wbsOptions.some((w) => String(w.id) === String(assignedWbsId) && (!w.project_id || !newPid || Number(w.project_id) === Number(newPid)));
                 setAssignedProjectId(newPid);
-                if (!isWbsValid) setAssignedWbsId('');
+                setAssignedWbsId('');
               }}
               options={[
                 { value: '', label: '-- None --' },
@@ -982,8 +1056,6 @@ export const Employees: React.FC = () => {
                 { key: 'passport', label: '1. Passport' },
                 { key: 'visa', label: '2. Visa Details' },
                 { key: 'national_id', label: '3. Emirates ID / National ID' },
-                { key: 'labour_card', label: '4. Labour Card' },
-                { key: 'contract', label: '5. Contract' },
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -1107,72 +1179,6 @@ export const Employees: React.FC = () => {
             )}
 
             {/* Labour Card */}
-            {docSectionTab === 'labour_card' && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <div className="grid-2-col">
-                  <FormInput label="Labour Card / Work Permit Number" value={labourCardForm.document_number} onChange={(e) => setLabourCardForm({ ...labourCardForm, document_number: e.target.value })} placeholder="e.g. LC-889977" />
-                  <FormSelect
-                    label="Issuing Country"
-                    value={labourCardForm.issuing_country}
-                    onChange={(e) => setLabourCardForm({ ...labourCardForm, issuing_country: e.target.value })}
-                    options={[
-                      { value: '', label: '-- Select Country --' },
-                      ...countries.map((c) => ({ value: c.country_name, label: `${c.country_name} (${c.country_code})` })),
-                    ]}
-                  />
-                </div>
-                <div className="grid-2-col">
-                  <FormInput label="Labour Card Issue Date" type="date" value={labourCardForm.issue_date} onChange={(e) => setLabourCardForm({ ...labourCardForm, issue_date: e.target.value })} />
-                  <FormInput label="Labour Card Expiry Date" type="date" value={labourCardForm.expiry_date} onChange={(e) => setLabourCardForm({ ...labourCardForm, expiry_date: e.target.value })} />
-                </div>
-                <div style={{ marginTop: '0.5rem' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Labour Card Document Upload (PDF, PNG, JPG)</label>
-                  <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleFileUpload(e, setLabourCardForm)} style={{ fontSize: '0.8rem' }} />
-                  {labourCardForm.file_name && <div style={{ fontSize: '0.75rem', color: '#4ade80', marginTop: '0.2rem' }}>Selected: {labourCardForm.file_name}</div>}
-                </div>
-              </div>
-            )}
-
-            {/* Contract */}
-            {docSectionTab === 'contract' && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <div className="grid-2-col">
-                  <FormInput label="Contract Number" value={contractForm.document_number} onChange={(e) => setContractForm({ ...contractForm, document_number: e.target.value })} placeholder="e.g. CNT-2026-001" />
-                  <FormSelect
-                    label="Contract Type"
-                    value={contractForm.contract_type}
-                    onChange={(e) => setContractForm({ ...contractForm, contract_type: e.target.value })}
-                    options={[
-                      { value: 'Permanent', label: 'Permanent' },
-                      { value: 'Limited', label: 'Limited Duration' },
-                      { value: 'Unlimited', label: 'Unlimited Duration' },
-                      { value: 'Probation', label: 'Probationary' },
-                      { value: 'Temporary', label: 'Temporary / Contractual' },
-                    ]}
-                  />
-                </div>
-                <div className="grid-2-col">
-                  <FormInput label="Contract Start Date" type="date" value={contractForm.start_date} onChange={(e) => setContractForm({ ...contractForm, start_date: e.target.value })} />
-                  <FormInput label="Contract End Date" type="date" value={contractForm.end_date} onChange={(e) => setContractForm({ ...contractForm, end_date: e.target.value })} />
-                </div>
-                <div className="grid-2-col" style={{ marginTop: '0.5rem' }}>
-                  <FormSelect
-                    label="Issuing Country"
-                    value={contractForm.issuing_country}
-                    onChange={(e) => setContractForm({ ...contractForm, issuing_country: e.target.value })}
-                    options={[
-                      { value: '', label: '-- Select Country --' },
-                      ...countries.map((c) => ({ value: c.country_name, label: `${c.country_name} (${c.country_code})` })),
-                    ]}
-                  />
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>Contract Document Upload (PDF, PNG, JPG)</label>
-                    <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => handleFileUpload(e, setContractForm)} style={{ fontSize: '0.8rem' }} />
-                    {contractForm.file_name && <div style={{ fontSize: '0.75rem', color: '#4ade80', marginTop: '0.2rem' }}>Selected: {contractForm.file_name}</div>}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>

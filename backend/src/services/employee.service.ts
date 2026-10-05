@@ -53,14 +53,7 @@ export class EmployeeService {
         file_base64?: string;
         file_name?: string;
       };
-      contract?: {
-        document_number?: string;
-        contract_type?: string;
-        start_date?: string;
-        end_date?: string;
-        file_base64?: string;
-        file_name?: string;
-      };
+
       emreads?: {
         document_number?: string;
         issue_date?: string;
@@ -104,7 +97,7 @@ export class EmployeeService {
 
     const processEmployeeDoc = async (
       typeCode: string,
-      docTypeDb: 'passport' | 'visa' | 'national_id' | 'labour_card' | 'contract',
+      docTypeDb: 'passport' | 'visa' | 'national_id',
       defaultName: string,
       docData?: {
         document_number?: string;
@@ -198,24 +191,6 @@ export class EmployeeService {
           issuing_country: nid.issuing_country,
         });
       }
-      if ((data as any).labour_card) {
-        const lc = (data as any).labour_card;
-        await processEmployeeDoc('LABOUR_CARD', 'labour_card', 'Labour / Work Permit', {
-          ...lc,
-          issuing_country: lc.issuing_country,
-        });
-      }
-      if (data.contract) {
-        await processEmployeeDoc('CONTRACT', 'contract', `Contract (${data.contract.contract_type || 'Standard'})`, {
-          document_number: data.contract.document_number,
-          issue_date: data.contract.start_date,
-          expiry_date: data.contract.end_date,
-          sub_type: data.contract.contract_type,
-          issuing_country: (data.contract as any).issuing_country,
-          file_base64: data.contract.file_base64,
-          file_name: data.contract.file_name,
-        });
-      }
 
       // Immediately trigger expiry calculation & notification check
       await this.docService.triggerExpiryCheckJob().catch(() => {});
@@ -256,7 +231,7 @@ export class EmployeeService {
 
     const processUpdateDoc = async (
       typeCode: string,
-      docTypeDb: 'passport' | 'visa' | 'national_id' | 'labour_card' | 'contract',
+      docTypeDb: 'passport' | 'visa' | 'national_id',
       defaultName: string,
       docData?: any
     ) => {
@@ -286,14 +261,34 @@ export class EmployeeService {
       if (calc.status === 'EXPIRED') statusStr = 'expired';
       else if (calc.status === 'EXPIRING_SOON') statusStr = 'expiring_soon';
 
-      await import('../config/db').then(m => m.dbPool.query(
-        `INSERT INTO employee_documents 
-          (employee_id, document_type, document_number, issue_date, expiry_date, issuing_country, document_file, file_size, mime_type, sub_type, status, remarks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, docTypeDb, docNum, issueDate, expiryDate, docData.issuing_country || null, filePath, fileSize, mimeType, docData.visa_type || docData.contract_type || null, statusStr, docData.remarks || null]
-      )).catch(() => {});
+      let finalFilePath = filePath;
+      await import('../config/db').then(async (m) => {
+        const [existing] = await m.dbPool.query<any[]>(
+          `SELECT id, document_file FROM employee_documents WHERE employee_id = ? AND document_type = ?`,
+          [id, docTypeDb]
+        );
+        
+        finalFilePath = filePath || (existing.length > 0 ? existing[0].document_file : null);
 
-      if (filePath || expiryDate || docNum) {
+        if (existing.length > 0) {
+          await m.dbPool.query(
+            `UPDATE employee_documents SET 
+              document_number = ?, issue_date = ?, expiry_date = ?, issuing_country = ?, 
+              document_file = ?, file_size = ?, mime_type = ?, sub_type = ?, status = ?, remarks = ?
+             WHERE id = ?`,
+            [docNum, issueDate, expiryDate, docData.issuing_country || null, finalFilePath, fileSize || null, mimeType || null, docData.visa_type || null, statusStr, docData.remarks || null, existing[0].id]
+          );
+        } else {
+          await m.dbPool.query(
+            `INSERT INTO employee_documents 
+              (employee_id, document_type, document_number, issue_date, expiry_date, issuing_country, document_file, file_size, mime_type, sub_type, status, remarks)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, docTypeDb, docNum, issueDate, expiryDate, docData.issuing_country || null, finalFilePath, fileSize, mimeType, docData.visa_type || null, statusStr, docData.remarks || null]
+          );
+        }
+      }).catch(() => {});
+
+      if (finalFilePath || expiryDate || docNum) {
         await this.docService.createDocument(
           {
             entity_type: 'employee',
@@ -303,9 +298,9 @@ export class EmployeeService {
             document_number: docNum,
             issue_date: issueDate,
             expiry_date: expiryDate,
-            file_path: filePath || '/uploads/documents/sample_document.pdf',
-            file_size: fileSize,
-            mime_type: mimeType,
+            file_path: finalFilePath || '/uploads/documents/sample_document.pdf',
+            file_size: fileSize || 0,
+            mime_type: mimeType || 'application/pdf',
           },
           uploadedBy,
           ipAddress
@@ -317,8 +312,7 @@ export class EmployeeService {
       if (data.passport) await processUpdateDoc('PASSPORT', 'passport', 'Passport', data.passport);
       if (data.visa) await processUpdateDoc('VISA', 'visa', 'Visa', data.visa);
       if (data.national_id || data.emreads) await processUpdateDoc('EMIRATES_ID', 'national_id', 'Emirates ID / National ID', data.national_id || data.emreads);
-      if (data.labour_card) await processUpdateDoc('LABOUR_CARD', 'labour_card', 'Labour / Work Permit', data.labour_card);
-      if (data.contract) await processUpdateDoc('CONTRACT', 'contract', 'Employee Contract', data.contract);
+
 
       await this.docService.triggerExpiryCheckJob().catch(() => {});
     } catch (e: any) {

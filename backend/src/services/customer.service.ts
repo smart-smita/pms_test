@@ -32,7 +32,18 @@ export class CustomerService {
     createdBy?: number,
     ipAddress?: string
   ): Promise<CustomerRow> {
-    if (!data.customer_name?.trim()) throw new Error('Customer name is required');
+    const trimmedName = data.customer_name?.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      throw new Error('Customer / Company name is required (at least 2 characters)');
+    }
+
+    // Email format validation
+    if (data.email?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(data.email.trim())) {
+        throw new Error('Please enter a valid email address');
+      }
+    }
 
     // Auto-generate code if not supplied
     const code = data.customer_code?.trim() || (await this.repo.generateCode());
@@ -47,13 +58,21 @@ export class CustomerService {
       if (byEmail) throw new Error(`A customer with email '${data.email.trim()}' already exists`);
     }
 
-    const id = await this.repo.create({ ...data, customer_code: code, created_by: createdBy || null });
+    const id = await this.repo.create({
+      ...data,
+      customer_name: trimmedName,
+      customer_code: code,
+      email: data.email?.trim() || null,
+      contact_number: data.contact_number?.trim() || null,
+      contact_person: data.contact_person?.trim() || null,
+      created_by: createdBy || null,
+    });
 
     await AuditService.log({
       userId: createdBy,
       action: 'CREATE',
       module: 'customers',
-      description: `Customer '${data.customer_name.trim()}' (${code}) created`,
+      description: `Customer '${trimmedName}' (${code}) created`,
       recordId: id,
       ipAddress,
     });
@@ -70,10 +89,28 @@ export class CustomerService {
     const customer = await this.repo.findById(id);
     if (!customer) throw new Error('Customer not found');
 
-    // Email uniqueness on update
-    if (data.email?.trim() && data.email.trim() !== customer.email) {
-      const byEmail = await this.repo.findByEmail(data.email.trim(), id);
-      if (byEmail) throw new Error(`A customer with email '${data.email.trim()}' already exists`);
+    if (data.customer_name !== undefined) {
+      const trimmedName = data.customer_name?.trim();
+      if (!trimmedName || trimmedName.length < 2) {
+        throw new Error('Customer / Company name must be at least 2 characters');
+      }
+      data.customer_name = trimmedName;
+    }
+
+    // Email format & uniqueness on update
+    if (data.email !== undefined && data.email !== null) {
+      const trimmedEmail = data.email.trim();
+      if (trimmedEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          throw new Error('Please enter a valid email address');
+        }
+        if (trimmedEmail !== customer.email) {
+          const byEmail = await this.repo.findByEmail(trimmedEmail, id);
+          if (byEmail) throw new Error(`A customer with email '${trimmedEmail}' already exists`);
+        }
+      }
+      data.email = trimmedEmail || null;
     }
 
     await this.repo.update(id, { ...data, updated_by: updatedBy || null });

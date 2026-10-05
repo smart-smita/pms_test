@@ -7,12 +7,25 @@ import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 import { apiRequest } from '../services/api';
 import { SiteSurvey, Project, Discipline, Employee, Customer, SiteSurveyPhoto } from '../types';
-import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKanban, MapPin, Eye, Upload, Image, Layers, User, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKanban, MapPin, Eye, Upload, Image, Layers, User, Download, ClipboardCheck, Package } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
+import { MaterialSurveys } from './MaterialSurveys';
 
-export const SiteSurveys: React.FC = () => {
+interface SiteSurveysProps {
+  initialTab?: 'inspection' | 'material';
+  projectId?: number;
+}
+
+export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspection', projectId }) => {
+  const [activeSurveyTab, setActiveSurveyTab] = useState<'inspection' | 'material'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSurveyTab(initialTab);
+    }
+  }, [initialTab]);
   const { user } = useAuth();
   const isAdminOrManager = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
 
@@ -24,9 +37,15 @@ export const SiteSurveys: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
-  const [filterProject, setFilterProject] = useState('');
+  const [filterProject, setFilterProject] = useState(projectId ? String(projectId) : '');
   const [filterDiscipline, setFilterDiscipline] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  useEffect(() => {
+    if (projectId) {
+      setFilterProject(String(projectId));
+    }
+  }, [projectId]);
 
   // Create / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -302,7 +321,60 @@ export const SiteSurveys: React.FC = () => {
 
   return (
     <div>
-      <div className="page-header">
+      {/* Top Survey Tabs Navigation */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+        <button
+          type="button"
+          onClick={() => setActiveSurveyTab('inspection')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '10px',
+            border: activeSurveyTab === 'inspection' ? '1px solid #6366f1' : '1px solid var(--border-color)',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '0.92rem',
+            background: activeSurveyTab === 'inspection' ? '#4f46e5' : 'var(--bg-card)',
+            color: activeSurveyTab === 'inspection' ? '#ffffff' : 'var(--text-secondary)',
+            boxShadow: activeSurveyTab === 'inspection' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <ClipboardCheck size={18} />
+          <span>Site Inspection Surveys</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSurveyTab('material')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '10px',
+            border: activeSurveyTab === 'material' ? '1px solid #6366f1' : '1px solid var(--border-color)',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '0.92rem',
+            background: activeSurveyTab === 'material' ? '#4f46e5' : 'var(--bg-card)',
+            color: activeSurveyTab === 'material' ? '#ffffff' : 'var(--text-secondary)',
+            boxShadow: activeSurveyTab === 'material' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <Package size={18} />
+          <span>Material Surveys</span>
+        </button>
+      </div>
+
+      {activeSurveyTab === 'material' ? (
+        <MaterialSurveys embedded />
+      ) : (
+        <>
+          <div className="page-header">
         <div>
           <h1 className="page-title">Site Inspection & Surveys</h1>
           <p className="page-subtitle">Record site surveys, upload inspection photos, map disciplines, and attach reports</p>
@@ -723,6 +795,8 @@ export const SiteSurveys: React.FC = () => {
         recordName={deletingSurvey?.code || 'this site survey'}
         isLoading={isDeleting}
       />
+        </>
+      )}
     </div>
   );
 };

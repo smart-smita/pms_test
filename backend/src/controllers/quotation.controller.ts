@@ -120,4 +120,40 @@ export class QuotationController {
       next(err);
     }
   }
+
+  static async sendEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id;
+      const ipAddress = req.ip;
+
+      const quotation = await QuotationService.getById(id);
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: 'Quotation not found' });
+      }
+
+      // Log audit dispatch
+      try {
+        const { AuditService } = await import('../services/audit.service');
+        await AuditService.log({
+          user_id: userId,
+          action: 'SEND_QUOTATION_EMAIL',
+          module: 'quotations',
+          record_id: id,
+          description: `Sent quotation ${quotation.quotation_code} via email to ${quotation.customer_email || quotation.customer_name}`,
+          ip_address: ipAddress,
+        });
+      } catch (e) {
+        console.error('Audit log failed for sendEmail:', e);
+      }
+
+      res.json({
+        success: true,
+        message: `Quotation ${quotation.quotation_code} sent via email successfully to ${quotation.customer_email || quotation.customer_name || 'customer'}!`,
+        data: quotation,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

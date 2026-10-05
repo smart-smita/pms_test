@@ -120,12 +120,38 @@ export class MasterRepository {
     return rows as CommunityRow[];
   }
 
+  async findCommunityByName(name: string, excludeId?: number): Promise<CommunityRow | null> {
+    let sql = `SELECT * FROM communities WHERE LOWER(TRIM(community_name)) = LOWER(TRIM(?))`;
+    const params: any[] = [name];
+    if (excludeId) {
+      sql += ` AND community_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return (rows[0] as CommunityRow) || null;
+  }
+
   async createCommunity(data: { community_name: string; country_id?: number | null; state?: string | null }): Promise<number> {
     const [result] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO communities (community_name, country_id, state) VALUES (?, ?, ?)`,
       [data.community_name, data.country_id || null, data.state || null]
     );
     return result.insertId;
+  }
+
+  async updateCommunity(id: number, data: { community_name?: string; country_id?: number | null; state?: string | null }): Promise<boolean> {
+    const fields: string[] = [];
+    const params: any[] = [];
+    if (data.community_name !== undefined) { fields.push('community_name = ?'); params.push(data.community_name); }
+    if (data.country_id !== undefined) { fields.push('country_id = ?'); params.push(data.country_id); }
+    if (data.state !== undefined) { fields.push('state = ?'); params.push(data.state); }
+    if (fields.length === 0) return false;
+    params.push(id);
+    const [result] = await dbPool.query<ResultSetHeader>(
+      `UPDATE communities SET ${fields.join(', ')} WHERE community_id = ?`,
+      params
+    );
+    return result.affectedRows > 0;
   }
 
   // ── Project Types ─────────────────────────────────────────────────────────
@@ -141,6 +167,28 @@ export class MasterRepository {
     const [rows] = await dbPool.query<RowDataPacket[]>(
       `SELECT * FROM project_types WHERE type_id = ?`, [id]
     );
+    return (rows[0] as ProjectTypeRow) || null;
+  }
+
+  async findProjectTypeByCode(code: string, excludeId?: number): Promise<ProjectTypeRow | null> {
+    let sql = `SELECT * FROM project_types WHERE LOWER(TRIM(type_code)) = LOWER(TRIM(?))`;
+    const params: any[] = [code];
+    if (excludeId) {
+      sql += ` AND type_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return (rows[0] as ProjectTypeRow) || null;
+  }
+
+  async findProjectTypeByName(name: string, excludeId?: number): Promise<ProjectTypeRow | null> {
+    let sql = `SELECT * FROM project_types WHERE LOWER(TRIM(type_name)) = LOWER(TRIM(?))`;
+    const params: any[] = [name];
+    if (excludeId) {
+      sql += ` AND type_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
     return (rows[0] as ProjectTypeRow) || null;
   }
 
@@ -227,6 +275,28 @@ export class MasterRepository {
     return (rows[0] as DisciplineRow) || null;
   }
 
+  async findDisciplineByCode(code: string, excludeId?: number): Promise<DisciplineRow | null> {
+    let sql = `SELECT * FROM disciplines WHERE LOWER(TRIM(discipline_code)) = LOWER(TRIM(?))`;
+    const params: any[] = [code];
+    if (excludeId) {
+      sql += ` AND discipline_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return (rows[0] as DisciplineRow) || null;
+  }
+
+  async findDisciplineByName(name: string, excludeId?: number): Promise<DisciplineRow | null> {
+    let sql = `SELECT * FROM disciplines WHERE LOWER(TRIM(discipline_name)) = LOWER(TRIM(?))`;
+    const params: any[] = [name];
+    if (excludeId) {
+      sql += ` AND discipline_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return (rows[0] as DisciplineRow) || null;
+  }
+
   async createDiscipline(data: { discipline_code: string; discipline_name: string; description?: string | null; sort_order?: number }): Promise<number> {
     const [result] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO disciplines (discipline_code, discipline_name, description, sort_order) VALUES (?, ?, ?, ?)`,
@@ -239,6 +309,7 @@ export class MasterRepository {
     const fields: string[] = [];
     const params: any[] = [];
     if (data.discipline_name !== undefined) { fields.push('discipline_name = ?'); params.push(data.discipline_name); }
+    if (data.discipline_code !== undefined) { fields.push('discipline_code = ?'); params.push(data.discipline_code); }
     if (data.description !== undefined)     { fields.push('description = ?');     params.push(data.description); }
     if (data.sort_order !== undefined)      { fields.push('sort_order = ?');      params.push(data.sort_order); }
     if (data.status !== undefined)          { fields.push('status = ?');          params.push(data.status); }
@@ -262,6 +333,17 @@ export class MasterRepository {
     return (rows[0] as CurrencyRow) || null;
   }
 
+  async findCurrencyByCode(code: string, excludeId?: number): Promise<CurrencyRow | null> {
+    let sql = `SELECT * FROM currencies WHERE LOWER(TRIM(currency_code)) = LOWER(TRIM(?))`;
+    const params: any[] = [code];
+    if (excludeId) {
+      sql += ` AND currency_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return (rows[0] as CurrencyRow) || null;
+  }
+
   async createCurrency(data: { currency_code: string; currency_name: string; symbol: string; exchange_rate?: number; is_base?: number }): Promise<number> {
     const [result] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO currencies (currency_code, currency_name, symbol, exchange_rate, is_base) VALUES (?, ?, ?, ?, ?)`,
@@ -273,7 +355,7 @@ export class MasterRepository {
   async updateCurrency(id: number, data: Partial<CurrencyRow>): Promise<boolean> {
     const fields: string[] = [];
     const params: any[] = [];
-    const editable: (keyof CurrencyRow)[] = ['currency_name', 'symbol', 'exchange_rate', 'is_base', 'status'];
+    const editable: (keyof CurrencyRow)[] = ['currency_name', 'currency_code', 'symbol', 'exchange_rate', 'is_base', 'status'];
     for (const key of editable) {
       if (data[key] !== undefined) { fields.push(`${key} = ?`); params.push(data[key]); }
     }
@@ -303,6 +385,28 @@ export class MasterRepository {
       `SELECT t.*, c.country_name, c.country_code FROM taxes t LEFT JOIN countries c ON t.country_id = c.country_id WHERE t.tax_id = ?`,
       [id]
     );
+    return (rows[0] as TaxRow) || null;
+  }
+
+  async findTaxByCode(code: string, excludeId?: number): Promise<TaxRow | null> {
+    let sql = `SELECT * FROM taxes WHERE LOWER(TRIM(tax_code)) = LOWER(TRIM(?))`;
+    const params: any[] = [code];
+    if (excludeId) {
+      sql += ` AND tax_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return (rows[0] as TaxRow) || null;
+  }
+
+  async findTaxByName(name: string, excludeId?: number): Promise<TaxRow | null> {
+    let sql = `SELECT * FROM taxes WHERE LOWER(TRIM(tax_name)) = LOWER(TRIM(?))`;
+    const params: any[] = [name];
+    if (excludeId) {
+      sql += ` AND tax_id != ?`;
+      params.push(excludeId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
     return (rows[0] as TaxRow) || null;
   }
 
@@ -339,5 +443,80 @@ export class MasterRepository {
     const [result] = await dbPool.query<ResultSetHeader>(`UPDATE taxes SET ${fields.join(', ')} WHERE tax_id = ?`, params);
     return result.affectedRows > 0;
   }
+  // ─── Company Calendar & Holidays ──────────────────────────────────────────────
+  async findAllCalendars(): Promise<CompanyCalendarRow[]> {
+    const [rows] = await dbPool.query<RowDataPacket[]>(
+      `SELECT * FROM company_calendar WHERE deleted_at IS NULL ORDER BY id ASC`
+    );
+    return rows as CompanyCalendarRow[];
+  }
+
+  async createCalendar(data: any, connection?: any): Promise<any> {
+    const db = connection || dbPool;
+    const [result] = await db.query(
+      `INSERT INTO company_calendar (project_id, calendar_name, working_days_json, working_hours_per_day, status) VALUES (?, ?, ?, ?, ?)`,
+      [data.project_id || null, data.calendar_name, data.working_days_json || '[1,2,3,4,5,6]', data.working_hours_per_day || 10, data.status === undefined ? 1 : data.status]
+    );
+    return result.insertId;
+  }
+
+  async updateCalendar(id: number, data: any, connection?: any): Promise<void> {
+    const db = connection || dbPool;
+    const updates: string[] = [];
+    const values: any[] = [];
+    if (data.calendar_name !== undefined) { updates.push('calendar_name = ?'); values.push(data.calendar_name); }
+    if (data.working_days_json !== undefined) { updates.push('working_days_json = ?'); values.push(data.working_days_json); }
+    if (data.working_hours_per_day !== undefined) { updates.push('working_hours_per_day = ?'); values.push(data.working_hours_per_day); }
+    if (data.status !== undefined) { updates.push('status = ?'); values.push(data.status); }
+    
+    if (updates.length > 0) {
+      values.push(id);
+      await db.query(`UPDATE company_calendar SET ${updates.join(', ')} WHERE id = ?`, values);
+    }
+  }
+
+  async findAllHolidays(calendarId?: number): Promise<HolidayRow[]> {
+    let query = `SELECT * FROM holidays ORDER BY holiday_date ASC`;
+    const params: any[] = [];
+    if (calendarId) {
+      query = `SELECT * FROM holidays WHERE calendar_id = ? ORDER BY holiday_date ASC`;
+      params.push(calendarId);
+    }
+    const [rows] = await dbPool.query<RowDataPacket[]>(query, params);
+    return rows as HolidayRow[];
+  }
+
+  async createHoliday(data: any, connection?: any): Promise<any> {
+    const db = connection || dbPool;
+    const [result] = await db.query(
+      `INSERT INTO holidays (calendar_id, holiday_date, description, type) VALUES (?, ?, ?, ?)`,
+      [data.calendar_id, data.holiday_date, data.description || null, data.type || 'public_holiday']
+    );
+    return result.insertId;
+  }
+
+  async deleteHoliday(id: number): Promise<void> {
+    await dbPool.query(`DELETE FROM holidays WHERE id = ?`, [id]);
+  }
+}
+
+
+// ─── Company Calendar ─────────────────────────────────────────────────────────
+export interface CompanyCalendarRow {
+  id: number;
+  project_id: number | null;
+  calendar_name: string;
+  working_days_json: string;
+  working_hours_per_day: number;
+  status: number;
+}
+
+// ─── Holidays ─────────────────────────────────────────────────────────────────
+export interface HolidayRow {
+  id: number;
+  calendar_id: number;
+  holiday_date: string;
+  description: string | null;
+  type: string;
 }
 

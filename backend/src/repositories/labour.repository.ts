@@ -228,12 +228,8 @@ export class LabourRepository {
   }
 
   async delete(id: number, force: boolean = false): Promise<boolean> {
-    if (force) {
-      await dbPool.query(`DELETE FROM labour_work_logs WHERE labour_id = ?`, [id]);
-      await dbPool.query(`UPDATE labours SET contractor_id = NULL WHERE contractor_id = ?`, [id]);
-    }
     const [result] = await dbPool.query<ResultSetHeader>(
-      `DELETE FROM labours WHERE labour_id = ?`,
+      `UPDATE labours SET is_deleted = 1 WHERE labour_id = ?`,
       [id]
     );
     return result.affectedRows > 0;

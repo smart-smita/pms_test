@@ -15,16 +15,26 @@ export class WbsService {
     return await this.wbsRepo.findMasterById(id);
   }
 
-  async getProjectWbsAllocations(projectId: number) {
-    return await this.wbsRepo.findProjectWbsByProjectId(projectId);
+  async getProjectWbsAllocations(projectId: number, wbsType?: string) {
+    return await this.wbsRepo.findProjectWbsByProjectId(projectId, wbsType);
   }
 
   async addProjectWbsAllocation(data: {
     project_id: number;
     wbs_id: number;
+    wbs_type?: 'labour' | 'material';
+    unit?: string;
+    planned_quantity?: number;
+    rate?: number;
     start_date?: string;
     end_date?: string;
     total_hours?: number;
+    actual_start_date?: string;
+    actual_end_date?: string;
+    actual_hours?: number;
+    budget_amount?: number;
+    planned_labour_cost?: number;
+    planned_material_cost?: number;
     note?: string;
   }) {
     const existingList = await this.wbsRepo.findProjectWbsByProjectId(data.project_id);
@@ -37,7 +47,7 @@ export class WbsService {
     return await this.wbsRepo.findProjectWbsById(id);
   }
 
-  async updateProjectWbsAllocation(id: number, data: { start_date?: string; end_date?: string; total_hours?: number; note?: string }) {
+  async updateProjectWbsAllocation(id: number, data: any) {
     const success = await this.wbsRepo.updateProjectWbs(dbPool, id, data);
     if (!success) throw new Error('Project WBS allocation not found');
     return true;

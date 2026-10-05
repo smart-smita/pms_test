@@ -37,6 +37,9 @@ export class TaskService {
       if (Number(pw.project_id) !== Number(data.project_id)) {
         throw new Error('Selected WBS Discipline does not belong to the selected Project');
       }
+      if (pw.wbs_type === 'material') {
+        throw new Error('Selected WBS Discipline is a Material WBS. Tasks can only be created under Labour WBS Disciplines.');
+      }
     }
 
     // Check for duplicate task name under the same project and WBS
@@ -60,10 +63,13 @@ export class TaskService {
     }
     const allocations = data.allocations || [];
     const dependencies = data.dependencies || [];
+    const usedMaterials = data.used_materials || data.materials || [];
     delete data.assigned_employee_ids;
     delete data.assigned_labour_ids; // legacy
     delete data.allocations;
     delete data.dependencies;
+    delete data.used_materials;
+    delete data.materials;
 
     data.status = data.status || 'pending';
 
@@ -71,6 +77,10 @@ export class TaskService {
 
     if (assignedEmployeeIds.length > 0 || allocations.length > 0) {
       await this.taskRepo.assignWorkers(taskId, assignedEmployeeIds, allocations, data.project_id, data.wbs_id);
+    }
+
+    if (usedMaterials.length > 0) {
+      await this.taskRepo.saveTaskUsedMaterials(taskId, data.project_id, data.wbs_id || null, usedMaterials);
     }
 
     if (dependencies.length > 0) {
@@ -84,6 +94,14 @@ export class TaskService {
     const task = await this.taskRepo.findById(id);
     if (!task) throw new Error('Task not found');
 
+    if (data.wbs_id) {
+      const pw = await this.wbsRepo.findProjectWbsById(data.wbs_id);
+      if (!pw) throw new Error('Selected WBS Discipline does not exist');
+      if (pw.wbs_type === 'material') {
+        throw new Error('Selected WBS Discipline is a Material WBS. Tasks can only be created under Labour WBS Disciplines.');
+      }
+    }
+
     const assignedEmployeeIds = data.assigned_employee_ids;
     if (assignedEmployeeIds !== undefined) {
       const requiredCount = Number(task.required_worker_count || data.required_worker_count || 1);
@@ -95,10 +113,13 @@ export class TaskService {
     }
     const allocations = data.allocations;
     const dependencies = data.dependencies;
+    const usedMaterials = data.used_materials || data.materials;
     delete data.assigned_employee_ids;
     delete data.assigned_labour_ids; // legacy
     delete data.allocations;
     delete data.dependencies;
+    delete data.used_materials;
+    delete data.materials;
 
     // Check if dates changed, if they did, we might need to recalculate dependents.
     const oldTask = await this.taskRepo.findById(id);
@@ -107,6 +128,10 @@ export class TaskService {
 
     if (assignedEmployeeIds !== undefined || allocations !== undefined) {
       await this.taskRepo.assignWorkers(id, assignedEmployeeIds || [], allocations || [], task.project_id, task.wbs_id);
+    }
+
+    if (usedMaterials !== undefined) {
+      await this.taskRepo.saveTaskUsedMaterials(id, task.project_id, task.wbs_id || null, usedMaterials);
     }
 
     if (dependencies !== undefined) {

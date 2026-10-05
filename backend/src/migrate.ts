@@ -1582,13 +1582,78 @@ export async function migrate() {
 
     console.log('Phase 7 structural gap fixes complete.');
 
-    // Run Demo Project Dataset Seed automatically
+    // 58. Multi-Project-Type WBS Template Structure
     try {
-      const { runDemoSeed } = await import('./seed_demo');
-      await runDemoSeed();
+      await dbPool.query(`ALTER TABLE wbs_templates MODIFY COLUMN project_type_id INT NULL`);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS wbs_template_project_types (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          template_id INT NOT NULL,
+          project_type_id INT NOT NULL,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_template_project_type (template_id, project_type_id),
+          KEY idx_wtpt_template (template_id),
+          KEY idx_wtpt_project_type (project_type_id),
+          CONSTRAINT fk_wtpt_template FOREIGN KEY (template_id) REFERENCES wbs_templates(id) ON DELETE CASCADE,
+          CONSTRAINT fk_wtpt_project_type FOREIGN KEY (project_type_id) REFERENCES project_types(type_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`ALTER TABLE wbs_template_details ADD COLUMN project_type_id INT NULL AFTER template_id`);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`ALTER TABLE wbs_template_details ADD COLUMN parent_id INT NULL AFTER project_type_id`);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`ALTER TABLE wbs_template_details ADD COLUMN wbs_name VARCHAR(255) NULL AFTER wbs_id`);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`ALTER TABLE wbs_template_details ADD COLUMN wbs_code VARCHAR(100) NULL AFTER wbs_name`);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`ALTER TABLE wbs_template_details MODIFY COLUMN wbs_id INT NULL`);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`
+        INSERT IGNORE INTO wbs_template_project_types (template_id, project_type_id, sort_order)
+        SELECT id, project_type_id, 0 
+        FROM wbs_templates 
+        WHERE project_type_id IS NOT NULL AND deleted_at IS NULL
+      `);
+    } catch (e: any) {}
+
+    try {
+      await dbPool.query(`
+        UPDATE wbs_template_details d
+        JOIN wbs_templates t ON d.template_id = t.id
+        SET d.project_type_id = t.project_type_id
+        WHERE d.project_type_id IS NULL AND t.project_type_id IS NOT NULL
+      `);
+    } catch (e: any) {}
+
+    console.log('Multi-Project-Type WBS Template migrations complete.');
+
+    // Run Complete Planning & Workflow Schema Migrations
+    try {
+      const { migratePlanningComplete } = await import('./scripts/migrate_planning_complete');
+      await migratePlanningComplete();
     } catch (e: any) {
-      console.warn('Demo seed failed:', e.message);
+      console.warn('Planning migration warning:', e.message);
     }
+
+    // Demo seed disabled on automatic startup to preserve user created records.
+    // Run `npm run seed:demo` explicitly when demo dataset reset is desired.
 
   } catch (error) {
     console.error('Migration failed:', error);

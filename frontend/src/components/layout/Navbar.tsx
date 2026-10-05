@@ -188,30 +188,27 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
       </div>
 
       {/* Right Section */}
-      <div className="navbar-right-icons" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexShrink: 0 }}>
+      <div className="navbar-right-icons" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0 }}>
         
-        {/* Search Bar — hidden on tablet/mobile via CSS */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          background: 'rgba(150, 150, 150, 0.1)',
-          padding: '0.5rem 1rem',
-          borderRadius: '8px',
-          color: '#94a3b8',
-          fontSize: '0.85rem'
-        }} className="navbar-search">
-          <Search size={16} />
+        {/* Search Bar (Design 2) */}
+        <div className="navbar-search" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', pointerEvents: 'none' }} />
           <input 
             type="text" 
             placeholder="Search (Ctrl+/)" 
             style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
+              padding: '0.45rem 1rem 0.45rem 2.2rem',
+              borderRadius: '20px',
+              border: '1px solid var(--border-color)',
+              background: 'var(--input-bg)',
               color: 'var(--text-primary)',
-              width: '120px'
+              fontSize: '0.82rem',
+              width: '180px',
+              outline: 'none',
+              transition: 'all 0.2s ease',
             }}
+            onFocus={(e) => { e.currentTarget.style.width = '240px'; e.currentTarget.style.borderColor = '#6366f1'; }}
+            onBlur={(e) => { e.currentTarget.style.width = '180px'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
           />
         </div>
 

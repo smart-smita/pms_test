@@ -10,7 +10,9 @@
     "migrate": "ts-node-dev --transpile-only src/migrate.ts",
     "db:copy": "node copy_db.js",
     "db:migrate": "ts-node-dev --transpile-only scripts/runner.ts",
-    "seed": "node scripts/seed_demo.js"
+    "seed": "node scripts/seed_demo.js",
+    "seed:demo": "ts-node --transpile-only scripts/seed_comprehensive_demo.ts",
+    "seed:demo:reset": "ts-node --transpile-only scripts/seed_comprehensive_demo.ts --reset"
   },
   "dependencies": {
     "@types/bcrypt": "^5.0.2",

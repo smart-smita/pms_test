@@ -1,12 +1,20 @@
 import { dbPool } from '../config/db';
 import { AuditService } from '../services/audit.service';
+import { CalculationService, TaxInput } from '../services/calculation.service';
+import { saveBase64DocumentFile } from '../utils/documentHelper';
 
 export interface CreateQuotationDTO {
   quotation_code?: string;
   customer_id: number;
-  project_id?: number | null;  // optional — set after project is created from quotation
+  project_id?: number | null;
+  new_project_name?: string | null;
+  project_type_id?: number | null;
+  currency_id?: number | null;
+  exchange_rate?: number;
   quotation_date: string;
   validity_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   description?: string | null;
   subtotal_amount: number;
   tax_id?: number | null;
@@ -19,13 +27,35 @@ export interface CreateQuotationDTO {
   discount_amount: number;
   total_amount: number;
   terms_conditions?: string | null;
-  terms_snapshots?: { title: string; description: string; sort_order?: number }[];
+  terms_snapshots?: {
+    template_id?: number | null;
+    template_name?: string | null;
+    title: string;
+    description: string;
+    is_mandatory?: number | boolean;
+    sort_order?: number;
+  }[];
+  selected_templates?: {
+    template_id: number;
+    template_name: string;
+    sort_order?: number;
+  }[];
+  taxes?: TaxInput[];
   status?: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'revised';
+  planning_required?: number | boolean;
   created_by?: number | null;
+  documents?: {
+    file_name: string;
+    file_size?: number;
+    mime_type?: string;
+    file_base64?: string;
+    file_path?: string;
+  }[];
 }
 
 export interface QuotationDisciplineDTO {
-  discipline_id: number;
+  id?: number;
+  discipline_id?: number | null;
   discipline_name: string;
   description?: string | null;
   unit?: string;
@@ -33,6 +63,19 @@ export interface QuotationDisciplineDTO {
   rate: number;
   amount: number;
   terms_conditions?: string | null;
+  wbs_type?: 'labour' | 'material' | 'both';
+  wbs_template_id?: number | null;
+  wbs_id?: number | null;
+  labour_hours?: number;
+  labour_rate?: number;
+  labour_cost?: number;
+  material_quantity?: number;
+  material_rate?: number;
+  material_cost?: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  labours?: any[];
+  materials?: any[];
 }
 
 export class QuotationRepository {
@@ -42,13 +85,16 @@ export class QuotationRepository {
         q.*,
         c.customer_name,
         c.customer_code,
-        p.project_name,
+        COALESCE(p.project_name, q.new_project_name, 'New Project (Pending)') AS project_name,
         p.project_code,
+        cur.currency_code,
+        cur.symbol AS currency_symbol,
         e1.name AS created_by_name,
         e2.name AS approved_by_name
       FROM quotations q
       JOIN customers c ON q.customer_id = c.customer_id
-      JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN currencies cur ON q.currency_id = cur.currency_id
       LEFT JOIN employees e1 ON q.created_by = e1.employee_id
       LEFT JOIN employees e2 ON q.approved_by = e2.employee_id
       WHERE q.is_deleted = 0
@@ -84,14 +130,19 @@ export class QuotationRepository {
         c.contact_number,
         c.email AS customer_email,
         c.address AS customer_address,
-        p.project_name,
+        COALESCE(p.project_name, q.new_project_name, 'New Project (Pending)') AS project_name,
         p.project_code,
         p.project_address,
+        cur.currency_code,
+        cur.currency_name,
+        cur.symbol AS currency_symbol,
+        2 AS decimal_places,
         e1.name AS created_by_name,
         e2.name AS approved_by_name
       FROM quotations q
       JOIN customers c ON q.customer_id = c.customer_id
-      JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN currencies cur ON q.currency_id = cur.currency_id
       LEFT JOIN employees e1 ON q.created_by = e1.employee_id
       LEFT JOIN employees e2 ON q.approved_by = e2.employee_id
       WHERE q.quotation_id = ? AND q.is_deleted = 0
@@ -99,6 +150,7 @@ export class QuotationRepository {
       [id]
     );
 
+    console.log(`[getById] Fetched quotation ${id}, rows found:`, rows.length);
     if (rows.length === 0) return null;
 
     const quotation = rows[0];
@@ -108,21 +160,89 @@ export class QuotationRepository {
       `
       SELECT qd.*, d.discipline_code
       FROM quotation_disciplines qd
-      JOIN disciplines d ON qd.discipline_id = d.discipline_id
+      LEFT JOIN disciplines d ON qd.discipline_id = d.discipline_id
       WHERE qd.quotation_id = ? AND qd.status = 'active'
       ORDER BY qd.id ASC
     `,
       [id]
     );
 
+    const [labours]: any = await dbPool.query(`SELECT * FROM quotation_wbs_labour WHERE quotation_id = ?`, [id]);
+    const [materials]: any = await dbPool.query(`SELECT * FROM quotation_wbs_material WHERE quotation_id = ?`, [id]);
+
+    for (let i = 0; i < disciplines.length; i++) {
+      disciplines[i].labours = labours.filter((l: any) => l.quotation_discipline_id === disciplines[i].id);
+      disciplines[i].materials = materials.filter((m: any) => m.quotation_discipline_id === disciplines[i].id);
+    }
+
     quotation.disciplines = disciplines;
+
+    // Fetch selected terms templates
+    // Fetch selected terms templates
+    const [selectedTemplates]: any = await dbPool.query(
+      `SELECT * FROM quotation_terms_templates WHERE quotation_id = ? ORDER BY sort_order ASC, id ASC`,
+      [id]
+    );
+    quotation.selected_templates = selectedTemplates;
+
+    // Fetch selected WBS templates
+    try {
+      await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS quotation_wbs_templates (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          quotation_id INT NOT NULL,
+          template_id INT NOT NULL,
+          template_name VARCHAR(255) NULL,
+          sort_order INT DEFAULT 0
+        )
+      `);
+      const [wbsTemplates]: any = await dbPool.query(
+        `SELECT * FROM quotation_wbs_templates WHERE quotation_id = ? ORDER BY sort_order ASC, id ASC`,
+        [id]
+      );
+      if (wbsTemplates.length > 0) {
+        quotation.selected_wbs_templates = wbsTemplates;
+      } else {
+        const [discTmpls]: any = await dbPool.query(
+          `SELECT DISTINCT qd.wbs_template_id AS template_id, wt.template_name
+           FROM quotation_disciplines qd
+           LEFT JOIN wbs_templates wt ON qd.wbs_template_id = wt.template_id
+           WHERE qd.quotation_id = ? AND qd.wbs_template_id IS NOT NULL`,
+          [id]
+        );
+        quotation.selected_wbs_templates = discTmpls;
+      }
+    } catch (e) {
+      quotation.selected_wbs_templates = [];
+    }
+
+    // Fetch documents
+    try {
+      const [docs]: any = await dbPool.query(
+        `SELECT document_id, document_name AS file_name, file_size, mime_type, file_path, created_at
+         FROM entity_documents
+         WHERE entity_type = 'quotation' AND entity_id = ?
+         ORDER BY document_id ASC`,
+        [id]
+      );
+      quotation.documents = docs;
+    } catch (e) {
+      quotation.documents = [];
+    }
 
     // Fetch terms snapshots
     const [snapshots]: any = await dbPool.query(
-      `SELECT * FROM quotation_terms_snapshots WHERE quotation_id = ? AND status = 1 ORDER BY sort_order ASC`,
+      `SELECT * FROM quotation_terms_snapshots WHERE quotation_id = ? ORDER BY sort_order ASC, snapshot_id ASC`,
       [id]
     );
     quotation.terms_snapshots = snapshots;
+
+    // Fetch multiple taxes breakdown
+    const [taxes]: any = await dbPool.query(
+      `SELECT * FROM quotation_taxes WHERE quotation_id = ? ORDER BY id ASC`,
+      [id]
+    );
+    quotation.taxes = taxes;
 
     return quotation;
   }
@@ -132,7 +252,6 @@ export class QuotationRepository {
     try {
       await connection.beginTransaction();
 
-      // Auto-generate code if not provided
       let code = data.quotation_code;
       if (!code) {
         const dateStr = new Date().toISOString().slice(0, 7).replace('-', '');
@@ -141,21 +260,39 @@ export class QuotationRepository {
         code = `QT-${dateStr}-${nextSeq}`;
       }
 
+      // Currency lookup if not provided
+      let currencyId = data.currency_id || null;
+      let exchangeRate = data.exchange_rate || 1.0;
+      if (!currencyId) {
+        const [baseCur]: any = await connection.query(`SELECT currency_id, exchange_rate FROM currencies WHERE is_base = 1 LIMIT 1`);
+        if (baseCur.length > 0) {
+          currencyId = baseCur[0].currency_id;
+          exchangeRate = Number(baseCur[0].exchange_rate || 1);
+        }
+      }
+
       const [result]: any = await connection.query(
         `
         INSERT INTO quotations (
-          quotation_code, customer_id, project_id, quotation_date, validity_date,
+          quotation_code, customer_id, project_id, new_project_name, project_type_id,
+          currency_id, exchange_rate, quotation_date, validity_date, start_date, end_date,
           description, subtotal_amount, tax_id, tax_type, tax_percentage,
           cgst_amount, sgst_amount, igst_amount, tax_amount, discount_amount,
-          total_amount, terms_conditions, status, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          total_amount, terms_conditions, status, planning_required, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           code,
           data.customer_id,
-          data.project_id,
+          data.project_id || null,
+          data.new_project_name || null,
+          data.project_type_id || null,
+          currencyId,
+          exchangeRate,
           data.quotation_date,
           data.validity_date || null,
+          data.start_date || null,
+          data.end_date || null,
           data.description || null,
           data.subtotal_amount,
           data.tax_id || null,
@@ -169,18 +306,76 @@ export class QuotationRepository {
           data.total_amount,
           data.terms_conditions || null,
           data.status || 'draft',
+          data.planning_required !== undefined ? (data.planning_required ? 1 : 0) : 1,
           userId || data.created_by || null,
         ]
       );
 
       const quotationId = result.insertId;
 
-      // Insert terms snapshots
+      // Insert selected templates
+      if (data.selected_templates && data.selected_templates.length > 0) {
+        for (let i = 0; i < data.selected_templates.length; i++) {
+          const tmpl = data.selected_templates[i];
+          await connection.query(
+            `INSERT IGNORE INTO quotation_terms_templates (quotation_id, template_id, template_name, sort_order)
+             VALUES (?, ?, ?, ?)`,
+            [quotationId, tmpl.template_id, tmpl.template_name, tmpl.sort_order ?? i]
+          );
+        }
+      }
+
+      // Insert selected WBS templates
+      const wbsTemplatesToSave = (data as any).selected_wbs_templates;
+      if (wbsTemplatesToSave && Array.isArray(wbsTemplatesToSave) && wbsTemplatesToSave.length > 0) {
+        await connection.query(`
+          CREATE TABLE IF NOT EXISTS quotation_wbs_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            quotation_id INT NOT NULL,
+            template_id INT NOT NULL,
+            template_name VARCHAR(255) NULL,
+            sort_order INT DEFAULT 0
+          )
+        `);
+        for (let i = 0; i < wbsTemplatesToSave.length; i++) {
+          const wt = wbsTemplatesToSave[i];
+          await connection.query(
+            `INSERT INTO quotation_wbs_templates (quotation_id, template_id, template_name, sort_order)
+             VALUES (?, ?, ?, ?)`,
+            [quotationId, wt.template_id, wt.template_name || null, wt.sort_order ?? i]
+          );
+        }
+      }
+
+      // Insert terms snapshots with template tracking and is_mandatory
       if (data.terms_snapshots && data.terms_snapshots.length > 0) {
         for (const item of data.terms_snapshots) {
           await connection.query(
-            `INSERT INTO quotation_terms_snapshots (quotation_id, title, description, sort_order) VALUES (?, ?, ?, ?)`,
-            [quotationId, item.title, item.description, item.sort_order || 0]
+            `INSERT INTO quotation_terms_snapshots (quotation_id, template_id, template_name, title, description, is_mandatory, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              quotationId,
+              item.template_id || null,
+              item.template_name || null,
+              item.title,
+              item.description,
+              item.is_mandatory ? 1 : 0,
+              item.sort_order || 0,
+            ]
+          );
+        }
+      }
+
+      // Insert multiple taxes
+      if (data.taxes && data.taxes.length > 0) {
+        const taxableAmount = Math.max(0, Number(data.subtotal_amount || 0) - Number(data.discount_amount || 0));
+        for (const tax of data.taxes) {
+          const pct = Number(tax.tax_percentage || 0);
+          const amt = (taxableAmount * pct) / 100;
+          await connection.query(
+            `INSERT INTO quotation_taxes (quotation_id, tax_id, tax_name, tax_code, tax_type, tax_percentage, taxable_amount, tax_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [quotationId, tax.tax_id, tax.tax_name, tax.tax_code || null, tax.tax_type || null, pct, taxableAmount, amt]
           );
         }
       }
@@ -188,26 +383,105 @@ export class QuotationRepository {
       // Insert line item disciplines
       if (disciplines && disciplines.length > 0) {
         for (const disc of disciplines) {
-          await connection.query(
+          const wbsType = disc.wbs_type === 'material' ? 'material' : (disc.wbs_type === 'both' ? 'both' : 'labour');
+          const defaultUnit = wbsType === 'material' ? 'Nos' : 'hours';
+          const [discRes] = await connection.query(
             `
             INSERT INTO quotation_disciplines (
               quotation_id, project_id, discipline_id, discipline_name, description,
-              unit, quantity, rate, amount, terms_conditions
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              unit, quantity, rate, amount, terms_conditions,
+              wbs_type, wbs_template_id, labour_hours, labour_rate, labour_cost,
+              material_quantity, material_rate, material_cost, start_date, end_date, wbs_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
             [
               quotationId,
-              data.project_id,
-              disc.discipline_id,
+              data.project_id || null,
+              disc.discipline_id || null,
               disc.discipline_name,
               disc.description || null,
-              disc.unit || 'lump_sum',
+              disc.unit || defaultUnit,
               disc.quantity,
               disc.rate,
               disc.amount,
               disc.terms_conditions || null,
+              wbsType,
+              disc.wbs_template_id || null,
+              disc.labour_hours || (wbsType === 'labour' ? disc.quantity : 0),
+              disc.labour_rate || (wbsType === 'labour' ? disc.rate : 0),
+              disc.labour_cost || (wbsType === 'labour' ? disc.amount : 0),
+              disc.material_quantity || (wbsType === 'material' ? disc.quantity : 0),
+              disc.material_rate || (wbsType === 'material' ? disc.rate : 0),
+              disc.material_cost || (wbsType === 'material' ? disc.amount : 0),
+              disc.start_date || null,
+              disc.end_date || null,
+              disc.wbs_id || null,
             ]
           );
+          
+          const disciplineId = (discRes as any).insertId;
+
+          if (disc.labours && disc.labours.length > 0) {
+            for (const l of disc.labours) {
+              const labourName = l.labour_name || l.labour_type || 'Labour Item';
+              const labourType = l.labour_type || l.labour_name || null;
+              const hours = Number(l.hours !== undefined ? l.hours : (l.total_hours !== undefined ? l.total_hours : (l.workers_count ? l.workers_count * (l.hours_per_day || 8) : 0)));
+              const rate = Number(l.rate !== undefined ? l.rate : (l.rate_per_hour !== undefined ? l.rate_per_hour : 0));
+              const amount = Number(l.amount !== undefined ? l.amount : (l.total_cost !== undefined ? l.total_cost : (hours * rate)));
+              await connection.query(
+                `INSERT INTO quotation_wbs_labour (quotation_id, quotation_discipline_id, labour_id, labour_name, labour_type, hours, rate, amount, start_date, end_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [quotationId, disciplineId, l.labour_id || null, labourName, labourType, hours, rate, amount, l.start_date || null, l.end_date || null]
+              );
+            }
+          }
+
+          if (disc.materials && disc.materials.length > 0) {
+            for (const m of disc.materials) {
+              const materialName = m.material_name || m.name || 'Material Item';
+              const qty = Number(m.quantity !== undefined ? m.quantity : 0);
+              const unit = m.unit || null;
+              const matRate = Number(m.rate !== undefined ? m.rate : 0);
+              const matAmount = Number(m.amount !== undefined ? m.amount : (m.total_cost !== undefined ? m.total_cost : (qty * matRate)));
+              await connection.query(
+                `INSERT INTO quotation_wbs_material (quotation_id, quotation_discipline_id, material_id, material_name, quantity, unit, rate, amount, start_date, end_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [quotationId, disciplineId, m.material_id || null, materialName, qty, unit, matRate, matAmount, m.start_date || null, m.end_date || null]
+              );
+            }
+          }
+        }
+      }
+
+      // Insert documents
+      if (data.documents && data.documents.length > 0) {
+        const [docTypes]: any = await connection.query(`SELECT doc_type_id FROM document_types LIMIT 1`);
+        const docTypeId = docTypes.length > 0 ? docTypes[0].doc_type_id : 1;
+
+        for (const doc of data.documents) {
+          let filePath = doc.file_path || '';
+          let fileSize = doc.file_size || 0;
+          let mimeType = doc.mime_type || 'application/pdf';
+
+          if (doc.file_base64) {
+            try {
+              const saved = saveBase64DocumentFile(doc.file_base64, doc.file_name, 'quotation', quotationId);
+              filePath = saved.filePath;
+              fileSize = saved.fileSize;
+              mimeType = saved.mimeType;
+            } catch (err) {
+              console.error('Failed to save base64 document:', err);
+            }
+          }
+
+          if (filePath) {
+            await connection.query(
+              `INSERT INTO entity_documents (
+                 entity_type, entity_id, doc_type_id, document_name, file_path, file_size, mime_type, uploaded_by
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              ['quotation', quotationId, docTypeId, doc.file_name, filePath, fileSize, mimeType, userId || null]
+            );
+          }
         }
       }
 
@@ -243,13 +517,19 @@ export class QuotationRepository {
         `
         UPDATE quotations SET
           customer_id = COALESCE(?, customer_id),
-          project_id = COALESCE(?, project_id),
+          project_id = ?,
+          new_project_name = ?,
+          project_type_id = COALESCE(?, project_type_id),
+          currency_id = COALESCE(?, currency_id),
+          exchange_rate = COALESCE(?, exchange_rate),
           quotation_date = COALESCE(?, quotation_date),
           validity_date = ?,
+          start_date = ?,
+          end_date = ?,
           description = ?,
           subtotal_amount = COALESCE(?, subtotal_amount),
-          tax_id = COALESCE(?, tax_id),
-          tax_type = COALESCE(?, tax_type),
+          tax_id = ?,
+          tax_type = ?,
           tax_percentage = COALESCE(?, tax_percentage),
           cgst_amount = COALESCE(?, cgst_amount),
           sgst_amount = COALESCE(?, sgst_amount),
@@ -258,15 +538,22 @@ export class QuotationRepository {
           discount_amount = COALESCE(?, discount_amount),
           total_amount = COALESCE(?, total_amount),
           terms_conditions = ?,
-          status = COALESCE(?, status)
+          status = COALESCE(?, status),
+          planning_required = COALESCE(?, planning_required)
         WHERE quotation_id = ?
       `,
         [
           data.customer_id,
-          data.project_id,
+          data.project_id !== undefined ? data.project_id : null,
+          data.new_project_name !== undefined ? data.new_project_name : null,
+          data.project_type_id,
+          data.currency_id,
+          data.exchange_rate,
           data.quotation_date,
           data.validity_date !== undefined ? data.validity_date : null,
-          data.description !== undefined ? data.description : null,
+          data.start_date !== undefined ? data.start_date : null,
+          data.end_date !== undefined ? data.end_date : null,
+          data.description,
           data.subtotal_amount,
           data.tax_id !== undefined ? data.tax_id : null,
           data.tax_type !== undefined ? data.tax_type : null,
@@ -277,50 +564,201 @@ export class QuotationRepository {
           data.tax_amount,
           data.discount_amount,
           data.total_amount,
-          data.terms_conditions !== undefined ? data.terms_conditions : null,
+          data.terms_conditions,
           data.status,
+          data.planning_required !== undefined ? (data.planning_required ? 1 : 0) : null,
           id,
         ]
       );
 
-      // Handle terms snapshots update
-      if (data.terms_snapshots !== undefined) {
-        await connection.query(`UPDATE quotation_terms_snapshots SET status = 0 WHERE quotation_id = ?`, [id]);
-        if (data.terms_snapshots.length > 0) {
-          for (const item of data.terms_snapshots) {
+      // Update selected templates if provided
+      if (data.selected_templates !== undefined) {
+        await connection.query(`DELETE FROM quotation_terms_templates WHERE quotation_id = ?`, [id]);
+        if (data.selected_templates.length > 0) {
+          for (let i = 0; i < data.selected_templates.length; i++) {
+            const tmpl = data.selected_templates[i];
             await connection.query(
-              `INSERT INTO quotation_terms_snapshots (quotation_id, title, description, sort_order) VALUES (?, ?, ?, ?)`,
-              [id, item.title, item.description, item.sort_order || 0]
+              `INSERT IGNORE INTO quotation_terms_templates (quotation_id, template_id, template_name, sort_order)
+               VALUES (?, ?, ?, ?)`,
+              [id, tmpl.template_id, tmpl.template_name, tmpl.sort_order ?? i]
             );
           }
         }
       }
 
-      if (disciplines) {
-        // Soft-delete or clear previous disciplines and re-insert
-        await connection.query(`DELETE FROM quotation_disciplines WHERE quotation_id = ?`, [id]);
+      // Update selected WBS templates
+      const wbsTemplatesToSave = (data as any).selected_wbs_templates;
+      if (wbsTemplatesToSave !== undefined && Array.isArray(wbsTemplatesToSave)) {
+        await connection.query(`
+          CREATE TABLE IF NOT EXISTS quotation_wbs_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            quotation_id INT NOT NULL,
+            template_id INT NOT NULL,
+            template_name VARCHAR(255) NULL,
+            sort_order INT DEFAULT 0
+          )
+        `);
+        await connection.query(`DELETE FROM quotation_wbs_templates WHERE quotation_id = ?`, [id]);
+        if (wbsTemplatesToSave.length > 0) {
+          for (let i = 0; i < wbsTemplatesToSave.length; i++) {
+            const wt = wbsTemplatesToSave[i];
+            await connection.query(
+              `INSERT INTO quotation_wbs_templates (quotation_id, template_id, template_name, sort_order)
+               VALUES (?, ?, ?, ?)`,
+              [id, wt.template_id, wt.template_name || null, wt.sort_order ?? i]
+            );
+          }
+        }
+      }
 
+      // Update terms snapshots if provided
+      if (data.terms_snapshots !== undefined) {
+        await connection.query(`DELETE FROM quotation_terms_snapshots WHERE quotation_id = ?`, [id]);
+        if (data.terms_snapshots.length > 0) {
+          for (const item of data.terms_snapshots) {
+            await connection.query(
+              `INSERT INTO quotation_terms_snapshots (quotation_id, template_id, template_name, title, description, is_mandatory, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                id,
+                item.template_id || null,
+                item.template_name || null,
+                item.title,
+                item.description,
+                item.is_mandatory ? 1 : 0,
+                item.sort_order || 0,
+              ]
+            );
+          }
+        }
+      }
+
+      // Update multiple taxes
+      if (data.taxes !== undefined) {
+        await connection.query(`DELETE FROM quotation_taxes WHERE quotation_id = ?`, [id]);
+        if (data.taxes.length > 0) {
+          const taxableAmount = Math.max(0, Number(data.subtotal_amount || 0) - Number(data.discount_amount || 0));
+          for (const tax of data.taxes) {
+            const pct = Number(tax.tax_percentage || 0);
+            const amt = (taxableAmount * pct) / 100;
+            await connection.query(
+              `INSERT INTO quotation_taxes (quotation_id, tax_id, tax_name, tax_code, tax_type, tax_percentage, taxable_amount, tax_amount)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [id, tax.tax_id, tax.tax_name, tax.tax_code || null, tax.tax_type || null, pct, taxableAmount, amt]
+            );
+          }
+        }
+      }
+
+      // Update disciplines if provided
+      if (disciplines && disciplines.length > 0) {
+        await connection.query(`DELETE FROM quotation_wbs_labour WHERE quotation_id = ?`, [id]);
+        await connection.query(`DELETE FROM quotation_wbs_material WHERE quotation_id = ?`, [id]);
+        await connection.query(`DELETE FROM quotation_disciplines WHERE quotation_id = ?`, [id]);
         for (const disc of disciplines) {
-          await connection.query(
+          const wbsType = disc.wbs_type === 'material' ? 'material' : (disc.wbs_type === 'both' ? 'both' : 'labour');
+          const defaultUnit = wbsType === 'material' ? 'Nos' : 'hours';
+          const [discRes] = await connection.query(
             `
             INSERT INTO quotation_disciplines (
               quotation_id, project_id, discipline_id, discipline_name, description,
-              unit, quantity, rate, amount, terms_conditions
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              unit, quantity, rate, amount, terms_conditions,
+              wbs_type, wbs_template_id, labour_hours, labour_rate, labour_cost,
+              material_quantity, material_rate, material_cost, start_date, end_date, wbs_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
             [
               id,
-              data.project_id || existing[0].project_id,
-              disc.discipline_id,
+              data.project_id || null,
+              disc.discipline_id || null,
               disc.discipline_name,
               disc.description || null,
-              disc.unit || 'lump_sum',
+              disc.unit || defaultUnit,
               disc.quantity,
               disc.rate,
               disc.amount,
               disc.terms_conditions || null,
+              wbsType,
+              disc.wbs_template_id || null,
+              disc.labour_hours || (wbsType === 'labour' ? disc.quantity : 0),
+              disc.labour_rate || (wbsType === 'labour' ? disc.rate : 0),
+              disc.labour_cost || (wbsType === 'labour' ? disc.amount : 0),
+              disc.material_quantity || (wbsType === 'material' ? disc.quantity : 0),
+              disc.material_rate || (wbsType === 'material' ? disc.rate : 0),
+              disc.material_cost || (wbsType === 'material' ? disc.amount : 0),
+              disc.start_date || null,
+              disc.end_date || null,
+              disc.wbs_id || null,
             ]
           );
+
+          const disciplineId = (discRes as any).insertId;
+
+          if (disc.labours && disc.labours.length > 0) {
+            for (const l of disc.labours) {
+              const labourName = l.labour_name || l.labour_type || 'Labour Item';
+              const labourType = l.labour_type || l.labour_name || null;
+              const hours = Number(l.hours !== undefined ? l.hours : (l.total_hours !== undefined ? l.total_hours : (l.workers_count ? l.workers_count * (l.hours_per_day || 8) : 0)));
+              const rate = Number(l.rate !== undefined ? l.rate : (l.rate_per_hour !== undefined ? l.rate_per_hour : 0));
+              const amount = Number(l.amount !== undefined ? l.amount : (l.total_cost !== undefined ? l.total_cost : (hours * rate)));
+              await connection.query(
+                `INSERT INTO quotation_wbs_labour (quotation_id, quotation_discipline_id, labour_id, labour_name, labour_type, hours, rate, amount, start_date, end_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, disciplineId, l.labour_id || null, labourName, labourType, hours, rate, amount, l.start_date || null, l.end_date || null]
+              );
+            }
+          }
+
+          if (disc.materials && disc.materials.length > 0) {
+            for (const m of disc.materials) {
+              const materialName = m.material_name || m.name || 'Material Item';
+              const qty = Number(m.quantity !== undefined ? m.quantity : 0);
+              const unit = m.unit || null;
+              const matRate = Number(m.rate !== undefined ? m.rate : 0);
+              const matAmount = Number(m.amount !== undefined ? m.amount : (m.total_cost !== undefined ? m.total_cost : (qty * matRate)));
+              await connection.query(
+                `INSERT INTO quotation_wbs_material (quotation_id, quotation_discipline_id, material_id, material_name, quantity, unit, rate, amount, start_date, end_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id, disciplineId, m.material_id || null, materialName, qty, unit, matRate, matAmount, m.start_date || null, m.end_date || null]
+              );
+            }
+          }
+        }
+      }
+
+      // Update documents (Insert new base64 ones or preserve existing)
+      if (data.documents !== undefined) {
+        await connection.query(`DELETE FROM entity_documents WHERE entity_type = 'quotation' AND entity_id = ?`, [id]);
+        
+        if (data.documents.length > 0) {
+          const [docTypes]: any = await connection.query(`SELECT doc_type_id FROM document_types LIMIT 1`);
+          const docTypeId = docTypes.length > 0 ? docTypes[0].doc_type_id : 1;
+
+          for (const doc of data.documents) {
+            let filePath = doc.file_path || '';
+            let fileSize = doc.file_size || 0;
+            let mimeType = doc.mime_type || 'application/pdf';
+
+            if (doc.file_base64) {
+              try {
+                const saved = saveBase64DocumentFile(doc.file_base64, doc.file_name, 'quotation', id);
+                filePath = saved.filePath;
+                fileSize = saved.fileSize;
+                mimeType = saved.mimeType;
+              } catch (err) {
+                console.error('Failed to save base64 document:', err);
+              }
+            }
+
+            if (filePath) {
+              await connection.query(
+                `INSERT INTO entity_documents (
+                   entity_type, entity_id, doc_type_id, document_name, file_path, file_size, mime_type, uploaded_by
+                 ) VALUES ('quotation', ?, ?, ?, ?, ?, ?, ?)`,
+                [id, docTypeId, doc.file_name, filePath, fileSize, mimeType, userId || null]
+              );
+            }
+          }
         }
       }
 
@@ -366,56 +804,22 @@ export class QuotationRepository {
         [status, approvedBy || null, approvedAt, rejectionReason || null, id]
       );
 
-      // Carry over quotation WBS entries into project_wbs when approved
+      // On approval: Automatically create full Planning record
       if (status === 'approved') {
-        const [qRows]: any = await connection.query(`SELECT project_id FROM quotations WHERE quotation_id = ?`, [id]);
-        if (qRows.length > 0) {
-          const projectId = qRows[0].project_id;
-          const [qdRows]: any = await connection.query(
-            `SELECT * FROM quotation_disciplines WHERE quotation_id = ? AND status = 'active'`,
-            [id]
-          );
+        await connection.commit();
+        const { PlanningRepository } = await import('./planning.repository');
+        await PlanningRepository.createFromQuotation(id, approvedBy, ipAddress);
 
-          for (const qd of qdRows) {
-            let wbsId = null;
-            const [wbsMaster]: any = await connection.query(
-              `SELECT id FROM work_breakdown_structures WHERE LOWER(wbs_name) = LOWER(?) LIMIT 1`,
-              [qd.discipline_name]
-            );
+        await AuditService.log({
+          user_id: approvedBy,
+          action: `QUOTATION_STATUS_${status.toUpperCase()}`,
+          module: 'quotations',
+          description: `Changed status of quotation ID ${id} to ${status} and created planning workspace`,
+          record_id: id,
+          ip_address: ipAddress,
+        });
 
-            if (wbsMaster.length > 0) {
-              wbsId = wbsMaster[0].id;
-            } else {
-              const [newMaster]: any = await connection.query(
-                `INSERT INTO work_breakdown_structures (wbs_code, wbs_name) VALUES (?, ?)`,
-                [`WBS-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 100)}`, qd.discipline_name]
-              );
-              wbsId = newMaster.insertId;
-            }
-
-            const [existingPw]: any = await connection.query(
-              `SELECT id, budget_amount, total_hours FROM project_wbs WHERE project_id = ? AND wbs_id = ? AND deleted_at IS NULL`,
-              [projectId, wbsId]
-            );
-
-            const itemHours = Number(qd.quantity || 1) * 8;
-            const itemBudget = Number(qd.amount || 0);
-
-            if (existingPw.length > 0) {
-              const currentBudget = Number(existingPw[0].budget_amount || 0);
-              const currentHours = Number(existingPw[0].total_hours || 0);
-              await connection.query(
-                `UPDATE project_wbs SET budget_amount = ?, total_hours = ? WHERE id = ?`,
-                [currentBudget + itemBudget, currentHours + itemHours, existingPw[0].id]
-              );
-            } else {
-              await connection.query(
-                `INSERT INTO project_wbs (project_id, wbs_id, budget_amount, total_hours, start_date, end_date) VALUES (?, ?, ?, ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY))`,
-                [projectId, wbsId, itemBudget, itemHours]
-              );
-            }
-          }
-        }
+        return this.getById(id);
       }
 
       await connection.commit();
@@ -424,12 +828,76 @@ export class QuotationRepository {
         user_id: approvedBy,
         action: `QUOTATION_STATUS_${status.toUpperCase()}`,
         module: 'quotations',
-        description: `Changed status of quotation ID ${id} to ${status} and carried over all WBS entries`,
+        description: `Changed status of quotation ID ${id} to ${status}`,
         record_id: id,
         ip_address: ipAddress,
       });
 
       return this.getById(id);
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async createProjectFromQuotation(
+    quotationId: number,
+    overrides: {
+      project_code: string;
+      project_name?: string;
+      project_address?: string;
+      project_type_id?: number | null;
+      radius_meters?: number;
+    },
+    userId?: number,
+    ipAddress?: string
+  ) {
+    const quotation = await this.getById(quotationId);
+    if (!quotation) {
+      throw new Error(`Quotation with ID ${quotationId} not found`);
+    }
+
+    const connection = await dbPool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      let projectId = quotation.project_id;
+      if (!projectId) {
+        const [projRes]: any = await connection.query(
+          `INSERT INTO projects (
+             customer_id, project_code, project_name, project_address,
+             project_type_id, source_quotation_id, budget_amount, currency_id,
+             exchange_rate, radius_meters, status, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW())`,
+          [
+            quotation.customer_id,
+            overrides.project_code,
+            overrides.project_name || `${quotation.customer_name} Project`,
+            overrides.project_address || quotation.customer_address || '',
+            overrides.project_type_id || quotation.project_type_id || null,
+            quotationId,
+            quotation.total_amount,
+            quotation.currency_id || null,
+            quotation.exchange_rate || 1.0,
+            overrides.radius_meters || 200,
+          ]
+        );
+        projectId = projRes.insertId;
+
+        await connection.query(
+          `UPDATE quotations SET project_id = ? WHERE quotation_id = ?`,
+          [projectId, quotationId]
+        );
+      }
+
+      await connection.commit();
+
+      // Trigger standard approval workflow which syncs WBS, taxes, and documents idempotently
+      await this.updateStatus(quotationId, 'approved', userId, ipAddress);
+
+      return { project_id: projectId };
     } catch (err) {
       await connection.rollback();
       throw err;
@@ -454,137 +922,5 @@ export class QuotationRepository {
     });
 
     return true;
-  }
-
-  /**
-   * createProjectFromQuotation
-   * ─────────────────────────
-   * Implements the Customer → Quotation → Project gate.
-   * Must be called with an APPROVED quotation that has no project yet.
-   * Creates the project, seeds project_wbs from quotation_disciplines,
-   * and links both records to each other.
-   */
-  static async createProjectFromQuotation(
-    quotationId: number,
-    overrides: {
-      project_code: string;
-      project_name?: string;
-      project_address?: string;
-      project_type_id?: number | null;
-      radius_meters?: number;
-    },
-    userId?: number,
-    ipAddress?: string
-  ) {
-    const connection = await dbPool.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      // 1. Fetch quotation — must be approved and have no project yet
-      const [qRows]: any = await connection.query(
-        `SELECT q.*, c.customer_name, c.customer_code, c.address AS customer_address
-         FROM quotations q
-         JOIN customers c ON q.customer_id = c.customer_id
-         WHERE q.quotation_id = ? AND q.is_deleted = 0`,
-        [quotationId]
-      );
-      if (qRows.length === 0) throw new Error('Quotation not found');
-      const q = qRows[0];
-      if (q.status !== 'approved') {
-        throw new Error(`Quotation must be approved before creating a project. Current status: ${q.status}`);
-      }
-      if (q.project_id) {
-        throw new Error(`A project (ID: ${q.project_id}) already exists for this quotation.`);
-      }
-
-      // 2. Create the project
-      const [projResult]: any = await connection.query(
-        `INSERT INTO projects (
-          project_code, project_name, customer_id, source_quotation_id,
-          project_type_id, project_address, budget_amount, radius_meters, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-        [
-          overrides.project_code,
-          overrides.project_name || q.customer_name + ' Project',
-          q.customer_id,
-          quotationId,
-          overrides.project_type_id || null,
-          overrides.project_address || q.customer_address || null,
-          Number(q.total_amount || 0),
-          overrides.radius_meters || 500,
-        ]
-      );
-      const projectId = projResult.insertId;
-
-      // 3. Link quotation → project
-      await connection.query(
-        `UPDATE quotations SET project_id = ? WHERE quotation_id = ?`,
-        [projectId, quotationId]
-      );
-
-      // 4. Seed project_wbs from quotation_disciplines
-      const [qdRows]: any = await connection.query(
-        `SELECT * FROM quotation_disciplines WHERE quotation_id = ? AND status = 'active'`,
-        [quotationId]
-      );
-
-      for (const qd of qdRows) {
-        // Find or create a WBS master entry for this discipline
-        let wbsId: number | null = null;
-        const [existingWbs]: any = await connection.query(
-          `SELECT id FROM work_breakdown_structures
-           WHERE LOWER(wbs_name) = LOWER(?) AND deleted_at IS NULL LIMIT 1`,
-          [qd.discipline_name]
-        );
-        if (existingWbs.length > 0) {
-          wbsId = existingWbs[0].id;
-        } else {
-          // Create a clean WBS master entry keyed from the discipline code
-          const wbsCode = `WBS-${qd.discipline_id}-${Date.now().toString().slice(-6)}`;
-          const [newWbs]: any = await connection.query(
-            `INSERT INTO work_breakdown_structures (wbs_code, wbs_name) VALUES (?, ?)`,
-            [wbsCode, qd.discipline_name]
-          );
-          wbsId = newWbs.insertId;
-        }
-
-        const itemHours = Number(qd.quantity || 1) * 8; // 8 hrs per unit as default
-        const itemBudget = Number(qd.amount || 0);
-
-        // Check if a project_wbs row already exists (idempotent)
-        const [existingPw]: any = await connection.query(
-          `SELECT id FROM project_wbs WHERE project_id = ? AND wbs_id = ? AND deleted_at IS NULL`,
-          [projectId, wbsId]
-        );
-        if (existingPw.length === 0) {
-          await connection.query(
-            `INSERT INTO project_wbs (
-               project_id, wbs_id, budget_amount, total_hours,
-               quotation_discipline_id,
-               start_date, end_date
-             ) VALUES (?, ?, ?, ?, ?, CURRENT_DATE, DATE_ADD(CURRENT_DATE, INTERVAL 90 DAY))`,
-            [projectId, wbsId, itemBudget, itemHours, qd.id]
-          );
-        }
-      }
-
-      await connection.commit();
-
-      await AuditService.log({
-        user_id: userId,
-        action: 'CREATE_PROJECT_FROM_QUOTATION',
-        module: 'projects',
-        description: `Created project ${overrides.project_code} (ID: ${projectId}) from quotation ${quotationId}`,
-        record_id: projectId,
-        ip_address: ipAddress,
-      });
-
-      return { project_id: projectId, quotation_id: quotationId };
-    } catch (err) {
-      await connection.rollback();
-      throw err;
-    } finally {
-      connection.release();
-    }
   }
 }

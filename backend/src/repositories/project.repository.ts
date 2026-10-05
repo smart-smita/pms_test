@@ -9,14 +9,16 @@ export class ProjectRepository {
         p.project_id, p.project_code, p.project_name, p.project_address, p.client_name, p.client_code,
         p.customer_id, cust.customer_name,
         p.project_type_id, pt.type_name AS project_type_name,
+        p.start_date, p.end_date, p.currency_id, cur.currency_code, cur.symbol AS currency_symbol,
         p.emreads_id, p.contact_email, p.community_id, cm.community_name,
         p.nationality_id, n.nationality_name, p.country_id, co.country_name,
         p.latitude, p.longitude, p.radius_meters, p.project_date, p.status, p.note, p.budget_amount, p.created_at, p.updated_at, p.is_deleted,
         COALESCE(wbs_stats.total_wbs, 0) AS task_count,
         COALESCE(wbs_stats.completed_wbs, 0) AS completed_task_count,
         COALESCE(wbs_stats.total_planned_hours, 0) AS total_planned_hours,
-        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = p.project_id), 0) +
+        COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) +
         COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS total_actual_hours,
+        COALESCE((SELECT SUM(cost) FROM timesheets WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) +
         COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_cost,
         COALESCE((SELECT SUM(total_amount) FROM labour_payments WHERE project_id = p.project_id AND status = 'paid'), 0) AS paid_amount
       FROM projects p
@@ -25,6 +27,7 @@ export class ProjectRepository {
       LEFT JOIN countries     co   ON p.country_id      = co.country_id
       LEFT JOIN communities   cm   ON p.community_id    = cm.community_id
       LEFT JOIN nationalities n    ON p.nationality_id  = n.nationality_id
+      LEFT JOIN currencies    cur  ON p.currency_id     = cur.currency_id
       LEFT JOIN (
         SELECT pw.project_id,
           COUNT(pw.id) AS total_wbs,
@@ -33,7 +36,7 @@ export class ProjectRepository {
             GREATEST(
               COALESCE(pw.actual_hours, 0),
               (
-                COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id)), 0) +
+                COALESCE((SELECT SUM(working_hours) FROM timesheets WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0) +
                 COALESCE((SELECT SUM(total_working_hours) FROM labour_work_logs WHERE project_id = pw.project_id AND (wbs_id = pw.id OR wbs_id = pw.wbs_id) AND (is_deleted = 0 OR is_deleted IS NULL)), 0)
               )
             ) >= pw.total_hours AND pw.total_hours > 0
@@ -155,6 +158,7 @@ export class ProjectRepository {
     community_id?: number | null;
     nationality_id?: number | null;
     country_id?: number | null;
+    currency_id?: number | null;
     project_address?: string;
     client_name?: string;
     client_code?: string;
@@ -162,15 +166,20 @@ export class ProjectRepository {
     longitude?: number;
     radius_meters?: number;
     project_date?: string;
+    start_date?: string | null;
+    end_date?: string | null;
     status: string;
     note?: string;
+    budget_amount?: number;
+    planning_required?: number | boolean;
+    planning_id?: number | null;
   }): Promise<number> {
     const [result] = await dbPool.execute<ResultSetHeader>(
       `INSERT INTO projects (
         project_code, project_name, customer_id, project_type_id, emreads_id, contact_email,
-        community_id, nationality_id, country_id, project_address, client_name, client_code,
-        latitude, longitude, radius_meters, project_date, status, note
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        community_id, nationality_id, country_id, currency_id, project_address, client_name, client_code,
+        latitude, longitude, radius_meters, project_date, start_date, end_date, status, note, budget_amount, planning_required, planning_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.project_code,
         data.project_name,
@@ -181,6 +190,7 @@ export class ProjectRepository {
         data.community_id || null,
         data.nationality_id || null,
         data.country_id || null,
+        data.currency_id || null,
         data.project_address || null,
         data.client_name || null,
         data.client_code || null,
@@ -188,8 +198,13 @@ export class ProjectRepository {
         data.longitude || null,
         data.radius_meters || 500,
         data.project_date || null,
+        data.start_date || null,
+        data.end_date || null,
         data.status,
         data.note || null,
+        data.budget_amount || 0,
+        data.planning_required !== undefined ? (data.planning_required ? 1 : 0) : 1,
+        data.planning_id || null,
       ]
     );
     return result.insertId;
@@ -201,12 +216,13 @@ export class ProjectRepository {
 
     if (data.project_name !== undefined) { fields.push('project_name = ?'); params.push(data.project_name); }
     if (data.customer_id !== undefined) { fields.push('customer_id = ?'); params.push(data.customer_id); }
-    if (data.project_type_id !== undefined) { fields.push('project_type_id = ?'); params.push(data.project_type_id); }
+    if (data.project_type_id !== undefined) { fields.push('project_type_id = ?'); params.push(data.project_type_id || null); }
     if (data.emreads_id !== undefined) { fields.push('emreads_id = ?'); params.push(data.emreads_id); }
     if (data.contact_email !== undefined) { fields.push('contact_email = ?'); params.push(data.contact_email); }
     if (data.community_id !== undefined) { fields.push('community_id = ?'); params.push(data.community_id); }
     if (data.nationality_id !== undefined) { fields.push('nationality_id = ?'); params.push(data.nationality_id); }
     if (data.country_id !== undefined) { fields.push('country_id = ?'); params.push(data.country_id); }
+    if ((data as any).currency_id !== undefined) { fields.push('currency_id = ?'); params.push((data as any).currency_id || null); }
     if (data.project_address !== undefined) { fields.push('project_address = ?'); params.push(data.project_address); }
     if (data.client_name !== undefined) { fields.push('client_name = ?'); params.push(data.client_name); }
     if (data.client_code !== undefined) { fields.push('client_code = ?'); params.push(data.client_code); }
@@ -214,8 +230,13 @@ export class ProjectRepository {
     if (data.longitude !== undefined) { fields.push('longitude = ?'); params.push(data.longitude); }
     if (data.radius_meters !== undefined) { fields.push('radius_meters = ?'); params.push(data.radius_meters); }
     if (data.project_date !== undefined) { fields.push('project_date = ?'); params.push(data.project_date); }
+    if ((data as any).start_date !== undefined) { fields.push('start_date = ?'); params.push((data as any).start_date || null); }
+    if ((data as any).end_date !== undefined) { fields.push('end_date = ?'); params.push((data as any).end_date || null); }
     if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
     if (data.note !== undefined) { fields.push('note = ?'); params.push(data.note); }
+    if ((data as any).budget_amount !== undefined) { fields.push('budget_amount = ?'); params.push((data as any).budget_amount || 0); }
+    if ((data as any).planning_required !== undefined) { fields.push('planning_required = ?'); params.push((data as any).planning_required ? 1 : 0); }
+    if ((data as any).planning_id !== undefined) { fields.push('planning_id = ?'); params.push((data as any).planning_id || null); }
 
     if (fields.length === 0) return false;
 
@@ -340,6 +361,16 @@ export class ProjectRepository {
 
     const balanceDue = Math.max(totalInvoiced - totalPaid, 0);
 
+    // 7. Fetch Project Terms Templates and Terms Snapshots
+    const [termsTemplates]: any = await dbPool.query(
+      `SELECT * FROM project_terms_templates WHERE project_id = ? ORDER BY sort_order ASC, id ASC`,
+      [projectId]
+    );
+    const [termsSnapshots]: any = await dbPool.query(
+      `SELECT * FROM project_terms_snapshots WHERE project_id = ? ORDER BY sort_order ASC, snapshot_id ASC`,
+      [projectId]
+    );
+
     return {
       project,
       customer,
@@ -350,6 +381,9 @@ export class ProjectRepository {
       surveys: surveyRows,
       invoices: invRows,
       payments: pmtRows,
+      terms_templates: termsTemplates,
+      selected_templates: termsTemplates,
+      terms_snapshots: termsSnapshots,
       financials: {
         budget_amount: budgetAmount,
         total_invoiced: totalInvoiced,

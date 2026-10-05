@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Plus, Search, CheckCircle2 } from 'lucide-react';
+import { Package, Plus, Search, Eye, CheckCircle2 } from 'lucide-react';
 import { apiRequest } from '../services/api';
 import { Modal } from '../components/common/Modal';
 import { FormInput } from '../components/forms/FormInput';
@@ -35,7 +35,7 @@ interface Material {
   unit: string;
 }
 
-export const MaterialSurveys: React.FC = () => {
+export const MaterialSurveys: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [surveys, setSurveys] = useState<MaterialSurvey[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [wbsList, setWbsList] = useState<WBS[]>([]);
@@ -47,6 +47,21 @@ export const MaterialSurveys: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ project_id: '', wbs_id: '', survey_date: new Date().toISOString().split('T')[0], survey_month: new Date().toISOString().slice(0,7) });
   const [items, setItems] = useState<{ material_id: string; opening_qty: number; added_qty: number; used_qty: number; wastage_qty: number; rate: number }[]>([]);
+
+  // View Details Modal State
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewingSurvey, setViewingSurvey] = useState<any | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  const handleViewSurvey = async (id: number) => {
+    setIsLoadingDetails(true);
+    setIsViewModalOpen(true);
+    const res = await apiRequest<any>(`/materials/surveys/${id}`);
+    if (res.success && res.data) {
+      setViewingSurvey(res.data);
+    }
+    setIsLoadingDetails(false);
+  };
 
   const fetchSurveys = async () => {
     setIsLoading(true);
@@ -65,7 +80,7 @@ export const MaterialSurveys: React.FC = () => {
 
   const fetchWbs = async (projectId: string) => {
     if (!projectId) { setWbsList([]); return; }
-    const res = await apiRequest<WBS[]>(`/projects/${projectId}/wbs`);
+    const res = await apiRequest<WBS[]>(`/projects/${projectId}/wbs?wbs_type=material`);
     if (res.success && res.data) setWbsList(res.data);
   };
 
@@ -130,7 +145,7 @@ export const MaterialSurveys: React.FC = () => {
   const filtered = surveys.filter(s => s.project_name.toLowerCase().includes(searchQuery.toLowerCase()) || s.wbs_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: embedded ? '0' : '2rem', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -179,8 +194,11 @@ export const MaterialSurveys: React.FC = () => {
                 </td>
                 <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                    <Button variant="secondary" onClick={() => handleViewSurvey(s.survey_id)} style={{ padding: '0.4rem', color: '#60a5fa' }} title="View Details">
+                      <Eye size={16} />
+                    </Button>
                     {s.status === 'draft' && (
-                      <Button variant="secondary" onClick={() => handleApprove(s.survey_id)} style={{ padding: '0.4rem', color: '#4ade80' }}>
+                      <Button variant="secondary" onClick={() => handleApprove(s.survey_id)} style={{ padding: '0.4rem', color: '#4ade80' }} title="Approve">
                         <CheckCircle2 size={16} />
                       </Button>
                     )}
@@ -191,6 +209,85 @@ export const MaterialSurveys: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* View Material Survey Details Modal */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Material Survey Details">
+        {isLoadingDetails ? (
+          <div style={{ padding: '2rem', textAlign: 'center' }}>Loading details...</div>
+        ) : viewingSurvey ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', background: 'var(--bg-primary)', padding: '1rem', borderRadius: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>Month / Date</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{viewingSurvey.survey_month} ({new Date(viewingSurvey.survey_date).toLocaleDateString()})</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>Project</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{viewingSurvey.project_name}</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>WBS Discipline</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{viewingSurvey.wbs_name}</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>Status</span>
+                <Badge variant={viewingSurvey.status === 'approved' ? 'success' : 'warning'}>{viewingSurvey.status}</Badge>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Materials Measured & Logged</h4>
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: '10px', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'left' }}>Material</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Opening</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Added</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Used</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Wastage</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Remaining</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Rate (₹)</th>
+                      <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Used Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(viewingSurvey.items || []).map((it: any, idx: number) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.6rem 0.8rem' }}>
+                          <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{it.material_name}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block' }}>{it.material_code} ({it.unit})</span>
+                        </td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>{it.opening_qty}</td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', color: '#38bdf8' }}>+{it.added_qty}</td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', color: '#f59e0b', fontWeight: 600 }}>{it.used_qty}</td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', color: '#ef4444' }}>{it.wastage_qty}</td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', fontWeight: 600 }}>{it.remaining_qty}</td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>₹ {Number(it.rate).toLocaleString('en-IN')}</td>
+                        <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', fontWeight: 600, color: '#4ade80' }}>
+                          ₹ {Number(it.used_cost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: 'var(--bg-primary)', fontWeight: 700 }}>
+                      <td colSpan={7} style={{ padding: '0.75rem 0.8rem', textAlign: 'right' }}>Total Consumed Cost:</td>
+                      <td style={{ padding: '0.75rem 0.8rem', textAlign: 'right', color: '#4ade80', fontSize: '0.95rem' }}>
+                        ₹ {((viewingSurvey.items || []).reduce((acc: number, cur: any) => acc + Number(cur.used_cost || 0), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <Button variant="secondary" onClick={() => setIsViewModalOpen(false)}>Close</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Material Survey">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

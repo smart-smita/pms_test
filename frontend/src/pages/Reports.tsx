@@ -16,15 +16,46 @@ type ReportType =
   | 'emp-details' | 'emp-discipline' | 'emp-attendance-1' | 'emp-attendance-3' | 'emp-daywise-2'
   | 'lab-details' | 'lab-discipline' | 'lab-attendance-1' | 'lab-attendance-2' | 'lab-attendance-3' | 'lab-cost';
 
-export const Reports: React.FC = () => {
+export interface ReportsProps {
+  initialTab?: TabType;
+  initialReport?: string;
+}
+
+export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
-  const [activeTab, setActiveTab] = useState<TabType>('employee');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'employee');
   const [activeReport, setActiveReport] = useState<ReportType>('emp-details');
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAadhaar, setShowAadhaar] = useState(false);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+    if (initialReport) {
+      if (initialReport === 'quotation') {
+        setActiveTab('employee');
+        setActiveReport('emp-discipline');
+      } else if (initialReport === 'wbs') {
+        setActiveTab('labour');
+        setActiveReport('lab-discipline');
+      } else if (initialReport === 'labour-employee') {
+        setActiveTab('labour');
+        setActiveReport('lab-details');
+      } else if (initialReport === 'attendance') {
+        setActiveTab('employee');
+        setActiveReport('emp-attendance-1');
+      } else if (initialReport === 'cost') {
+        setActiveTab('labour');
+        setActiveReport('lab-cost');
+      } else if (['emp-details', 'emp-discipline', 'emp-attendance-1', 'emp-attendance-3', 'emp-daywise-2', 'lab-details', 'lab-discipline', 'lab-attendance-1', 'lab-attendance-2', 'lab-attendance-3', 'lab-cost'].includes(initialReport)) {
+        if (initialReport.startsWith('lab-')) setActiveTab('labour');
+        else setActiveTab('employee');
+        setActiveReport(initialReport as any);
+      }
+    }
+  }, [initialTab, initialReport]);
 
   // Filters
   const [startDate, setStartDate] = useState('');

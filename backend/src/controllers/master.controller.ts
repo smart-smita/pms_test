@@ -48,6 +48,18 @@ export class MasterController {
     }
   };
 
+  updateCommunity = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { community_name, country_id, state } = req.body;
+      if (!community_name?.trim()) return sendError(res, 'Community name is required', [], 400);
+      const data = await this.svc.updateCommunity(id, community_name, country_id ?? null, state ?? null);
+      return sendSuccess(res, 'Community updated successfully', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
   // ── Project Types ─────────────────────────────────────────────────────────
   getProjectTypes = async (req: Request, res: Response) => {
     try {
@@ -200,6 +212,64 @@ export class MasterController {
       const result = await this.svc.updateTax(id, req.body);
       if (!result) return sendError(res, 'Tax not found', [], 404);
       return sendSuccess(res, 'Tax updated', result);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  // ── Company Calendar & Holidays ─────────────────────────────────────────────
+  getCalendars = async (_req: Request, res: Response) => {
+    try {
+      const data = await this.svc.getCalendars();
+      return sendSuccess(res, 'Calendars retrieved', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  createCalendar = async (req: Request, res: Response) => {
+    try {
+      const data = await this.svc.createCalendar(req.body);
+      return sendSuccess(res, 'Calendar created', data, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  updateCalendar = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const data = await this.svc.updateCalendar(id, req.body);
+      return sendSuccess(res, 'Calendar updated', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  getHolidays = async (req: Request, res: Response) => {
+    try {
+      const calendarId = req.query.calendar_id ? Number(req.query.calendar_id) : undefined;
+      const data = await this.svc.getHolidays(calendarId);
+      return sendSuccess(res, 'Holidays retrieved', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  createHoliday = async (req: Request, res: Response) => {
+    try {
+      const data = await this.svc.createHoliday(req.body);
+      return sendSuccess(res, 'Holiday created', data, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  deleteHoliday = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await this.svc.deleteHoliday(id);
+      return sendSuccess(res, 'Holiday deleted', null);
     } catch (e: any) {
       return sendError(res, e.message, [], 400);
     }

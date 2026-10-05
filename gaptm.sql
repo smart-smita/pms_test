@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=138 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=138 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `audit_logs`
@@ -880,7 +880,7 @@ CREATE TABLE IF NOT EXISTS `labours` (
   `deleted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`labour_id`),
   KEY `fk_labour_assigned_project` (`assigned_project_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `labours`
@@ -930,7 +930,7 @@ CREATE TABLE IF NOT EXISTS `labour_attendance` (
   KEY `project_id` (`project_id`),
   KEY `wbs_id` (`wbs_id`),
   KEY `task_id` (`task_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -958,7 +958,7 @@ CREATE TABLE IF NOT EXISTS `labour_payments` (
   UNIQUE KEY `payment_code` (`payment_code`),
   KEY `labour_id` (`labour_id`),
   KEY `project_id` (`project_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `labour_payments`
@@ -982,7 +982,7 @@ CREATE TABLE IF NOT EXISTS `labour_payment_items` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_payment_log` (`payment_id`,`work_log_id`),
   KEY `work_log_id` (`work_log_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `labour_payment_items`
@@ -1033,7 +1033,7 @@ CREATE TABLE IF NOT EXISTS `labour_work_logs` (
   KEY `project_id` (`project_id`),
   KEY `wbs_id` (`wbs_id`),
   KEY `task_id` (`task_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `labour_work_logs`
@@ -1076,7 +1076,7 @@ CREATE TABLE IF NOT EXISTS `manager_employees` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_manager_employee` (`manager_id`,`employee_id`),
   KEY `employee_id` (`employee_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1092,7 +1092,7 @@ CREATE TABLE IF NOT EXISTS `manager_projects` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_manager_project` (`manager_id`,`project_id`),
   KEY `project_id` (`project_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1119,7 +1119,7 @@ CREATE TABLE IF NOT EXISTS `materials` (
   `vendor_id` int DEFAULT NULL,
   PRIMARY KEY (`material_id`),
   UNIQUE KEY `material_code` (`material_code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1166,7 +1166,7 @@ CREATE TABLE IF NOT EXISTS `material_logs` (
   `remarks` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`log_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1187,7 +1187,7 @@ CREATE TABLE IF NOT EXISTS `material_planning` (
   `planned_cost` decimal(15,2) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`plan_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1343,7 +1343,7 @@ CREATE TABLE IF NOT EXISTS `permissions` (
   `permission_code` varchar(100) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `permission_code` (`permission_code`)
-) ENGINE=MyISAM AUTO_INCREMENT=78 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=78 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `permissions`
@@ -1799,7 +1799,7 @@ CREATE TABLE IF NOT EXISTS `role_permissions` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_role_perm` (`role_id`,`permission_id`),
   KEY `permission_id` (`permission_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=192 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=192 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `role_permissions`
@@ -2210,7 +2210,7 @@ CREATE TABLE IF NOT EXISTS `task_dependencies` (
   `lag_days` int DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`dependency_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2225,7 +2225,7 @@ CREATE TABLE IF NOT EXISTS `task_labour_assignments` (
   `assigned_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`task_id`,`labour_id`),
   KEY `labour_id` (`labour_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2540,7 +2540,7 @@ CREATE TABLE IF NOT EXISTS `timesheets` (
   KEY `wbs_id` (`wbs_id`),
   KEY `task_id` (`task_id`),
   KEY `employee_id` (`employee_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `timesheets`

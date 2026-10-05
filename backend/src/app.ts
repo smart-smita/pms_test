@@ -56,6 +56,11 @@ app.get('/test-reports', async (_req, res) => {
 // API Routes
 app.use('/api/v1', apiRoutes);
 
+// JSON 404 Handler for API routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
 // Global Error Handler
 app.use(errorHandler);
 

@@ -18,7 +18,8 @@ export class WbsController {
   getProjectWbs = async (req: Request, res: Response) => {
     try {
       const projectId = parseInt(req.params.projectId, 10);
-      const allocations = await this.wbsService.getProjectWbsAllocations(projectId);
+      const wbsType = req.query.wbs_type as string | undefined;
+      const allocations = await this.wbsService.getProjectWbsAllocations(projectId, wbsType);
       return sendSuccess(res, 'Project WBS allocations retrieved', allocations);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to fetch project WBS', [], 500);
@@ -27,16 +28,30 @@ export class WbsController {
 
   addProjectWbs = async (req: Request, res: Response) => {
     try {
-      const { project_id, wbs_id, start_date, end_date, total_hours, note } = req.body;
+      const {
+        project_id, wbs_id, wbs_type, unit, planned_quantity, rate,
+        start_date, end_date, total_hours, actual_start_date, actual_end_date, actual_hours,
+        budget_amount, planned_labour_cost, planned_material_cost, note
+      } = req.body;
       if (!project_id || !wbs_id) {
         return sendError(res, 'project_id and wbs_id are required', [], 400);
       }
       const newAllocation = await this.wbsService.addProjectWbsAllocation({
         project_id: Number(project_id),
         wbs_id: Number(wbs_id),
+        wbs_type,
+        unit,
+        planned_quantity: planned_quantity ? Number(planned_quantity) : undefined,
+        rate: rate ? Number(rate) : undefined,
         start_date,
         end_date,
         total_hours: total_hours ? Number(total_hours) : 0,
+        actual_start_date,
+        actual_end_date,
+        actual_hours: actual_hours ? Number(actual_hours) : 0,
+        budget_amount: budget_amount ? Number(budget_amount) : undefined,
+        planned_labour_cost: planned_labour_cost ? Number(planned_labour_cost) : undefined,
+        planned_material_cost: planned_material_cost ? Number(planned_material_cost) : undefined,
         note,
       });
       return sendSuccess(res, 'Project WBS discipline allocated successfully', newAllocation, 201);

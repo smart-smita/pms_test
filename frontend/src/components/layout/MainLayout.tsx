@@ -11,6 +11,7 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ currentPage, onNavigate, children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
   });
@@ -21,11 +22,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ currentPage, onNavigate,
   }, [theme]);
 
   return (
-    <div className="app-container">
-      <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="main-content">
+    <div className={`app-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <Sidebar currentPage={currentPage} onNavigate={onNavigate} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed} />
+      <div className="main-content" style={{ marginLeft: sidebarCollapsed ? '80px' : '265px', transition: 'margin-left 0.3s ease' }}>
         <Navbar 
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+          onToggleSidebar={() => {
+            if (window.innerWidth < 1024) setSidebarOpen(!sidebarOpen);
+            else setSidebarCollapsed(!sidebarCollapsed);
+          }} 
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           currentPage={currentPage}

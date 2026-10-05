@@ -1,89 +1,84 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Briefcase, Layers, Clock, Edit, Plus, Trash2, AlertTriangle, ShieldAlert, X, BarChart3, Upload, CalendarDays } from 'lucide-react';
+import {
+  Briefcase, Layers, Clock, Edit, Plus, Trash2, ChevronRight, ChevronDown,
+  UserCheck, IndianRupee, Package, CheckSquare, HardHat, Users
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { Project, ProjectWBS, MasterWBS, Task, Employee } from '../types';
 import { showSuccess, showError } from '../utils/toast';
-import { DataTable, Column } from '../components/common/DataTable';
-import { TaskCombobox } from '../components/common/TaskCombobox';
+import { Modal } from '../components/common/Modal';
+import { FormInput } from '../components/forms/FormInput';
+import { FormSelect } from '../components/forms/FormSelect';
 
 export const ProjectWork: React.FC = () => {
   const { user } = useAuth();
   const canManage = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
 
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | ''>('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [wbsAllocations, setWbsAllocations] = useState<ProjectWBS[]>([]);
+  const [projectTasks, setProjectTasks] = useState<Task[]>([]);
+  const [projectLabourLogs, setProjectLabourLogs] = useState<any[]>([]);
+  const [projectMaterials, setProjectMaterials] = useState<any[]>([]);
+  const [projectTimesheets, setProjectTimesheets] = useState<any[]>([]);
+  
   const [masterWbsList, setMasterWbsList] = useState<MasterWBS[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // Subnav Tab State (kept for future use)
-  const [activeTab, setActiveTab] = useState<'disciplines' | 'allocation' | 'gantt' | 'dependency' | 'summary'>('disciplines');
-
-  // (Legacy filter state removed – DataTable handles search/sort/pagination internally)
-
-  // Add Allocation Modal State
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState({
-    wbs_id: '',
-    start_date: '',
-    end_date: '',
-    total_hours: 0,
-    actual_start_date: '',
-    actual_end_date: '',
-    actual_hours: 0,
-    note: '',
-  });
-
-  // Edit Modal State
-  const [editingWbs, setEditingWbs] = useState<ProjectWBS | null>(null);
-  const [editForm, setEditForm] = useState({
-    start_date: '',
-    end_date: '',
-    total_hours: 0,
-    actual_start_date: '',
-    actual_end_date: '',
-    actual_hours: 0,
-    note: '',
-  });
-
-  // Delete Modal State
-  const [deletingWbs, setDeletingWbs] = useState<ProjectWBS | null>(null);
-  const [dependencyInfo, setDependencyInfo] = useState<{
-    hasDependencies: boolean;
-    taskCount: number;
-    timesheetCount: number;
-    labourAttendanceCount: number;
-  } | null>(null);
-  const [checkingDeps, setCheckingDeps] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Timesheet Modal State
-  const [timesheetWbs, setTimesheetWbs] = useState<ProjectWBS | null>(null);
-  const [availableTasks, setAvailableTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [timesheetForm, setTimesheetForm] = useState({
-    task_id: '',
-    employee_id: '',
-    log_date: new Date().toISOString().split('T')[0],
-    working_hours: '',
-  });
-  const [isLoggingTimesheet, setIsLoggingTimesheet] = useState(false);
+  const [labours, setLabours] = useState<any[]>([]);
 
+  // UI State
+  const [expandedWbsId, setExpandedWbsId] = useState<number | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+
+  // Modals
+  const [isAddWbsOpen, setIsAddWbsOpen] = useState(false);
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [isAddLogOpen, setIsAddLogOpen] = useState(false);
+
+  // Forms
+  const [wbsForm, setWbsForm] = useState({ wbs_id: '', note: '', total_hours: 0, budget_amount: 0 });
+  const [taskForm, setTaskForm] = useState({ wbs_id: '', task_name: '', description: '', planned_hours: 8, hourly_rate: 300 });
+  const [logForm, setLogForm] = useState({ task_id: '', employee_id: '', working_hours: '', log_date: new Date().toISOString().split('T')[0] });
+  const [contractLabourLogForm, setContractLabourLogForm] = useState({ task_id: '', labour_id: '', work_date: new Date().toISOString().split('T')[0], total_working_hours: '', rate: '', amount: '', rate_type: 'hourly', work_description: '' });
+  const [materialLogForm, setMaterialLogForm] = useState({ task_id: '', wbs_id: '', material_id: '', quantity: '', log_date: new Date().toISOString().split('T')[0], notes: '' });
+
+  const [isAddContractLabourLogOpen, setIsAddContractLabourLogOpen] = useState(false);
+  const [isAddMaterialLogOpen, setIsAddMaterialLogOpen] = useState(false);
+
+  const [materialsMaster, setMaterialsMaster] = useState<any[]>([]);
   useEffect(() => {
+    fetchCustomers();
     fetchProjects();
     fetchMasterWbs();
+    fetchEmployees();
+    fetchLabours();
+    fetchMaterialsMaster();
   }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await apiService.get<any[]>('/customers');
+      if (res.data) setCustomers(res.data);
+    } catch (err) { console.error(err); }
+  };
 
   useEffect(() => {
     if (selectedProjectId) {
-      const proj = projects.find((p) => p.project_id === Number(selectedProjectId)) || null;
+      const pId = Number(selectedProjectId);
+      const proj = projects.find((p) => p.project_id === pId) || null;
       setSelectedProject(proj);
-      fetchProjectWbs(Number(selectedProjectId));
+      fetchProjectData(pId);
     } else {
       setSelectedProject(null);
       setWbsAllocations([]);
+      setProjectTasks([]);
+      setProjectLabourLogs([]);
+      setProjectMaterials([]);
+      setProjectTimesheets([]);
     }
   }, [selectedProjectId, projects]);
 
@@ -97,7 +92,7 @@ export const ProjectWork: React.FC = () => {
         }
       }
     } catch (err) {
-      console.error('Error loading projects:', err);
+      console.error(err);
     }
   };
 
@@ -105,984 +100,526 @@ export const ProjectWork: React.FC = () => {
     try {
       const res = await apiService.get<MasterWBS[]>('/wbs');
       if (res.data) setMasterWbsList(res.data);
-    } catch (err) {
-      console.error('Error loading master WBS list:', err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const fetchEmployees = async () => {
     try {
       const res = await apiService.get<Employee[]>('/employees');
       if (res.data) setEmployees(res.data);
-    } catch (err) {
-      console.error('Error loading employees:', err);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  const handleOpenTimesheet = async (item: ProjectWBS) => {
-    setTimesheetWbs(item);
-    setTimesheetForm({
-      task_id: '',
-      employee_id: user?.employee_id ? String(user.employee_id) : '',
-      log_date: new Date().toISOString().split('T')[0],
-      working_hours: '',
-    });
-
-    if (employees.length === 0) {
-      fetchEmployees();
-    }
-
-    if (selectedProjectId) {
-      try {
-        const res = await apiService.get<Task[]>(`/tasks?project_id=${selectedProjectId}`);
-        if (res.data) {
-          const matchingTasks = res.data.filter(
-            (t) => !t.wbs_id || Number(t.wbs_id) === Number(item.id) || Number(t.wbs_id) === Number(item.wbs_id)
-          );
-          setAvailableTasks(matchingTasks);
-        }
-      } catch (err) {
-        console.error('Error loading tasks for timesheet:', err);
-      }
-    }
-  };
-
-  const handleSaveTimesheet = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!timesheetWbs || !selectedProjectId) return;
-    if (!timesheetForm.employee_id) {
-      showError('Please select an employee');
-      return;
-    }
-    if (!timesheetForm.working_hours || Number(timesheetForm.working_hours) <= 0) {
-      showError('Please enter valid working hours');
-      return;
-    }
-
-    setIsLoggingTimesheet(true);
+  const fetchLabours = async () => {
     try {
-      const res = await apiService.post('/timesheets', {
-        project_id: Number(selectedProjectId),
-        wbs_id: timesheetWbs.id,
-        task_id: timesheetForm.task_id ? Number(timesheetForm.task_id) : null,
-        employee_id: Number(timesheetForm.employee_id),
-        log_date: timesheetForm.log_date,
-        working_hours: Number(timesheetForm.working_hours),
-      });
-
-      if (res.success) {
-        showSuccess('Time sheet logged successfully');
-        setTimesheetWbs(null);
-        fetchProjectWbs(Number(selectedProjectId));
-      } else {
-        showError(res.message || 'Failed to log time sheet');
-      }
-    } catch (err: any) {
-      showError(err.message || 'Failed to log time sheet');
-    } finally {
-      setIsLoggingTimesheet(false);
-    }
+      const res = await apiService.get<any[]>('/labours');
+      if (res.data) setLabours(res.data);
+    } catch (err) { console.error(err); }
   };
 
-  const fetchProjectWbs = async (projectId: number) => {
-    setLoading(true);
+  const fetchMaterialsMaster = async () => {
     try {
-      const res = await apiService.get<ProjectWBS[]>(`/projects/${projectId}/wbs`);
-      if (res.data) {
-        setWbsAllocations(res.data);
-      }
+      const res = await apiService.get<any[]>('/materials/master');
+      if (res.data) setMaterialsMaster(res.data);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchProjectData = async (pId: number) => {
+    try {
+      const [wbsRes, taskRes, llRes, matRes, tsRes] = await Promise.all([
+        apiService.get<ProjectWBS[]>(`/projects/${pId}/wbs`),
+        apiService.get<Task[]>(`/tasks?project_id=${pId}`),
+        apiService.get<any[]>(`/labour-work-logs?project_id=${pId}`),
+        apiService.get<any[]>(`/materials/project-materials?project_id=${pId}`),
+        apiService.get<any[]>(`/timesheets?project_id=${pId}`),
+      ]);
+      if (wbsRes.data) setWbsAllocations(wbsRes.data);
+      if (taskRes.data) setProjectTasks(taskRes.data);
+      if (llRes.data) setProjectLabourLogs(llRes.data);
+      if (matRes.data) setProjectMaterials(matRes.data);
+      if (tsRes.data) setProjectTimesheets(tsRes.data);
     } catch (err) {
-      console.error('Error loading project WBS allocations:', err);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
   };
 
-  const handleOpenAddModal = () => {
-    setAddForm({ wbs_id: '', start_date: '', end_date: '', total_hours: 0, actual_start_date: '', actual_end_date: '', actual_hours: 0, note: '' });
-    setIsAddModalOpen(true);
-  };
-
-  const handleSaveAdd = async (e: React.FormEvent) => {
+  const handleSaveWbs = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId || !addForm.wbs_id) {
-      showError('Please select a valid WBS');
-      return;
-    }
-    setIsSubmitting(true);
     try {
       const res = await apiService.post('/wbs/project-wbs', {
         project_id: Number(selectedProjectId),
-        wbs_id: Number(addForm.wbs_id),
-        start_date: addForm.start_date || undefined,
-        end_date: addForm.end_date || undefined,
-        total_hours: Number(addForm.total_hours || 0),
-        actual_start_date: addForm.actual_start_date || undefined,
-        actual_end_date: addForm.actual_end_date || undefined,
-        actual_hours: Number(addForm.actual_hours || 0),
-        note: addForm.note || undefined,
+        wbs_id: Number(wbsForm.wbs_id),
+        note: wbsForm.note,
+        total_hours: Number(wbsForm.total_hours),
+        budget_amount: Number(wbsForm.budget_amount)
       });
       if (res.success) {
-        showSuccess('WBS allocated successfully');
-        setIsAddModalOpen(false);
-        fetchProjectWbs(Number(selectedProjectId));
+        showSuccess('Project WBS added. Default Task created automatically.');
+        setIsAddWbsOpen(false);
+        fetchProjectData(Number(selectedProjectId));
       } else {
-        showError(res.message || 'Failed to allocate WBS');
+        showError(res.message || 'Failed to add WBS');
       }
     } catch (err: any) {
-      showError(err.message || 'Allocation failed');
-    } finally {
-      setIsSubmitting(false);
+      showError(err.message || 'Error adding WBS');
     }
   };
 
-  const handleOpenEdit = (wbs: ProjectWBS) => {
-    setEditingWbs(wbs);
-    setEditForm({
-      start_date: wbs.start_date ? wbs.start_date.split('T')[0] : '',
-      end_date: wbs.end_date ? wbs.end_date.split('T')[0] : '',
-      total_hours: Number(wbs.total_hours || 0),
-      actual_start_date: wbs.actual_start_date ? wbs.actual_start_date.split('T')[0] : '',
-      actual_end_date: wbs.actual_end_date ? wbs.actual_end_date.split('T')[0] : '',
-      actual_hours: Number(wbs.actual_hours || 0),
-      note: wbs.note || '',
-    });
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
+  const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingWbs) return;
-    setIsSubmitting(true);
     try {
-      const res = await apiService.put(`/wbs/project-wbs/${editingWbs.id}`, editForm);
+      const res = await apiService.post('/tasks', {
+        project_id: Number(selectedProjectId),
+        wbs_id: Number(taskForm.wbs_id),
+        task_name: taskForm.task_name,
+        description: taskForm.description,
+        estimated_hours: Number(taskForm.planned_hours)
+      });
       if (res.success) {
-        showSuccess('WBS details updated successfully');
-        setEditingWbs(null);
-        if (selectedProjectId) fetchProjectWbs(Number(selectedProjectId));
+        showSuccess('Task added successfully');
+        setIsAddTaskOpen(false);
+        fetchProjectData(Number(selectedProjectId));
       } else {
-        showError(res.message || 'Update failed');
+        showError(res.message || 'Failed to add task');
       }
     } catch (err: any) {
-      showError(err.message || 'Update failed');
-    } finally {
-      setIsSubmitting(false);
+      showError(err.message || 'Error adding task');
     }
   };
 
-  const handleOpenDelete = async (wbs: ProjectWBS) => {
-    setDeletingWbs(wbs);
-    setCheckingDeps(true);
-    setDependencyInfo(null);
+  const handleSaveLog = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const res = await apiService.get(`/wbs/project-wbs/${wbs.id}/dependencies`);
-      if (res.data) setDependencyInfo(res.data);
-    } catch (err) {
-      console.error('Error fetching dependencies:', err);
-    } finally {
-      setCheckingDeps(false);
-    }
-  };
-
-  const handleConfirmDelete = async (force = false) => {
-    if (!deletingWbs) return;
-    setIsSubmitting(true);
-    try {
-      const res = await apiService.delete(`/wbs/project-wbs/${deletingWbs.id}${force ? '?force=true' : ''}`);
+      const task = projectTasks.find(t => String(t.task_id) === String(logForm.task_id));
+      const res = await apiService.post('/timesheets', {
+        project_id: Number(selectedProjectId),
+        wbs_id: task?.wbs_id,
+        task_id: Number(logForm.task_id),
+        employee_id: Number(logForm.employee_id),
+        log_date: logForm.log_date,
+        working_hours: Number(logForm.working_hours),
+      });
       if (res.success) {
-        showSuccess('WBS allocation removed successfully');
-        setDeletingWbs(null);
-        if (selectedProjectId) fetchProjectWbs(Number(selectedProjectId));
+        showSuccess('Work Log added successfully');
+        setIsAddLogOpen(false);
+        fetchProjectData(Number(selectedProjectId));
       } else {
-        showError(res.message || 'Deletion failed');
+        showError(res.message || 'Failed to add log');
       }
     } catch (err: any) {
-      showError(err.message || 'Deletion failed');
-    } finally {
-      setIsSubmitting(false);
+      showError(err.message || 'Error adding log');
     }
   };
 
-  const totalDisciplines = wbsAllocations.length;
-  const totalPlannedHours = wbsAllocations.reduce((acc, curr) => acc + Number(curr.total_hours || 0), 0);
-  const totalActualHours = wbsAllocations.reduce((acc, curr) => acc + Number(curr.actual_hours || 0), 0);
-  const overallProgress = totalPlannedHours > 0 ? ((totalActualHours / totalPlannedHours) * 100).toFixed(2) : '0.00';
+  const handleSaveContractLabourLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const task = projectTasks.find(t => String(t.task_id) === String(contractLabourLogForm.task_id));
+      const rate = Number(contractLabourLogForm.rate || 0);
+      const hours = Number(contractLabourLogForm.total_working_hours);
+      const amount = hours * rate;
 
-  const availableMasterWbs = masterWbsList;
+      const res = await apiService.post('/labour-work-logs', {
+        project_id: Number(selectedProjectId),
+        wbs_id: task?.wbs_id,
+        task_id: Number(contractLabourLogForm.task_id),
+        labour_id: Number(contractLabourLogForm.labour_id),
+        work_date: contractLabourLogForm.work_date,
+        total_working_hours: hours,
+        rate: rate,
+        amount: amount,
+        rate_type: contractLabourLogForm.rate_type,
+        work_description: contractLabourLogForm.work_description
+      });
+      if (res.success) {
+        showSuccess('Contract Labour Log added successfully');
+        setIsAddContractLabourLogOpen(false);
+        fetchProjectData(Number(selectedProjectId));
+      } else {
+        showError(res.message || 'Failed to add labour log');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Error adding labour log');
+    }
+  };
 
-  /**
-   * Enrich each WBS allocation with computed numeric fields so DataTable
-   * can sort, search, and CSV-export them cleanly.
-   */
-  const tableData = useMemo(() =>
-    wbsAllocations.map((item) => {
-      const plannedH = Number(item.total_hours || 0);
-      const actualH  = Number(item.actual_hours  || 0);
-      const remainingH = Math.max(plannedH - actualH, 0);
-      const compPct = Number(
-        item.completion_percentage !== undefined
-          ? item.completion_percentage
-          : plannedH > 0 ? Math.min(Math.round((actualH / plannedH) * 100), 100) : 0
-      );
-      const statusRaw = String(item.status || '').toLowerCase().trim();
+  const handleSaveMaterialLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const material = materialsMaster.find(m => String(m.material_id) === String(materialLogForm.material_id));
+      if (!material) throw new Error("Invalid Material Selected");
+      
+      let pmId = null;
+      const existingPm = projectMaterials.find(pm => String(pm.wbs_id) === String(materialLogForm.wbs_id) && String(pm.material_id) === String(materialLogForm.material_id));
+      if (existingPm) {
+        pmId = existingPm.project_material_id || existingPm.id;
+      } else {
+        const linkRes = await apiService.post('/materials/project-materials', {
+          project_id: Number(selectedProjectId),
+          wbs_id: Number(materialLogForm.wbs_id),
+          material_id: Number(material.material_id),
+          material_name: material.material_name,
+          unit: material.unit || 'Nos',
+          unit_rate: Number(material.rate || 0),
+          planned_quantity: 0
+        });
+        if (linkRes.success && linkRes.data?.id) {
+          pmId = linkRes.data.id;
+        } else {
+          throw new Error('Failed to link material to project WBS');
+        }
+      }
 
-      // Derive human-readable status label
-      let statusLabel = 'Planned';
-      if (compPct >= 100 || statusRaw === 'completed')                        statusLabel = 'Completed';
-      else if (statusRaw === 'active' || statusRaw === '1' || item.status == 1) statusLabel = 'Active';
-      else if (statusRaw === 'planned')                                         statusLabel = 'Planned';
-      else if (statusRaw === 'delayed')                                         statusLabel = 'Delayed';
-      else if (statusRaw === 'on-hold' || statusRaw === 'on hold')             statusLabel = 'On Hold';
-      else if (statusRaw === 'cancelled')                                       statusLabel = 'Cancelled';
-      else if (statusRaw === 'inactive' || statusRaw === '0' || item.status == 0) statusLabel = 'Inactive';
+      const res = await apiService.post(`/materials/project-materials/${pmId}/log`, {
+        action_type: 'used',
+        quantity: Number(materialLogForm.quantity),
+        log_date: materialLogForm.log_date,
+        notes: materialLogForm.notes
+      });
 
-      return {
-        ...item,
-        _plannedH:   plannedH,
-        _actualH:    actualH,
-        _remainingH: remainingH,
-        _compPct:    compPct,
-        _statusLabel: statusLabel,
-        _startDate:  item.start_date ? item.start_date.split('T')[0] : '',
-        _endDate:    item.end_date   ? item.end_date.split('T')[0]   : '',
-      };
-    }),
-  [wbsAllocations]);
-
-  type EnrichedWBS = (typeof tableData)[0];
+      if (res.success) {
+        showSuccess('Material Log added successfully');
+        setIsAddMaterialLogOpen(false);
+        fetchProjectData(Number(selectedProjectId));
+      } else {
+        showError(res.message || 'Failed to add material log');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Error adding material log');
+    }
+  };
 
   return (
     <div className="page-body">
-      {/* Header & Title */}
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
         <div>
           <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Briefcase size={24} style={{ color: '#6366f1' }} /> Project Master / Manage Project Work
+            <Briefcase size={24} style={{ color: '#6366f1' }} /> Manage Project Work (Execution Flow)
           </h1>
-          <p className="page-subtitle">View and manage project work details, WBS allocations, and log time sheets.</p>
+          <p className="page-subtitle">PROJECT → WBS → TASK → WORK LOG Hierarchy</p>
         </div>
       </div>
 
-      {/* Select Project & Details Header Card */}
-      <div className="glass-card mb-6" style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem' }}>
-        <div style={{ flex: '1 1 300px', maxWidth: '500px' }}>
-          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem', display: 'block' }}>Project Name</label>
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : '')}
-            className="form-select"
-            style={{ width: '100%', padding: '0.65rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 500 }}
-          >
-            <option value="">-- Choose Project --</option>
-            {projects.map((p) => (
-              <option key={p.project_id} value={p.project_id}>
-                {p.project_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedProject && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Project Ref</span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProject.project_code || `PRJ-${selectedProject.project_id}`}</span>
-              {selectedProject.project_date && (
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' }}>
-                  {selectedProject.project_date.split('T')[0]}
-                </span>
-              )}
-            </div>
-            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>Client Name</span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedProject.client_name || 'Standard Client'}</span>
-            </div>
+      <div className="glass-card mb-6" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', flex: '1 1 300px', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 250px' }}>
+            <label className="form-label">Select Customer</label>
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => {
+                setSelectedCustomerId(e.target.value ? Number(e.target.value) : '');
+                setSelectedProjectId('');
+                setExpandedWbsId(null);
+                setExpandedTaskId(null);
+              }}
+              className="form-select"
+              style={{ width: '100%', fontSize: '0.9rem', fontWeight: 600 }}
+            >
+              <option value="">-- All Customers --</option>
+              {customers.map((c) => (
+                <option key={c.customer_id} value={c.customer_id}>{c.customer_name}</option>
+              ))}
+            </select>
           </div>
+          
+          <div style={{ flex: '1 1 250px' }}>
+            <label className="form-label">Select Project</label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => {
+                setSelectedProjectId(e.target.value ? Number(e.target.value) : '');
+                setExpandedWbsId(null);
+                setExpandedTaskId(null);
+              }}
+              className="form-select"
+              style={{ width: '100%', fontSize: '0.9rem', fontWeight: 600 }}
+            >
+              <option value="">-- Choose Project --</option>
+              {projects
+                .filter(p => !selectedCustomerId || p.customer_id === selectedCustomerId)
+                .map((p) => (
+                <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {selectedProject && canManage && (
+          <button onClick={() => setIsAddWbsOpen(true)} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
+            <Plus size={16} /> Add WBS
+          </button>
         )}
       </div>
 
-      {/* 4 Premium Metric Cards Grid */}
       {selectedProject && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Total WBS</span>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalDisciplines}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {wbsAllocations.length === 0 ? (
+            <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              No WBS found for this project. Add a WBS to begin execution tracking.
             </div>
-            <div style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Layers size={24} />
-            </div>
-          </div>
+          ) : (
+            wbsAllocations.map(wbs => {
+              const isWbsExpanded = expandedWbsId === wbs.id;
+              const wbsTasks = projectTasks.filter(t => t.wbs_id === wbs.id || t.wbs_id === wbs.wbs_id);
+              
+              const plannedHrs = Number(wbs.total_hours || 0);
+              const actualHrs = Number(wbs.actual_hours || 0) + projectTimesheets.filter(ts => ts.wbs_id === wbs.id || ts.wbs_id === wbs.wbs_id).reduce((s, ts) => s + Number(ts.working_hours), 0);
+              const remHrs = Math.max(plannedHrs - actualHrs, 0);
+              const extraHrs = Math.max(actualHrs - plannedHrs, 0);
+              const progPct = plannedHrs > 0 ? Math.min(Math.round((actualHrs / plannedHrs) * 100), 100) : 0;
 
-          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Total Planned Hours</span>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                {totalPlannedHours.toLocaleString('en-US', { minimumFractionDigits: 0 })} <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>hrs</span>
-              </div>
-            </div>
-            <div style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Clock size={24} />
-            </div>
-          </div>
+              return (
+                <div key={wbs.id} className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                  {/* WBS Header (Click to expand) */}
+                  <div 
+                    onClick={() => setExpandedWbsId(isWbsExpanded ? null : wbs.id as number)}
+                    style={{ 
+                      padding: '1.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      background: isWbsExpanded ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      borderBottom: isWbsExpanded ? '1px solid var(--border-color)' : 'none'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', padding: '0.5rem', borderRadius: '8px' }}>
+                        <Layers size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{wbs.wbs_name}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Code: {wbs.wbs_code || `WBS-${wbs.id}`} | {wbsTasks.length} Tasks</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Progress</div>
+                        <div style={{ fontWeight: 700, color: '#4ade80' }}>{progPct}%</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Hrs (Act/Plan)</div>
+                        <div style={{ fontWeight: 700 }}>{actualHrs} / {plannedHrs}</div>
+                      </div>
+                      {isWbsExpanded ? <ChevronDown size={20} color="var(--text-secondary)" /> : <ChevronRight size={20} color="var(--text-secondary)" />}
+                    </div>
+                  </div>
 
-          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Total Actual Hours</span>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                {totalActualHours.toLocaleString('en-US', { minimumFractionDigits: 0 })} <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>hrs</span>
-              </div>
-            </div>
-            <div style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Upload size={24} />
-            </div>
-          </div>
+                  {/* WBS Body */}
+                  {isWbsExpanded && (
+                    <div style={{ padding: '1.25rem', background: 'rgba(0,0,0,0.15)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        <div className="dashboard-metric" style={{ background: 'rgba(56, 189, 248, 0.08)' }}>
+                          <span style={{ color: '#38bdf8' }}>Planned Hours</span>
+                          <strong style={{ color: 'var(--text-primary)' }}>{plannedHrs}</strong>
+                        </div>
+                        <div className="dashboard-metric" style={{ background: 'rgba(168, 85, 247, 0.08)' }}>
+                          <span style={{ color: '#c084fc' }}>Actual Hours</span>
+                          <strong style={{ color: '#c084fc' }}>{actualHrs}</strong>
+                        </div>
+                        <div className="dashboard-metric" style={{ background: 'rgba(245, 158, 11, 0.08)' }}>
+                          <span style={{ color: '#f59e0b' }}>Remaining Hours</span>
+                          <strong style={{ color: '#f59e0b' }}>{remHrs}</strong>
+                        </div>
+                        <div className="dashboard-metric" style={{ background: extraHrs > 0 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 255, 255, 0.03)' }}>
+                          <span style={{ color: extraHrs > 0 ? '#ef4444' : 'var(--text-secondary)' }}>Extra Hours</span>
+                          <strong style={{ color: extraHrs > 0 ? '#ef4444' : 'var(--text-primary)' }}>{extraHrs}</strong>
+                        </div>
+                      </div>
 
-          <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.25rem' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Overall Progress</span>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>{overallProgress}%</div>
-            </div>
-            <div style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <BarChart3 size={24} />
-            </div>
-          </div>
-        </div>
-      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckSquare size={16} /> TASKS</h3>
+                        {canManage && (
+                          <button onClick={() => { setTaskForm(prev => ({ ...prev, wbs_id: String(wbs.id) })); setIsAddTaskOpen(true); }} className="btn btn-secondary" style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}>
+                            + Add Task
+                          </button>
+                        )}
+                      </div>
 
-      {/* Project Work Details — DataTable */}
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden', marginBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {wbsTasks.length === 0 ? (
+                          <div style={{ padding: '1rem', textAlign: 'center', background: 'var(--bg-card)', borderRadius: '8px', color: 'var(--text-secondary)' }}>No tasks. Add one to start logging work.</div>
+                        ) : (
+                          wbsTasks.map(task => {
+                            const isTaskExpanded = expandedTaskId === task.task_id;
+                            const taskLogs = projectTimesheets.filter(ts => ts.task_id === task.task_id);
+                            const tActualHrs = taskLogs.reduce((s, l) => s + Number(l.working_hours), 0);
+                            
+                            return (
+                              <div key={task.task_id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                                {/* Task Header */}
+                                <div 
+                                  onClick={() => setExpandedTaskId(isTaskExpanded ? null : task.task_id)}
+                                  style={{ padding: '0.85rem 1rem', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', background: isTaskExpanded ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <CheckSquare size={16} color="#0ea5e9" />
+                                    <div style={{ fontWeight: 600 }}>{task.task_name}</div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.85rem' }}>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Hrs: <strong style={{ color: '#10b981' }}>{tActualHrs}</strong> / {task.estimated_hours || task.working_hours || 0}</div>
+                                    <div style={{ color: 'var(--text-secondary)' }}>Logs: <strong>{taskLogs.length}</strong></div>
+                                    {isTaskExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                  </div>
+                                </div>
 
-        {/* Card header */}
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', alignItems: 'center',
-          justifyContent: 'space-between', gap: '0.75rem',
-          padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border-color)',
-        }}>
-          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Layers size={18} style={{ color: '#6366f1' }} /> Project Work Details
-          </h2>
-          {selectedProjectId && canManage && (
-            <button
-              onClick={handleOpenAddModal}
-              className="btn btn-primary"
-              style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', padding: '0.5rem 1.25rem', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', border: 'none' }}
-            >
-              + Add New WBS
-            </button>
+                                {/* Task Body (Work Logs) */}
+                                {isTaskExpanded && (
+                                  <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                                      <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>WORK LOGS</h4>
+                                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <button onClick={() => { setLogForm(prev => ({ ...prev, task_id: String(task.task_id) })); setIsAddLogOpen(true); }} style={{ background: 'transparent', border: '1px solid #10b981', color: '#10b981', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                                          + Employee Log
+                                        </button>
+                                        <button onClick={() => { setContractLabourLogForm(prev => ({ ...prev, task_id: String(task.task_id) })); setIsAddContractLabourLogOpen(true); }} style={{ background: 'transparent', border: '1px solid #f59e0b', color: '#f59e0b', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                                          + Labour Log
+                                        </button>
+                                        <button onClick={() => { setMaterialLogForm(prev => ({ ...prev, task_id: String(task.task_id), wbs_id: String(wbs.id) })); setIsAddMaterialLogOpen(true); }} style={{ background: 'transparent', border: '1px solid #0ea5e9', color: '#0ea5e9', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                                          + Material Usage
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                      {/* Employee Timesheets */}
+                                      <div>
+                                        <h5 style={{ fontSize: '0.8rem', color: '#10b981', marginBottom: '0.25rem' }}>Employee Timesheets</h5>
+                                        {taskLogs.length === 0 ? (
+                                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No employee logs.</div>
+                                        ) : (
+                                          <table className="data-table" style={{ width: '100%', fontSize: '0.8rem', margin: 0 }}>
+                                            <thead><tr><th>Date</th><th>Employee</th><th>Hours</th></tr></thead>
+                                            <tbody>
+                                              {taskLogs.map(log => (
+                                                <tr key={log.timesheet_id}>
+                                                  <td>{log.log_date?.split('T')[0]}</td>
+                                                  <td>{log.employee_name}</td>
+                                                  <td style={{ fontWeight: 700, color: '#10b981' }}>{log.working_hours} hrs</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        )}
+                                      </div>
+
+                                      {/* Contract Labour Logs */}
+                                      {projectLabourLogs.filter(ll => ll.task_id === task.task_id).length > 0 && (
+                                        <div>
+                                          <h5 style={{ fontSize: '0.8rem', color: '#f59e0b', marginBottom: '0.25rem' }}>Contract Labour Usage</h5>
+                                          <table className="data-table" style={{ width: '100%', fontSize: '0.8rem', margin: 0 }}>
+                                            <thead><tr><th>Date</th><th>Labour Name</th><th>Hours</th><th>Amount</th></tr></thead>
+                                            <tbody>
+                                              {projectLabourLogs.filter(ll => ll.task_id === task.task_id).map(ll => (
+                                                <tr key={ll.work_log_id || ll.id}>
+                                                  <td>{new Date(ll.work_date).toLocaleDateString()}</td>
+                                                  <td>{labours.find(l => l.labour_id === ll.labour_id)?.name || `Labour #${ll.labour_id}`}</td>
+                                                  <td>{ll.total_working_hours}</td>
+                                                  <td>{ll.amount}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+
+                                      {/* Material Logs */}
+                                      {projectMaterials.filter(pm => pm.wbs_id === wbs.id).length > 0 && (
+                                        <div>
+                                          <h5 style={{ fontSize: '0.8rem', color: '#0ea5e9', marginBottom: '0.25rem' }}>Material Usage</h5>
+                                          <table className="data-table" style={{ width: '100%', fontSize: '0.8rem', margin: 0 }}>
+                                            <thead><tr><th>Material</th><th>Planned</th><th>Used</th><th>Cost</th></tr></thead>
+                                            <tbody>
+                                              {projectMaterials.filter(pm => pm.wbs_id === wbs.id).map(pm => (
+                                                <tr key={pm.project_material_id || pm.id}>
+                                                  <td>{pm.material_name}</td>
+                                                  <td>{pm.planned_quantity} {pm.unit}</td>
+                                                  <td style={{ color: '#0ea5e9', fontWeight: 600 }}>{pm.used_quantity} {pm.unit}</td>
+                                                  <td>{pm.actual_cost}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
-
-        {/* DataTable */}
-        <div style={{ padding: '1rem 1.25rem' }}>
-          <DataTable<EnrichedWBS>
-            data={tableData}
-            isLoading={loading}
-            searchPlaceholder="Search by WBS name, status, dates…"
-            exportFilename="project_work_wbs"
-            defaultPageSize={15}
-            pageSizeOptions={[10, 15, 25, 50, 100]}
-            columns={[
-              {
-                header: 'No.',
-                sortable: false,
-                excludeFromCSV: true,
-                csvAccessor: (r) => String(tableData.indexOf(r) + 1),
-                accessor: (r) => (
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 500 }}>
-                    {tableData.indexOf(r) + 1}
-                  </span>
-                ),
-              },
-              {
-                header: 'WBS Name',
-                sortKey: 'wbs_name',
-                csvAccessor: (r) => r.wbs_name || '',
-                accessor: (r) => (
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem' }}>{r.wbs_name}</div>
-                    {r.wbs_code && (
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>{r.wbs_code}</div>
-                    )}
-                  </div>
-                ),
-              },
-              {
-                header: 'Plan Start',
-                sortKey: '_startDate',
-                csvAccessor: (r) => r._startDate || '-',
-                accessor: (r) => (
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                    {r._startDate || '-'}
-                  </span>
-                ),
-              },
-              {
-                header: 'Plan End',
-                sortKey: '_endDate',
-                csvAccessor: (r) => r._endDate || '-',
-                accessor: (r) => (
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                    {r._endDate || '-'}
-                  </span>
-                ),
-              },
-              {
-                header: 'Plan Hrs',
-                sortKey: '_plannedH',
-                csvAccessor: (r) => r._plannedH,
-                accessor: (r) => (
-                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r._plannedH}</span>
-                ),
-              },
-              {
-                header: 'Actual Hrs',
-                sortKey: '_actualH',
-                csvAccessor: (r) => r._actualH,
-                accessor: (r) => (
-                  <span style={{ fontWeight: 700, color: '#10b981' }}>{r._actualH}</span>
-                ),
-              },
-              {
-                header: 'Remaining Hrs',
-                sortKey: '_remainingH',
-                csvAccessor: (r) => r._remainingH,
-                accessor: (r) => (
-                  <span style={{ fontWeight: 600, color: r._remainingH === 0 ? '#10b981' : 'var(--text-secondary)' }}>
-                    {r._remainingH}
-                  </span>
-                ),
-              },
-              {
-                header: 'Comp %',
-                sortKey: '_compPct',
-                csvAccessor: (r) => `${r._compPct}%`,
-                accessor: (r) => (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '90px' }}>
-                    <div style={{ flex: 1, height: '5px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden', minWidth: '40px' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${Math.min(r._compPct, 100)}%`,
-                        background: r._compPct >= 100 ? '#10b981' : r._compPct >= 60 ? '#6366f1' : '#f59e0b',
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease',
-                      }} />
-                    </div>
-                    <span style={{ fontWeight: 700, color: '#6366f1', fontSize: '0.82rem', whiteSpace: 'nowrap', minWidth: '38px' }}>
-                      {r._compPct}%
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                header: 'Status',
-                sortKey: '_statusLabel',
-                csvAccessor: (r) => r._statusLabel,
-                accessor: (r) => {
-                  const colorMap: Record<string, { color: string; bg: string; border: string }> = {
-                    Completed: { color: '#10b981', bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.3)'  },
-                    Active:    { color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   border: 'rgba(34,197,94,0.3)'   },
-                    Planned:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
-                    Delayed:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)'  },
-                    'On Hold': { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.3)' },
-                    Cancelled: { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)'  },
-                    Inactive:  { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.3)' },
-                  };
-                  const s = colorMap[r._statusLabel] || colorMap['Planned'];
-                  return (
-                    <span style={{
-                      color: s.color, background: s.bg, border: `1px solid ${s.border}`,
-                      padding: '0.22rem 0.6rem', borderRadius: '6px',
-                      fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block',
-                    }}>
-                      {r._statusLabel}
-                    </span>
-                  );
-                },
-              },
-            ] as Column<EnrichedWBS>[]}
-            actions={(row) => (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
-                {canManage && (
-                  <button
-                    onClick={() => handleOpenEdit(row)}
-                    title="Edit WBS"
-                    style={{ background: '#3b82f6', color: '#fff', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    <Edit size={13} />
-                  </button>
-                )}
-                <button
-                  onClick={() => handleOpenTimesheet(row)}
-                  title="Log Time Sheet"
-                  style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#6366f1', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', cursor: 'pointer', flexShrink: 0 }}
-                >
-                  <CalendarDays size={13} />
-                </button>
-                {canManage && (
-                  <button
-                    onClick={() => handleOpenDelete(row)}
-                    title="Remove WBS"
-                    style={{ background: '#ef4444', color: '#fff', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            )}
-          />
-        </div>
-      </div>
-
-      {/* Modal - Discipline Form (Add) */}
-      {isAddModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '520px' }}>
-            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <h3 className="flex items-center gap-2 text-lg font-bold" style={{ color: '#0f172a' }}>
-                WBS Form
-              </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="modal-close-btn"><X size={18} /></button>
-            </div>
-            <div className="modal-body" style={{ paddingTop: '1rem' }}>
-              <form onSubmit={handleSaveAdd} className="flex-col gap-4">
-                {/* WBS Name */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">WBS Name <span className="text-danger">*</span></label>
-                  <select
-                    required
-                    value={addForm.wbs_id}
-                    onChange={(e) => setAddForm({ ...addForm, wbs_id: e.target.value })}
-                    className="form-select"
-                    style={{ borderRadius: '6px' }}
-                  >
-                    <option value="">Select WBS</option>
-                    {availableMasterWbs.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.wbs_name} ({m.wbs_code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Plan Start & End Date */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Plan Start & End Date</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="date"
-                      value={addForm.start_date}
-                      onChange={(e) => setAddForm({ ...addForm, start_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px', flex: 1 }}
-                    />
-                    <span style={{ background: '#818cf8', color: '#ffffff', padding: '0.4rem 0.8rem', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem' }}>
-                      to
-                    </span>
-                    <input
-                      type="date"
-                      value={addForm.end_date}
-                      onChange={(e) => setAddForm({ ...addForm, end_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px', flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                {/* Plan Hrs */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Plan Hrs.</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    placeholder="e.g. 10"
-                    value={addForm.total_hours}
-                    onChange={(e) => setAddForm({ ...addForm, total_hours: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ borderRadius: '6px' }}
-                  />
-                </div>
-
-                {/* Actual Start & End Date */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Actual Start & End Date</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="date"
-                      value={addForm.actual_start_date}
-                      onChange={(e) => setAddForm({ ...addForm, actual_start_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px', flex: 1 }}
-                    />
-                    <span style={{ background: '#818cf8', color: '#ffffff', padding: '0.4rem 0.8rem', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem' }}>
-                      to
-                    </span>
-                    <input
-                      type="date"
-                      value={addForm.actual_end_date}
-                      onChange={(e) => setAddForm({ ...addForm, actual_end_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px', flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                {/* Actual Hrs */}
-                <div className="form-group mb-4">
-                  <label className="form-label text-xs font-semibold mb-1 block">Actual Hrs.</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    placeholder="e.g. 0"
-                    value={addForm.actual_hours}
-                    onChange={(e) => setAddForm({ ...addForm, actual_hours: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ borderRadius: '6px' }}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-2" style={{ borderTop: '1px solid var(--border-color)' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="btn"
-                    style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '0.5rem 1.25rem', borderRadius: '6px' }}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || availableMasterWbs.length === 0}
-                    className="btn"
-                    style={{ background: '#f43f5e', color: '#ffffff', padding: '0.5rem 1.5rem', borderRadius: '6px', fontWeight: 600, border: 'none' }}
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
       )}
 
-      {/* Modal - Discipline Form (Edit) */}
-      {editingWbs && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '520px' }}>
-            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <h3 className="flex items-center gap-2 text-lg font-bold" style={{ color: '#0f172a' }}>
-                WBS Form
-              </h3>
-              <button onClick={() => setEditingWbs(null)} className="modal-close-btn"><X size={18} /></button>
-            </div>
-            <div className="modal-body" style={{ paddingTop: '1rem' }}>
-              <form onSubmit={handleSaveEdit} className="flex-col gap-4">
-                {/* WBS Name (Disabled on Edit) */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">WBS Name</label>
-                  <input
-                    type="text"
-                    disabled
-                    readOnly
-                    value={editingWbs.wbs_name || ''}
-                    className="form-input"
-                    style={{ background: '#f1f5f9', color: '#334155', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 500 }}
-                  />
-                </div>
-
-                {/* Plan Start & End Date */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Plan Start & End Date</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="date"
-                      disabled
-                      readOnly
-                      value={editForm.start_date}
-                      onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
-                      className="form-input"
-                      style={{ background: '#f1f5f9', color: '#334155', cursor: 'not-allowed', borderRadius: '6px', flex: 1 }}
-                    />
-                    <span style={{ background: '#818cf8', color: '#ffffff', padding: '0.4rem 0.8rem', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem' }}>
-                      to
-                    </span>
-                    <input
-                      type="date"
-                      disabled
-                      readOnly
-                      value={editForm.end_date}
-                      onChange={(e) => setEditForm({ ...editForm, end_date: e.target.value })}
-                      className="form-input"
-                      style={{ background: '#f1f5f9', color: '#334155', cursor: 'not-allowed', borderRadius: '6px', flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                {/* Plan Hrs */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Plan Hrs.</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    disabled
-                    readOnly
-                    value={editForm.total_hours}
-                    onChange={(e) => setEditForm({ ...editForm, total_hours: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ background: '#f1f5f9', color: '#334155', cursor: 'not-allowed', borderRadius: '6px' }}
-                  />
-                </div>
-
-                {/* Actual Start & End Date */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Actual Start & End Date</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <input
-                      type="date"
-                      value={editForm.actual_start_date}
-                      onChange={(e) => setEditForm({ ...editForm, actual_start_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px', flex: 1 }}
-                    />
-                    <span style={{ background: '#818cf8', color: '#ffffff', padding: '0.4rem 0.8rem', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem' }}>
-                      to
-                    </span>
-                    <input
-                      type="date"
-                      value={editForm.actual_end_date}
-                      onChange={(e) => setEditForm({ ...editForm, actual_end_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px', flex: 1 }}
-                    />
-                  </div>
-                </div>
-
-                {/* Actual Hrs */}
-                <div className="form-group mb-4">
-                  <label className="form-label text-xs font-semibold mb-1 block">Actual Hrs.</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={editForm.actual_hours}
-                    onChange={(e) => setEditForm({ ...editForm, actual_hours: Number(e.target.value) })}
-                    className="form-input"
-                    style={{ borderRadius: '6px' }}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-2" style={{ borderTop: '1px solid var(--border-color)' }}>
-                  <button
-                    type="button"
-                    onClick={() => setEditingWbs(null)}
-                    className="btn"
-                    style={{ background: '#ffffff', border: '1px solid #cbd5e1', color: '#475569', padding: '0.5rem 1.25rem', borderRadius: '6px' }}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="btn"
-                    style={{ background: '#f43f5e', color: '#ffffff', padding: '0.5rem 1.5rem', borderRadius: '6px', fontWeight: 600, border: 'none' }}
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
+      {/* Modals */}
+      <Modal isOpen={isAddWbsOpen} onClose={() => setIsAddWbsOpen(false)} title="Add WBS to Project">
+        <form onSubmit={handleSaveWbs} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormSelect label="Select WBS Master" value={wbsForm.wbs_id} onChange={e => setWbsForm(p => ({...p, wbs_id: e.target.value}))} required options={[
+            { value: '', label: '-- Select --' },
+            ...masterWbsList.map(m => ({ value: m.id, label: m.wbs_name }))
+          ]} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormInput label="Planned Hours" type="number" value={wbsForm.total_hours} onChange={e => setWbsForm(p => ({...p, total_hours: Number(e.target.value)}))} />
+            <FormInput label="Planned Cost" type="number" value={wbsForm.budget_amount} onChange={e => setWbsForm(p => ({...p, budget_amount: Number(e.target.value)}))} />
           </div>
-        </div>
-      )}
+          <FormInput label="Remarks" value={wbsForm.note} onChange={e => setWbsForm(p => ({...p, note: e.target.value}))} />
+          <button type="submit" className="btn btn-primary">Save WBS</button>
+        </form>
+      </Modal>
 
-      {/* Modal - Delete */}
-      {deletingWbs && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3 className="flex items-center gap-2 text-danger">
-                <ShieldAlert size={18} /> Remove WBS
-              </h3>
-              <button onClick={() => setDeletingWbs(null)} className="modal-close-btn"><X size={18} /></button>
-            </div>
-            <div className="modal-body">
-              <p className="font-semibold text-sm mb-4">{deletingWbs.wbs_name}</p>
-              
-              {checkingDeps ? (
-                <div className="flex justify-center p-4">Loading dependencies...</div>
-              ) : dependencyInfo?.hasDependencies ? (
-                <div className="flex-col gap-3">
-                  <div style={{ padding: '1rem', background: 'var(--warning-bg)', borderRadius: 'var(--radius-md)', color: 'var(--warning)' }}>
-                    <div className="font-bold flex items-center gap-2 mb-2">
-                      <AlertTriangle size={16} /> Active Dependencies Found
-                    </div>
-                    <p style={{ fontSize: '0.85rem' }}>Cannot remove this WBS cleanly because active records depend on it:</p>
-                    <ul style={{ paddingLeft: '1.5rem', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                      {dependencyInfo.taskCount > 0 && <li><strong>{dependencyInfo.taskCount}</strong> associated task(s)</li>}
-                      {dependencyInfo.timesheetCount > 0 && <li><strong>{dependencyInfo.timesheetCount}</strong> timesheet log(s)</li>}
-                      {dependencyInfo.labourAttendanceCount > 0 && <li><strong>{dependencyInfo.labourAttendanceCount}</strong> labour attendance record(s)</li>}
-                    </ul>
-                  </div>
-                  <p className="text-xs text-muted mt-2">Are you sure you want to force remove this WBS? Linked items will lose their WBS reference.</p>
-                </div>
-              ) : (
-                <p className="text-sm">Are you sure you want to remove <strong>{deletingWbs.wbs_name}</strong> from this project?</p>
-              )}
-              
-              <div className="flex justify-end gap-3 mt-4">
-                <button type="button" onClick={() => setDeletingWbs(null)} className="btn btn-outline-grey" style={{ padding: '0.5rem 1rem', borderRadius: '6px' }}>Cancel</button>
-                <button type="button" disabled={isSubmitting} onClick={() => handleConfirmDelete(dependencyInfo?.hasDependencies || false)} className="btn btn-primary" style={{ background: '#ef4444', padding: '0.5rem 1.5rem', borderRadius: '6px' }}>
-                  {isSubmitting ? 'Removing...' : dependencyInfo?.hasDependencies ? 'Force Remove' : 'Confirm Remove'}
-                </button>
-              </div>
-            </div>
+      <Modal isOpen={isAddTaskOpen} onClose={() => setIsAddTaskOpen(false)} title="Add Task to WBS">
+        <form onSubmit={handleSaveTask} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormInput label="Task Name" value={taskForm.task_name} onChange={e => setTaskForm(p => ({...p, task_name: e.target.value}))} required />
+          <FormInput label="Description" value={taskForm.description} onChange={e => setTaskForm(p => ({...p, description: e.target.value}))} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormInput label="Planned Hours" type="number" value={taskForm.planned_hours} onChange={e => setTaskForm(p => ({...p, planned_hours: Number(e.target.value)}))} />
           </div>
-        </div>
-      )}
+          <button type="submit" className="btn btn-primary">Save Task</button>
+        </form>
+      </Modal>
 
-      {/* Modal - Log Time Sheet */}
-      {timesheetWbs && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '520px' }}>
-            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <h3 className="flex items-center gap-2 text-lg font-bold" style={{ color: '#0f172a' }}>
-                Log Time Sheet
-              </h3>
-              <button onClick={() => setTimesheetWbs(null)} className="modal-close-btn"><X size={18} /></button>
-            </div>
-            <div className="modal-body" style={{ paddingTop: '1rem' }}>
-              <form onSubmit={handleSaveTimesheet} className="flex-col gap-4">
-                {/* Project Name */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Project Name</label>
-                  <input
-                    type="text"
-                    disabled
-                    readOnly
-                    value={selectedProject ? `${selectedProject.project_code || `P0${selectedProject.project_id}`} ${selectedProject.project_name}` : ''}
-                    className="form-input"
-                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
-                  />
-                </div>
-                {/* WBS Name */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">WBS Name</label>
-                  <input
-                    type="text"
-                    disabled
-                    readOnly
-                    value={timesheetWbs.wbs_name || ''}
-                    className="form-input"
-                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'not-allowed', borderRadius: '6px', fontWeight: 600 }}
-                  />
-                </div>
+      <Modal isOpen={isAddLogOpen} onClose={() => setIsAddLogOpen(false)} title="Add Work Log">
+        <form onSubmit={handleSaveLog} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormInput label="Date" type="date" value={logForm.log_date} onChange={e => setLogForm(p => ({...p, log_date: e.target.value}))} required />
+          <FormSelect label="Employee" value={logForm.employee_id} onChange={e => setLogForm(p => ({...p, employee_id: e.target.value}))} required options={[
+            { value: '', label: '-- Select --' },
+            ...employees.map(e => ({ value: e.employee_id, label: e.name }))
+          ]} />
+          <FormInput label="Working Hours" type="number" value={logForm.working_hours} onChange={e => setLogForm(p => ({...p, working_hours: e.target.value}))} required />
+          <button type="submit" className="btn btn-primary">Save Log</button>
+        </form>
+      </Modal>
 
-                {/* Choose Task Name (Searchable Combobox) */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Choose Task Name (optional)</label>
-                  <TaskCombobox
-                    projectId={selectedProjectId}
-                    wbsId={timesheetWbs.id || timesheetWbs.wbs_id}
-                    selectedTaskId={timesheetForm.task_id}
-                    tasks={availableTasks.map((t) => ({
-                      id: t.task_id,
-                      name: t.task_name,
-                      project_id: t.project_id,
-                      wbs_id: t.wbs_id,
-                    }))}
-                    onSelectTask={(sel) => setTimesheetForm({ ...timesheetForm, task_id: sel ? String(sel.id) : '' })}
-                    onTaskCreated={(newTask) => {
-                      setAvailableTasks((prev) => [
-                        ...prev,
-                        {
-                          task_id: newTask.id,
-                          task_name: newTask.name,
-                          project_id: newTask.project_id,
-                          wbs_id: newTask.wbs_id,
-                        } as Task,
-                      ]);
-                      setTimesheetForm({ ...timesheetForm, task_id: String(newTask.id) });
-                    }}
-                    placeholder="Search task or type to create new..."
-                  />
-                  <span className="text-xs text-muted mt-1 block" style={{ fontSize: '0.7rem' }}>
-                    * If no task is selected or a new task is typed, it will be automatically created under Project + WBS.
-                  </span>
-                </div>
-
-                {/* Employee Name */}
-                <div className="form-group mb-3">
-                  <label className="form-label text-xs font-semibold mb-1 block">Employee Name <span className="text-danger">*</span></label>
-                  <select
-                    required
-                    value={timesheetForm.employee_id}
-                    onChange={(e) => setTimesheetForm({ ...timesheetForm, employee_id: e.target.value })}
-                    className="form-select"
-                    style={{ borderRadius: '6px' }}
-                  >
-                    <option value="">-- Select Employee --</option>
-                    {employees.map((emp) => (
-                      <option key={emp.employee_id} value={emp.employee_id}>
-                        {emp.name} ({emp.employee_code || `EMP0${emp.employee_id}`})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {/* Log Date & Work HRs */}
-                <div className="grid-2-col mb-4">
-                  <div className="form-group mb-0">
-                    <label className="form-label text-xs font-semibold mb-1 block">Log Date <span className="text-danger">*</span></label>
-                    <input
-                      type="date"
-                      required
-                      value={timesheetForm.log_date}
-                      onChange={(e) => setTimesheetForm({ ...timesheetForm, log_date: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px' }}
-                    />
-                  </div>
-                  <div className="form-group mb-0">
-                    <label className="form-label text-xs font-semibold mb-1 block">Work HRs. <span className="text-danger">*</span></label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      required
-                      placeholder="e.g. 6"
-                      value={timesheetForm.working_hours}
-                      onChange={(e) => setTimesheetForm({ ...timesheetForm, working_hours: e.target.value })}
-                      className="form-input"
-                      style={{ borderRadius: '6px' }}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setTimesheetWbs(null)}
-                    className="btn btn-outline-grey"
-                    style={{ padding: '0.5rem 1.25rem', borderRadius: '6px' }}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoggingTimesheet}
-                    className="btn btn-primary"
-                    style={{ background: '#f43f5e', color: '#ffffff', padding: '0.5rem 1.5rem', borderRadius: '6px', fontWeight: 600, border: 'none' }}
-                  >
-                    {isLoggingTimesheet ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
+      <Modal isOpen={isAddContractLabourLogOpen} onClose={() => setIsAddContractLabourLogOpen(false)} title="Add Contract Labour Log">
+        <form onSubmit={handleSaveContractLabourLog} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormInput label="Date" type="date" value={contractLabourLogForm.work_date} onChange={e => setContractLabourLogForm(p => ({...p, work_date: e.target.value}))} required />
+          <FormSelect label="Contract Labour" value={contractLabourLogForm.labour_id} onChange={e => setContractLabourLogForm(p => ({...p, labour_id: e.target.value}))} required options={[
+            { value: '', label: '-- Select --' },
+            ...labours.map(l => ({ value: l.labour_id, label: l.name }))
+          ]} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormInput label="Working Hours" type="number" value={contractLabourLogForm.total_working_hours} onChange={e => setContractLabourLogForm(p => ({...p, total_working_hours: e.target.value}))} required />
+            <FormInput label="Rate" type="number" value={contractLabourLogForm.rate} onChange={e => setContractLabourLogForm(p => ({...p, rate: e.target.value}))} required />
           </div>
-        </div>
-      )}
+          <FormInput label="Work Description" type="text" value={contractLabourLogForm.work_description} onChange={e => setContractLabourLogForm(p => ({...p, work_description: e.target.value}))} />
+          <button type="submit" className="btn btn-primary">Save Labour Log</button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isAddMaterialLogOpen} onClose={() => setIsAddMaterialLogOpen(false)} title="Add Material Usage Log">
+        <form onSubmit={handleSaveMaterialLog} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormInput label="Date" type="date" value={materialLogForm.log_date} onChange={e => setMaterialLogForm(p => ({...p, log_date: e.target.value}))} required />
+          <FormSelect label="Material" value={materialLogForm.material_id} onChange={e => setMaterialLogForm(p => ({...p, material_id: e.target.value}))} required options={[
+            { value: '', label: '-- Select --' },
+            ...materialsMaster.map(m => ({ value: m.material_id, label: m.material_name }))
+          ]} />
+          <FormInput label="Quantity Used" type="number" step="0.01" value={materialLogForm.quantity} onChange={e => setMaterialLogForm(p => ({...p, quantity: e.target.value}))} required />
+          <FormInput label="Notes" type="text" value={materialLogForm.notes} onChange={e => setMaterialLogForm(p => ({...p, notes: e.target.value}))} />
+          <button type="submit" className="btn btn-primary">Save Material Log</button>
+        </form>
+      </Modal>
     </div>
   );
 };

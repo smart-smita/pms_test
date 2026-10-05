@@ -9,6 +9,7 @@ import dashboardRoutes from './dashboard.routes';
 import reportRoutes from './report.routes';
 import notificationRoutes from './notification.routes';
 import wbsRoutes from './wbs.routes';
+import wbsTemplateRoutes from './wbsTemplate.routes';
 import labourRoutes from './labour.routes';
 import labourWorkLogRoutes from './labourWorkLog.routes';
 import labourPaymentRoutes from './labourPayment.routes';
@@ -20,8 +21,9 @@ import documentRoutes from './document.routes';
 import quotationRoutes from './quotation.routes';
 import termsTemplateRoutes from './termsTemplate.routes';
 import siteSurveyRoutes from './siteSurvey.routes';
-
+import planningRoutes from './planning.routes';
 import materialRoutes from './material.routes';
+
 
 const router = Router();
 
@@ -35,6 +37,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/wbs', wbsRoutes);
+router.use('/wbs-templates', wbsTemplateRoutes);
 router.use('/labours', labourRoutes);
 router.use('/labour-work-logs', labourWorkLogRoutes);
 router.use('/labour-payments', labourPaymentRoutes);
@@ -47,6 +50,7 @@ router.use('/quotations', quotationRoutes);
 router.use('/terms-templates', termsTemplateRoutes);
 router.use('/site-surveys', siteSurveyRoutes);
 router.use('/materials', materialRoutes);
+router.use('/planning', planningRoutes);
 
 export default router;
 

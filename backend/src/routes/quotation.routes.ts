@@ -13,10 +13,12 @@ router.get('/:id/pdf', requirePermission('quotations', 'view'), QuotationControl
 router.post('/', requirePermission('quotations', 'create'), QuotationController.create);
 router.put('/:id', requirePermission('quotations', 'update'), QuotationController.update);
 router.patch('/:id/status', requirePermission('quotations', 'approve'), QuotationController.updateStatus);
+router.put('/:id/status', requirePermission('quotations', 'approve'), QuotationController.updateStatus);
 router.delete('/:id', requirePermission('quotations', 'delete'), QuotationController.delete);
 
 // Quotation → Project gate: POST /quotations/:id/create-project
 // Creates a project from an approved quotation. Requires projects:create permission.
 router.post('/:id/create-project', requirePermission('projects', 'create'), QuotationController.createProjectFromQuotation);
+router.post('/:id/send-email', requirePermission('quotations', 'view'), QuotationController.sendEmail);
 
 export default router;

@@ -11,6 +11,7 @@ router.get('/', requirePermission('terms_templates', 'view'), TermsTemplateContr
 router.get('/:id', requirePermission('terms_templates', 'view'), TermsTemplateController.getById);
 router.post('/', requirePermission('terms_templates', 'manage'), TermsTemplateController.create);
 router.put('/:id', requirePermission('terms_templates', 'manage'), TermsTemplateController.update);
+router.patch('/:id/status', requirePermission('terms_templates', 'manage'), TermsTemplateController.toggleStatus);
 router.delete('/:id', requirePermission('terms_templates', 'manage'), TermsTemplateController.delete);
 
 export default router;

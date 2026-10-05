@@ -49,6 +49,21 @@ export const MaterialQuotations: React.FC = () => {
   const [formData, setFormData] = useState({ project_id: '', wbs_id: '', quotation_date: new Date().toISOString().split('T')[0] });
   const [items, setItems] = useState<{ material_id: string; planned_quantity: number; rate: number; tax_percentage: number }[]>([]);
 
+  // View Details Modal State
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewingQuotation, setViewingQuotation] = useState<any | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  const handleViewQuotation = async (id: number) => {
+    setIsLoadingDetails(true);
+    setIsViewModalOpen(true);
+    const res = await apiRequest<any>(`/materials/quotations/${id}`);
+    if (res.success && res.data) {
+      setViewingQuotation(res.data);
+    }
+    setIsLoadingDetails(false);
+  };
+
   const fetchQuotations = async () => {
     setIsLoading(true);
     const res = await apiRequest<MaterialQuotation[]>('/materials/quotations');
@@ -66,7 +81,7 @@ export const MaterialQuotations: React.FC = () => {
 
   const fetchWbs = async (projectId: string) => {
     if (!projectId) { setWbsList([]); return; }
-    const res = await apiRequest<WBS[]>(`/projects/${projectId}/wbs`);
+    const res = await apiRequest<WBS[]>(`/projects/${projectId}/wbs?wbs_type=material`);
     if (res.success && res.data) setWbsList(res.data);
   };
 
@@ -182,8 +197,11 @@ export const MaterialQuotations: React.FC = () => {
                 </td>
                 <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                    <Button variant="secondary" onClick={() => handleViewQuotation(q.quotation_id)} style={{ padding: '0.4rem', color: '#60a5fa' }} title="View Details">
+                      <Eye size={16} />
+                    </Button>
                     {q.status === 'draft' && (
-                      <Button variant="secondary" onClick={() => handleApprove(q.quotation_id)} style={{ padding: '0.4rem', color: '#4ade80' }}>
+                      <Button variant="secondary" onClick={() => handleApprove(q.quotation_id)} style={{ padding: '0.4rem', color: '#4ade80' }} title="Approve">
                         <CheckCircle2 size={16} />
                       </Button>
                     )}
@@ -194,6 +212,79 @@ export const MaterialQuotations: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* View Quotation Details Modal */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Material Quotation Details">
+        {isLoadingDetails ? (
+          <div style={{ padding: '2rem', textAlign: 'center' }}>Loading details...</div>
+        ) : viewingQuotation ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', background: 'var(--bg-primary)', padding: '1rem', borderRadius: '12px' }}>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>Project</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{viewingQuotation.project_name}</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>WBS Discipline</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{viewingQuotation.wbs_name}</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>Date</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{new Date(viewingQuotation.quotation_date).toLocaleDateString()}</strong>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block' }}>Status</span>
+                <Badge variant={viewingQuotation.status === 'approved' ? 'success' : 'warning'}>{viewingQuotation.status}</Badge>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Quotation Items Breakdown</h4>
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)' }}>
+                      <th style={{ padding: '0.6rem 1rem', textAlign: 'left' }}>Material</th>
+                      <th style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>Planned Qty</th>
+                      <th style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>Rate (₹)</th>
+                      <th style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>Tax %</th>
+                      <th style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>Total Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(viewingQuotation.items || []).map((it: any, idx: number) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.6rem 1rem' }}>
+                          <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{it.material_name}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>{it.material_code} ({it.unit})</span>
+                        </td>
+                        <td style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>{it.planned_quantity} {it.unit}</td>
+                        <td style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>₹ {Number(it.rate).toLocaleString('en-IN')}</td>
+                        <td style={{ padding: '0.6rem 1rem', textAlign: 'right' }}>{it.tax_percentage}%</td>
+                        <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontWeight: 600, color: '#4ade80' }}>
+                          ₹ {Number(it.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: 'var(--bg-primary)', fontWeight: 700 }}>
+                      <td colSpan={4} style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Grand Total:</td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#4ade80', fontSize: '1rem' }}>
+                        ₹ {((viewingQuotation.items || []).reduce((acc: number, cur: any) => acc + Number(cur.total_amount || 0), 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <Button variant="secondary" onClick={() => setIsViewModalOpen(false)}>Close</Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Material Quotation">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

@@ -25,17 +25,37 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
     Array.from(wbsMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([wbs, wbsTasks]) => {
       let minStart = Infinity;
       let maxEnd = -Infinity;
+      let minBaselineStart = Infinity;
+      let maxBaselineEnd = -Infinity;
+      let minActualStart = Infinity;
+      let maxActualEnd = -Infinity;
       let totalPlan = 0;
       let totalActual = 0;
       
       wbsTasks.forEach(t => {
-        if (t.start_date) {
-          const d = new Date(t.start_date).getTime();
+        if (t.start_date || t.current_start) {
+          const d = new Date(t.start_date || t.current_start).getTime();
           if (d < minStart) minStart = d;
         }
-        if (t.target_date) {
-          const d = new Date(t.target_date).getTime();
+        if (t.target_date || t.current_end) {
+          const d = new Date(t.target_date || t.current_end).getTime();
           if (d > maxEnd) maxEnd = d;
+        }
+        if (t.baseline_start) {
+          const d = new Date(t.baseline_start).getTime();
+          if (d < minBaselineStart) minBaselineStart = d;
+        }
+        if (t.baseline_end) {
+          const d = new Date(t.baseline_end).getTime();
+          if (d > maxBaselineEnd) maxBaselineEnd = d;
+        }
+        if (t.actual_start_date) {
+          const d = new Date(t.actual_start_date).getTime();
+          if (d < minActualStart) minActualStart = d;
+        }
+        if (t.actual_end_date) {
+          const d = new Date(t.actual_end_date).getTime();
+          if (d > maxActualEnd) maxActualEnd = d;
         }
         totalPlan += Number(t.plan_hours || 0);
         totalActual += Number(t.actual_hours || 0);
@@ -55,6 +75,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
         actual_hours: Math.round(totalActual * 10) / 10,
         start_date: minStart !== Infinity ? new Date(minStart).toISOString().split('T')[0] : null,
         target_date: maxEnd !== -Infinity ? new Date(maxEnd).toISOString().split('T')[0] : null,
+        baseline_start: minBaselineStart !== Infinity ? new Date(minBaselineStart).toISOString().split('T')[0] : null,
+        baseline_end: maxBaselineEnd !== -Infinity ? new Date(maxBaselineEnd).toISOString().split('T')[0] : null,
+        actual_start_date: minActualStart !== Infinity ? new Date(minActualStart).toISOString().split('T')[0] : null,
+        actual_end_date: maxActualEnd !== -Infinity ? new Date(maxActualEnd).toISOString().split('T')[0] : null,
         parent_wbs: null,
       });
 
@@ -96,16 +120,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
     let max = new Date('2000-01-01').getTime();
 
     tasks.forEach(t => {
-      if (t.start_date) {
-        const d = new Date(t.start_date).getTime();
-        if (d < min) min = d;
-        if (d > max) max = d;
-      }
-      if (t.target_date) {
-        const d = new Date(t.target_date).getTime();
-        if (d < min) min = d;
-        if (d > max) max = d;
-      }
+      const dates = [
+        t.start_date, t.target_date, 
+        t.baseline_start, t.baseline_end, 
+        t.current_start, t.current_end, 
+        t.actual_start_date, t.actual_end_date
+      ];
+      
+      dates.forEach(dateStr => {
+        if (dateStr) {
+          const d = new Date(dateStr).getTime();
+          if (d < min) min = d;
+          if (d > max) max = d;
+        }
+      });
     });
 
     if (min > max) {
@@ -179,9 +207,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
             visibleTasks.map((t, idx) => {
               const color = colors[parseInt(t.parent_wbs || t.wbs_name || '0', 36) % colors.length] || colors[0];
               const isCollapsed = collapsedWBS.has(t.wbs_name || t.parent_wbs || '');
-              
+              const rowHeight = t.isParent ? 32 : 46;
+
               return (
-                <div key={t.task_id} style={{ display: 'flex', fontSize: '0.8rem', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', color: t.isParent ? '#0f172a' : '#475569', alignItems: 'center', fontWeight: t.isParent ? 600 : 400, position: 'relative' }}>
+                <div key={t.task_id} style={{ display: 'flex', fontSize: '0.8rem', padding: '0.4rem 0', borderBottom: '1px solid #f1f5f9', color: t.isParent ? '#0f172a' : '#475569', alignItems: 'center', fontWeight: t.isParent ? 600 : 400, position: 'relative', height: `${rowHeight}px`, boxSizing: 'border-box' }}>
                   {/* Row Color Bar */}
                   <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: color }} />
                   
@@ -251,50 +280,85 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
             {/* Task Bars */}
             <div style={{ position: 'relative', zIndex: 1 }}>
               {visibleTasks.map((t, idx) => {
-                const color = colors[parseInt(t.parent_wbs || t.wbs_name || '0', 36) % colors.length] || colors[0];
+                // Determine heights for stacked bars
+                const rowHeight = t.isParent ? 32 : 46;
+                
                 return (
-                  <div key={t.task_id} style={{ height: '28px', position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    {t.start_date && t.target_date && (
+                  <div key={t.task_id} style={{ height: `${rowHeight}px`, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    
+                    {/* BASELINE BAR (Grey) */}
+                    {t.baseline_start && t.baseline_end && (
                       <div 
                         style={{ 
                           position: 'absolute',
-                          ...getPositionStyle(t.start_date, t.target_date),
-                          height: t.isParent ? '12px' : '16px',
+                          ...getPositionStyle(t.baseline_start, t.baseline_end),
+                          top: t.isParent ? '4px' : '4px',
+                          height: t.isParent ? '6px' : '8px',
+                          background: '#cbd5e1', // grey-300
+                          borderRadius: '2px',
+                          zIndex: 1
+                        }}
+                        title={`Baseline: ${t.baseline_start} to ${t.baseline_end}`}
+                      />
+                    )}
+
+                    {/* CURRENT PLAN BAR (Blue) */}
+                    {(t.start_date || t.current_start) && (t.target_date || t.current_end) && (
+                      <div 
+                        style={{ 
+                          position: 'absolute',
+                          ...getPositionStyle(t.start_date || t.current_start, t.target_date || t.current_end),
+                          top: t.isParent ? '12px' : '16px',
+                          height: t.isParent ? '8px' : '12px',
                           display: 'flex',
                           alignItems: t.isParent ? 'flex-start' : 'center',
+                          zIndex: 2
                         }}
+                        title={`Current Plan: ${t.start_date || t.current_start} to ${t.target_date || t.current_end}`}
                       >
-                        {/* The Gantt Bar */}
+                        {/* The Current Gantt Bar */}
                         <div style={{ 
                           width: '100%', 
-                          height: t.isParent ? '6px' : '100%', 
-                          background: color, 
-                          borderRadius: t.isParent ? '0' : '2px',
-                          borderTopLeftRadius: '2px',
-                          borderTopRightRadius: '2px',
+                          height: '100%', 
+                          background: t.isParent ? '#475569' : '#3b82f6', // slate-600 / blue-500
+                          borderRadius: t.isParent ? '0' : '3px',
+                          borderTopLeftRadius: '3px',
+                          borderTopRightRadius: '3px',
                           position: 'relative'
                         }}>
                            {t.isParent && (
                              <>
-                               <div style={{ position: 'absolute', left: 0, top: '6px', width: '2px', height: '6px', background: color }} />
-                               <div style={{ position: 'absolute', right: 0, top: '6px', width: '2px', height: '6px', background: color }} />
+                               <div style={{ position: 'absolute', left: 0, top: '100%', width: '2px', height: '6px', background: '#475569' }} />
+                               <div style={{ position: 'absolute', right: 0, top: '100%', width: '2px', height: '6px', background: '#475569' }} />
                              </>
                            )}
                         </div>
 
-                        {/* Dependency Arrow (mocking one for visual) */}
-                        {!t.isParent && t.depth > 0 && idx % 2 === 0 && (
-                           <div style={{ position: 'absolute', left: '-15px', top: '-14px', width: '15px', height: '22px', borderLeft: '1px solid #94a3b8', borderBottom: '1px solid #94a3b8' }}>
-                             <div style={{ position: 'absolute', bottom: '-4px', right: '-4px', width: '0', height: '0', borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '4px solid #94a3b8' }} />
-                           </div>
-                        )}
-
                         {/* Label Next to Bar */}
-                        <div style={{ position: 'absolute', right: '-10px', top: '50%', transform: 'translate(100%, -50%)', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
-                           <span style={{ fontWeight: 600, color: '#333', fontSize: '0.75rem' }}>{t.task_name} {Math.min(100, Math.round((t.actual_hours / (t.plan_hours || 1)) * 100))}%</span>
+                        <div style={{ position: 'absolute', right: '-8px', top: '50%', transform: 'translate(100%, -50%)', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
+                           <span style={{ fontWeight: 600, color: '#334155', fontSize: '0.75rem' }}>
+                             {t.task_name} {Math.min(100, Math.round((t.actual_hours / (t.plan_hours || 1)) * 100))}%
+                           </span>
                         </div>
                       </div>
                     )}
+
+                    {/* ACTUAL PROGRESS BAR (Green) */}
+                    {t.actual_start_date && t.actual_end_date && !t.isParent && (
+                      <div 
+                        style={{ 
+                          position: 'absolute',
+                          ...getPositionStyle(t.actual_start_date, t.actual_end_date),
+                          top: '32px',
+                          height: '8px',
+                          background: '#22c55e', // green-500
+                          borderRadius: '2px',
+                          zIndex: 3
+                        }}
+                        title={`Actuals: ${t.actual_start_date} to ${t.actual_end_date}`}
+                      />
+                    )}
+
                   </div>
                 );
               })}

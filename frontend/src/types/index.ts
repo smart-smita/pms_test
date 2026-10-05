@@ -15,6 +15,8 @@ export interface Employee {
   employee_id: number;
   employee_code: string;
   name: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   role_id: number;
   role_name: RoleName;
@@ -28,6 +30,33 @@ export interface Employee {
   assigned_wbs_name?: string | null;
   hourly_rate: number;
   status: 'active' | 'inactive';
+  department?: string | null;
+  contact_number?: string | null;
+  created_at?: string;
+}
+
+export interface Labour {
+  labour_id: number;
+  name: string;
+  labour_name?: string;
+  labour_code?: string;
+  contact_number: string | null;
+  aadhar_id: string | null;
+  labour_type: 'contractor' | 'direct_labour' | string;
+  labour_type_name?: string;
+  trade?: string;
+  contractor_id?: number | null;
+  contractor_name?: string | null;
+  assigned_project_id?: number | null;
+  assigned_project_name?: string | null;
+  nationality_id?: number | null;
+  nationality_name?: string | null;
+  country_id?: number | null;
+  country_name?: string | null;
+  emreads_id?: string | null;
+  email?: string | null;
+  status?: 'active' | 'inactive';
+  sub_worker_count?: number;
   created_at?: string;
 }
 
@@ -37,14 +66,23 @@ export interface Project {
   project_code: string;
   project_name: string;
   name?: string;
+  project_type_id?: number | null;
+  project_type_name?: string | null;
   project_address?: string;
+  description?: string;
   client_name?: string;
   client_code?: string;
   customer_id?: number | null;
   customer_name?: string | null;
   country_id?: number | null;
   country_name?: string | null;
+  community_name?: string | null;
   budget_amount?: number | null;
+  budget?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  currency_id?: number | null;
+  currency_code?: string | null;
   latitude?: number;
   longitude?: number;
   radius_meters?: number;
@@ -58,9 +96,12 @@ export interface Project {
 
 export interface Task {
   task_id: number;
+  task_code?: string;
   project_id: number;
   wbs_id?: number;
   wbs_name?: string;
+  wbs_code?: string;
+  wbs_type?: 'labour' | 'material' | 'both';
   project_name?: string;
   task_name: string;
   description?: string;
@@ -68,14 +109,25 @@ export interface Task {
   assigned_worker_count?: number;
   is_understaffed?: boolean;
   estimated_hours: number;
+  planned_hours?: number;
   actual_hours?: number;
   start_date?: string;
   start_time?: string;
   target_date?: string;
+  end_date?: string;
   target_time?: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'delayed' | 'on-hold' | 'cancelled';
+  status: 'pending' | 'in-progress' | 'in_progress' | 'completed' | 'delayed' | 'on-hold' | 'cancelled';
   productivity_status?: 'on-time' | 'delayed' | 'extra-hours-logged' | 'exceeding-estimate' | 'completed';
   allocation_status?: string;
+  working_hours?: number;
+  assigned_employee_name?: string;
+  assigned_employee_id?: number;
+  assigned_labour_id?: number;
+  assigned_labour_name?: string;
+  remaining_hours?: number;
+  extra_hours?: number;
+  labour_cost?: number;
+  progress_percentage?: number;
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
   assigned_labours?: { labour_id: number; name: string; labour_type: string }[];
   allocations?: any[];
@@ -114,24 +166,41 @@ export interface WorkBreakdownStructure {
   id: number;
   wbs_code: string;
   wbs_name: string;
+  wbs_type?: 'labour' | 'material' | 'both';
   description?: string;
   status: number;
 }
 
 export type MasterWBS = WorkBreakdownStructure;
+export type Wbs = ProjectWBS;
 
 export interface ProjectWBS {
   id: number;
   project_id: number;
   wbs_id: number;
+  parent_id?: number | null;
+  level?: number;
   wbs_code?: string;
   wbs_name?: string;
+  discipline_name?: string | null;
+  wbs_type?: 'labour' | 'material' | 'both';
+  unit?: string;
+  planned_quantity?: number;
+  rate?: number;
   start_date?: string;
   end_date?: string;
   total_hours?: number;
   actual_start_date?: string;
   actual_end_date?: string;
   actual_hours?: number;
+  budget_amount?: number;
+  planned_cost?: number;
+  planned_labour_cost?: number;
+  planned_material_cost?: number;
+  actual_cost?: number;
+  actual_labour_cost?: number;
+  actual_material_cost?: number;
+  quotation_discipline_id?: number | null;
   note?: string;
   status: number | string;
   completion_percentage?: number;
@@ -277,6 +346,7 @@ export interface Discipline {
 export interface TermsTemplate {
   template_id: number;
   template_name: string;
+  description?: string;
   country_id?: number | null;
   country_name?: string | null;
   project_type_id?: number | null;
@@ -294,7 +364,7 @@ export interface QuotationDiscipline {
   id?: number;
   quotation_id?: number;
   project_id?: number;
-  discipline_id: number;
+  discipline_id?: number | null;
   discipline_code?: string;
   discipline_name: string;
   description?: string;
@@ -304,6 +374,35 @@ export interface QuotationDiscipline {
   amount: number;
   terms_conditions?: string;
   status?: 'active' | 'inactive';
+  wbs_type?: 'labour' | 'material' | 'both';
+  wbs_template_id?: number | null;
+  wbs_id?: number | null;
+  labour_hours?: number;
+  labour_rate?: number;
+  labour_cost?: number;
+  material_quantity?: number;
+  material_rate?: number;
+  material_cost?: number;
+  start_date?: string;
+  end_date?: string;
+}
+
+export interface QuotationTax {
+  id?: number;
+  tax_id: number;
+  tax_name: string;
+  tax_code?: string;
+  tax_type?: string;
+  tax_percentage: number;
+  taxable_amount: number;
+  tax_amount: number;
+}
+
+export interface SelectedTermsTemplate {
+  id?: number;
+  template_id: number;
+  template_name: string;
+  sort_order?: number;
 }
 
 export interface Quotation {
@@ -311,10 +410,18 @@ export interface Quotation {
   quotation_code: string;
   customer_id: number;
   customer_name?: string;
-  project_id: number;
+  project_id?: number | null;
   project_name?: string;
+  new_project_name?: string | null;
+  project_type_id?: number | null;
+  currency_id?: number | null;
+  currency_code?: string;
+  currency_symbol?: string;
+  exchange_rate?: number;
   quotation_date: string;
   validity_date?: string;
+  start_date?: string;
+  end_date?: string;
   description?: string;
   subtotal_amount: number;
   tax_id?: number | null;
@@ -327,7 +434,18 @@ export interface Quotation {
   discount_amount: number;
   total_amount: number;
   terms_conditions?: string;
-  terms_snapshots?: Array<{ title: string; description?: string; sort_order?: number }>;
+  terms_snapshots?: Array<{
+    snapshot_id?: number;
+    template_id?: number | null;
+    template_name?: string | null;
+    title: string;
+    description?: string;
+    terms_content?: string;
+    sort_order?: number;
+    is_mandatory?: boolean | number;
+  }>;
+  selected_templates?: SelectedTermsTemplate[];
+  taxes?: QuotationTax[];
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'revised';
   revision_number: number;
   created_by?: number;
@@ -547,4 +665,86 @@ export interface SiteSurvey {
 
 
 
+export interface ProjectMaterial {
+  id: number;
+  project_id: number;
+  wbs_id: number;
+  wbs_name?: string;
+  project_name?: string;
+  material_id?: number | null;
+  material_code?: string;
+  material_name: string;
+  unit: string;
+  unit_rate: number;
+  planned_quantity: number;
+  received_quantity: number;
+  used_quantity: number;
+  remaining_quantity: number;
+  extra_quantity: number;
+  planned_cost: number;
+  actual_cost: number;
+  remaining_cost: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectMaterialLog {
+  id?: number;
+  log_id: number;
+  project_material_id: number;
+  project_id: number;
+  wbs_id: number;
+  material_id?: number | null;
+  action_type: 'received' | 'used';
+  quantity: number;
+  unit_rate: number;
+  unit_cost?: number;
+  cost: number;
+  total_cost?: number;
+  log_date: string;
+  challan_or_invoice_no?: string;
+  notes?: string;
+  created_at?: string;
+}
+
+export interface WbsTemplateProjectType {
+  id?: number;
+  template_id?: number;
+  project_type_id: number;
+  project_type_name?: string;
+  project_type_code?: string;
+  sort_order?: number;
+  wbs_count?: number;
+}
+
+export interface WbsTemplateDetail {
+  id: number | string;
+  template_id?: number;
+  project_type_id: number;
+  project_type_name?: string;
+  parent_id: number | string | null;
+  wbs_id?: number | null;
+  wbs_code?: string;
+  wbs_name: string;
+  description?: string;
+  sort_order: number;
+  children?: WbsTemplateDetail[];
+}
+
+export interface WbsTemplate {
+  id: number;
+  template_code: string;
+  template_name: string;
+  description?: string;
+  status: number;
+  created_by?: number;
+  created_at?: string;
+  updated_at?: string;
+  detail_count?: number;
+  project_type_count?: number;
+  project_type_names?: string;
+  project_types?: WbsTemplateProjectType[];
+  details?: WbsTemplateDetail[];
+}
 

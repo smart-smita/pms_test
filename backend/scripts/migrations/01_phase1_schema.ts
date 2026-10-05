@@ -200,11 +200,11 @@ export async function up(db: PoolConnection) {
   ];
   for (const slab of gstSlabs) {
     await db.query(
-      `INSERT INTO taxes (tax_percentage, tax_name, tax_type, country_name, is_split, cgst_percentage, sgst_percentage)
-       SELECT ?, ?, ?, ?, 1, ?/2, ?/2 
+      `INSERT INTO taxes (tax_percentage, tax_name, tax_type, is_split, cgst_percentage, sgst_percentage)
+       SELECT ?, ?, ?, 1, ?/2, ?/2 
        FROM DUAL 
        WHERE NOT EXISTS (SELECT 1 FROM taxes WHERE tax_percentage = ? AND tax_name = ?)`,
-      [slab[0], slab[1], slab[2], slab[3], slab[0], slab[0], slab[0], slab[1]]
+      [slab[0], slab[1], slab[2], slab[0], slab[0], slab[0], slab[1]]
     );
   }
 

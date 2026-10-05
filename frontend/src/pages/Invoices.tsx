@@ -12,7 +12,7 @@ import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 
-export const Invoices: React.FC = () => {
+export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const { user } = useAuth();
   const isAdminOrManager = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
 
@@ -33,8 +33,14 @@ export const Invoices: React.FC = () => {
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ? String(projectId) : '');
   const [invoiceCountryId, setInvoiceCountryId] = useState<string>('');
+
+  useEffect(() => {
+    if (projectId) {
+      setSelectedProjectId(String(projectId));
+    }
+  }, [projectId]);
 
   // Invoice Modal State
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);

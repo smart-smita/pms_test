@@ -163,6 +163,7 @@ export interface WorkBreakdownStructureRow {
   id: number;
   wbs_code: string;
   wbs_name: string;
+  wbs_type?: 'labour' | 'material';
   description?: string;
   status: number;
   created_at?: Date;
@@ -175,6 +176,10 @@ export interface ProjectWBSRow {
   wbs_id: number;
   wbs_code?: string;
   wbs_name?: string;
+  wbs_type?: 'labour' | 'material';
+  unit?: string;
+  planned_quantity?: number;
+  rate?: number;
   start_date?: string;
   end_date?: string;
   actual_start_date?: string;
@@ -185,9 +190,52 @@ export interface ProjectWBSRow {
   completion_percentage?: number;
   variance?: number;
   budget_amount?: number;
+  planned_labour_cost?: number;
+  planned_material_cost?: number;
+  planned_other_cost?: number;
+  quotation_discipline_id?: number | null;
   actual_cost?: number;
   note?: string;
   status: number | string;
   created_at?: Date;
   updated_at?: Date;
 }
+
+export interface ProjectMaterialRow {
+  id: number;
+  project_id: number;
+  wbs_id: number;
+  wbs_name?: string;
+  project_name?: string;
+  material_id?: number | null;
+  material_name: string;
+  unit: string;
+  unit_rate: number;
+  planned_quantity: number;
+  received_quantity: number;
+  used_quantity: number;
+  remaining_quantity: number;
+  extra_quantity: number;
+  planned_cost: number;
+  actual_cost: number;
+  remaining_cost: number;
+  notes?: string;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface ProjectMaterialLogRow {
+  log_id: number;
+  project_material_id: number;
+  project_id: number;
+  wbs_id: number;
+  material_id?: number | null;
+  action_type: 'received' | 'used';
+  quantity: number;
+  unit_rate: number;
+  cost: number;
+  log_date: string;
+  notes?: string;
+  created_at?: Date;
+}
+

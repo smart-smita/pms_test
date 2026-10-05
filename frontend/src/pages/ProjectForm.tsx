@@ -1,500 +1,1127 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../components/common/Button';
+import { FormPageLayout } from '../components/layout/FormPageLayout';
+import { Badge } from '../components/common/Badge';
+import { Modal } from '../components/common/Modal';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
-import { ArrowLeft, MapPin, Plus, Trash2, Save } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import { SearchableSelect, SearchableOption } from '../components/common/SearchableSelect';
+import {
+  ArrowLeft, MapPin, Plus, Trash2, Save, HardHat, Package, Layers,
+  FileText, Paperclip, Upload, Eye, Download, Check, X, Sparkles,
+  Calendar, CheckCircle2, AlertCircle, Building2, FolderKanban, DollarSign
+} from 'lucide-react';
 import { apiRequest, parseApiErrors } from '../services/api';
-import { Project } from '../types';
-import { showSuccess, showError } from '../utils/toast';
+import { Project, Customer, ProjectType, EntityDocument } from '../types';
+import { showSuccess, showError, showWarning } from '../utils/toast';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
-// Fix for default Leaflet icon missing in React
-const defaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
-});
-
-function LocationMarker({ position, setPosition }: { position: {lat: number, lng: number}, setPosition: (p: any) => void }) {
-  const map = useMapEvents({
-    click(e) {
-      setPosition(e.latlng);
-      map.flyTo(e.latlng, map.getZoom());
-    },
-  });
-
-  return position === null ? null : (
-    <Marker position={position} icon={defaultIcon} />
-  );
-}
-
 interface ProjectFormProps {
   projectId?: number;
-  onBack: () => void;
+  onBack?: () => void;
+  isWorkspace?: boolean;
 }
 
-export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack }) => {
-  // Safe date parser
+interface ProjectWbsAllocation {
+  id: string | number;
+  wbs_id?: number | null;
+  wbs_code?: string;
+  wbs_name: string;
+  wbs_type: 'labour' | 'material' | 'both';
+  unit: string;
+  planned_quantity: number;
+  rate: number;
+  budget_amount: number;
+  total_hours: number;
+  planned_labour_cost: number;
+  planned_material_cost: number;
+  start_date: string;
+  end_date: string;
+  is_custom?: boolean; // clearly marks custom project-added WBS
+}
+
+export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isWorkspace }) => {
   const getFormattedDate = (d?: string) => {
     if (!d) return new Date().toISOString().split('T')[0];
-    return d.split('T')[0].split(' ')[0]; // Handles both ISO and SQL date strings
+    return d.split('T')[0].split(' ')[0];
   };
 
   const [isLoadingProject, setIsLoadingProject] = useState(!!projectId);
   const [project, setProject] = useState<Project | null>(null);
 
-  // Main Form State
+  // Active Tab: 'details' | 'wbs' | 'documents'
+  const [activeTab, setActiveTab] = useState<'details' | 'wbs' | 'documents'>('details');
+
+  // Core Form Fields
   const [projectCode, setProjectCode] = useState(`PRJ-${new Date().getFullYear()}-${Math.floor(10 + Math.random() * 90)}`);
   const [projectName, setProjectName] = useState('');
   const [customerId, setCustomerId] = useState('');
+  const [sourceQuotationId, setSourceQuotationId] = useState('');
+  const [quotationReference, setQuotationReference] = useState('');
   const [projectTypeId, setProjectTypeId] = useState('');
-  const [countryId, setCountryId] = useState('');
-  const [communityId, setCommunityId] = useState('');
+  const [currencyId, setCurrencyId] = useState('1');
   const [budgetAmount, setBudgetAmount] = useState<string>('0');
-  const [projectAddress, setProjectAddress] = useState('');
-  const [radiusMeters, setRadiusMeters] = useState<number>(500);
-  const [projectDate, setProjectDate] = useState(getFormattedDate());
-  const [clientCode, setClientCode] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [note, setNote] = useState('');
+  const [startDate, setStartDate] = useState(getFormattedDate());
+  const [endDate, setEndDate] = useState('');
   const [status, setStatus] = useState('active');
+  const [projectAddress, setProjectAddress] = useState('');
+  const [note, setNote] = useState('');
 
   // Master lists
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [projectTypes, setProjectTypes] = useState<any[]>([]);
-  const [countries, setCountries] = useState<any[]>([]);
-  const [communities, setCommunities] = useState<any[]>([]);
-  const [nationalities, setNationalities] = useState<any[]>([]);
-
-  // Map / Location State
-  const [latitude, setLatitude] = useState<string>('18.5204');
-  const [longitude, setLongitude] = useState<string>('73.8567');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [quotations, setQuotations] = useState<any[]>([]);
+  const [projectTypes, setProjectTypes] = useState<ProjectType[]>([]);
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [wbsTemplates, setWbsTemplates] = useState<any[]>([]);
+  const [selectedWbsTemplateIds, setSelectedWbsTemplateIds] = useState<number[]>([]);
 
   // WBS Allocations State
-  const [wbsAllocations, setWbsAllocations] = useState<any[]>([]);
-  const [wbsName, setWbsName] = useState('');
-  const [wbsStart, setWbsStart] = useState('');
-  const [wbsEnd, setWbsEnd] = useState('');
-  const [wbsHours, setWbsHours] = useState('');
-  const [masterWbsList, setMasterWbsList] = useState<any[]>([]);
+  const [wbsAllocations, setWbsAllocations] = useState<ProjectWbsAllocation[]>([]);
+  const [isWbsModalOpen, setIsWbsModalOpen] = useState(false);
+  const [editingWbsItem, setEditingWbsItem] = useState<ProjectWbsAllocation | null>(null);
 
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [wbsErrors, setWbsErrors] = useState<Record<string, string>>({});
+  // Project Documents State
+  const [documents, setDocuments] = useState<EntityDocument[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [isDocUploadModalOpen, setIsDocUploadModalOpen] = useState(false);
+  const [uploadDocName, setUploadDocName] = useState('');
+  const [uploadDocType, setUploadDocType] = useState('291'); // Default to 291 (Other Document) which has no expiry
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+
+  // Quick Customer Modal
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [quickCustName, setQuickCustName] = useState('');
+  const [quickCustContact, setQuickCustContact] = useState('');
+  const [quickCustPhone, setQuickCustPhone] = useState('');
+  const [quickCustEmail, setQuickCustEmail] = useState('');
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+
+  // Submit State
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // WBS Delete State
-  const [isWbsDeleteModalOpen, setIsWbsDeleteModalOpen] = useState(false);
-  const [deletingWbsIndex, setDeletingWbsIndex] = useState<number | null>(null);
+  // Selected Currency Details
+  const selectedCurrency = useMemo(() => {
+    return currencies.find((c) => String(c.currency_id) === currencyId) || {
+      currency_id: 1,
+      currency_code: 'INR',
+      symbol: '₹',
+    };
+  }, [currencies, currencyId]);
 
-  // Fetch existing project data, WBS allocations and master list
-  React.useEffect(() => {
+  // Available WBS Templates for selected Project Type
+  const availableWbsTemplates = useMemo(() => {
+    if (!projectTypeId) return wbsTemplates;
+    const ptId = Number(projectTypeId);
+    return wbsTemplates.filter((t) => {
+      if (t.project_type_ids && Array.isArray(t.project_type_ids)) {
+        return t.project_type_ids.includes(ptId);
+      }
+      return true;
+    });
+  }, [wbsTemplates, projectTypeId]);
+
+  // Load Masters & Project Data
+  useEffect(() => {
     Promise.all([
-      apiRequest<any[]>('/wbs'),
-      apiRequest<any[]>('/customers'),
-      apiRequest<any[]>('/masters/project-types'),
-      apiRequest<any[]>('/masters/countries'),
-      apiRequest<any[]>('/masters/communities'),
-      apiRequest<any[]>('/masters/nationalities'),
-    ]).then(([wRes, cRes, ptRes, coRes, cmRes, nRes]) => {
-      if (wRes.success && wRes.data) setMasterWbsList(wRes.data);
+      apiRequest<Customer[]>('/customers'),
+      apiRequest<any[]>('/quotations'),
+      apiRequest<ProjectType[]>('/masters/project-types'),
+      apiRequest<any[]>('/masters/currencies?all=true'),
+      apiRequest<any[]>('/wbs-templates'),
+    ]).then(([cRes, qRes, ptRes, curRes, wtRes]) => {
       if (cRes.success && cRes.data) setCustomers(cRes.data);
+      if (qRes.success && qRes.data) setQuotations(qRes.data);
       if (ptRes.success && ptRes.data) setProjectTypes(ptRes.data);
-      if (coRes.success && coRes.data) setCountries(coRes.data);
-      if (cmRes.success && cmRes.data) setCommunities(cmRes.data);
-      if (nRes.success && nRes.data) setNationalities(nRes.data);
+      if (curRes.success && curRes.data) setCurrencies(curRes.data);
+      if (wtRes.success && wtRes.data) setWbsTemplates(wtRes.data);
     });
 
     if (projectId) {
       setIsLoadingProject(true);
-      // Fetch project details
-      apiRequest<Project & any>(`/projects/${projectId}`).then(res => {
+      // Fetch Project Details
+      apiRequest<Project & any>(`/projects/${projectId}`).then((res) => {
         if (res.success && res.data) {
           const p = res.data;
           setProject(p);
-          setProjectCode(p.project_code);
-          setProjectName(p.project_name);
+          setProjectCode(p.project_code || '');
+          setProjectName(p.project_name || '');
           setCustomerId(p.customer_id ? String(p.customer_id) : '');
+          if (p.source_quotation_id) setSourceQuotationId(String(p.source_quotation_id));
+          if (p.quotation_reference) setQuotationReference(p.quotation_reference);
           setProjectTypeId(p.project_type_id ? String(p.project_type_id) : '');
-          setCountryId(p.country_id ? String(p.country_id) : '');
-          setCommunityId(p.community_id ? String(p.community_id) : '');
+          setCurrencyId(p.currency_id ? String(p.currency_id) : '1');
           setBudgetAmount(p.budget_amount ? String(p.budget_amount) : '0');
-          setProjectAddress(p.project_address || '');
-          setRadiusMeters(p.radius_meters || 500);
-          setProjectDate(getFormattedDate(p.project_date));
-          setClientCode(p.client_code || '');
-          setClientName(p.client_name || '');
-          setNote(p.note || '');
           setStatus(p.status || 'active');
-          if (p.latitude) setLatitude(String(p.latitude));
-          if (p.longitude) setLongitude(String(p.longitude));
+          if (p.start_date) setStartDate(p.start_date.split('T')[0]);
+          if (p.end_date) setEndDate(p.end_date.split('T')[0]);
+          setProjectAddress(p.project_address || '');
+          setNote(p.note || '');
         }
       });
 
-
-      // Fetch WBS allocations
-      apiRequest<any[]>(`/projects/${projectId}/wbs`).then(res => {
+      // Fetch Project WBS Allocations
+      apiRequest<any[]>(`/projects/${projectId}/wbs`).then((res) => {
         if (res.success && res.data) {
-          setWbsAllocations(res.data.map(w => ({
-            id: w.id,
-            wbs_id: w.wbs_id,
-            wbs_code: w.wbs_code,
-            wbs_name: w.wbs_name,
-            start_date: w.start_date ? w.start_date.split('T')[0] : '',
-            end_date: w.end_date ? w.end_date.split('T')[0] : '',
-            total_hours: w.total_hours || 0
-          })));
+          setWbsAllocations(
+            res.data.map((w) => ({
+              id: w.id,
+              wbs_id: w.wbs_id,
+              wbs_code: w.wbs_code,
+              wbs_name: w.wbs_name || 'WBS Task',
+              wbs_type: w.wbs_type || 'both',
+              unit: w.unit || 'hours',
+              planned_quantity: Number(w.planned_quantity || 1),
+              rate: Number(w.rate || 0),
+              budget_amount: Number(w.budget_amount || 0),
+              total_hours: Number(w.total_hours || 0),
+              planned_labour_cost: Number(w.planned_labour_cost || 0),
+              planned_material_cost: Number(w.planned_material_cost || 0),
+              start_date: w.start_date ? w.start_date.split('T')[0] : '',
+              end_date: w.end_date ? w.end_date.split('T')[0] : '',
+              is_custom: !w.wbs_template_id && !w.quotation_discipline_id,
+            }))
+          );
         }
         setIsLoadingProject(false);
       });
+
+      // Fetch Project Documents
+      fetchProjectDocuments();
     }
   }, [projectId]);
 
-  const handleAddWbs = () => {
-    let hasWbsErrors = false;
-    const newWbsErrors: Record<string, string> = {};
-    if (!wbsName) { newWbsErrors.wbsName = 'WBS Name is required.'; hasWbsErrors = true; }
-    if (!wbsStart) { newWbsErrors.wbsStart = 'Start Date is required.'; hasWbsErrors = true; }
-    if (!wbsEnd) { newWbsErrors.wbsEnd = 'End Date is required.'; hasWbsErrors = true; }
-    if (wbsStart && wbsEnd && wbsEnd < wbsStart) { newWbsErrors.wbsEnd = 'End Date cannot be before Start Date.'; hasWbsErrors = true; }
-    if (!wbsHours) { newWbsErrors.wbsHours = 'Total Hours is required.'; hasWbsErrors = true; }
-    else if (parseFloat(wbsHours) <= 0) { newWbsErrors.wbsHours = 'Total Hours must be greater than 0.'; hasWbsErrors = true; }
+  const fetchProjectDocuments = async () => {
+    if (!projectId) return;
+    setIsLoadingDocs(true);
+    const res = await apiRequest<EntityDocument[]>(`/documents?entity_type=project&entity_id=${projectId}`);
+    if (res.success && res.data) setDocuments(res.data);
+    setIsLoadingDocs(false);
+  };
 
-    if (hasWbsErrors) {
-      setWbsErrors(newWbsErrors);
+  // Pre-populate when user selects a Source Quotation (if creating new project manually from a quotation)
+  const handleSelectQuotation = async (qId: string) => {
+    setSourceQuotationId(qId);
+    if (!qId) return;
+
+    try {
+      const res = await apiRequest<any>(`/quotations/${qId}`);
+      if (res.success && res.data) {
+        const q = res.data;
+        if (q.customer_id) setCustomerId(String(q.customer_id));
+        if (q.project_type_id) setProjectTypeId(String(q.project_type_id));
+        if (q.currency_id) setCurrencyId(String(q.currency_id));
+        if (!projectName) setProjectName(q.new_project_name || `${q.customer_name || 'Client'} Project`);
+        if (q.total_amount) setBudgetAmount(String(q.total_amount));
+        if (q.quotation_code) setQuotationReference(q.quotation_code);
+        if (q.start_date) setStartDate(q.start_date.split('T')[0]);
+        if (q.end_date) setEndDate(q.end_date.split('T')[0]);
+
+        // Automatically import quotation WBS allocations
+        if (q.disciplines && q.disciplines.length > 0) {
+          const importedWbs: ProjectWbsAllocation[] = q.disciplines.map((d: any, idx: number) => {
+            const isMat = d.wbs_type === 'material';
+            const isBoth = d.wbs_type === 'both';
+            const wbsType = isBoth ? 'both' : isMat ? 'material' : 'labour';
+            const qty = Number(d.quantity || 1);
+            const rate = Number(d.rate || 0);
+            const amt = Number(d.amount || qty * rate);
+
+            return {
+              id: `quo-wbs-${idx}-${Date.now()}`,
+              wbs_id: d.wbs_id || d.discipline_id || null,
+              wbs_code: d.wbs_code || `WBS-${idx + 1}`,
+              wbs_name: d.discipline_name || `Task ${idx + 1}`,
+              wbs_type: wbsType,
+              unit: d.unit || (isMat ? 'nos' : 'hours'),
+              planned_quantity: qty,
+              rate: rate,
+              budget_amount: amt,
+              total_hours: isMat ? 0 : Number(d.labour_hours || qty),
+              planned_labour_cost: isMat ? 0 : Number(d.labour_cost || amt),
+              planned_material_cost: isMat ? amt : Number(d.material_cost || 0),
+              start_date: d.start_date ? d.start_date.split('T')[0] : q.start_date ? q.start_date.split('T')[0] : '',
+              end_date: d.end_date ? d.end_date.split('T')[0] : q.end_date ? q.end_date.split('T')[0] : '',
+              is_custom: false,
+            };
+          });
+
+          setWbsAllocations(importedWbs);
+          showSuccess(`Imported ${importedWbs.length} WBS items from Quotation ${q.quotation_code}`);
+        }
+      }
+    } catch (err: any) {
+      showError('Failed to import quotation: ' + err.message);
+    }
+  };
+
+  // Quick Customer Creation
+  const handleQuickCustomerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickCustName.trim()) {
+      showError('Customer name is required');
       return;
     }
 
-    // Find if it matches a master WBS (to get wbs_id)
-    const master = masterWbsList.find(m => m.wbs_name.toLowerCase() === wbsName.toLowerCase() || m.wbs_code === wbsName);
-    const wbsId = master ? master.id : undefined;
-    const finalName = master ? master.wbs_name : wbsName;
-    const finalCode = master ? master.wbs_code : '-';
+    setIsSavingCustomer(true);
+    const res = await apiRequest<Customer>('/customers', {
+      method: 'POST',
+      body: JSON.stringify({
+        customer_name: quickCustName.trim(),
+        customer_code: `CUST-${Date.now().toString().slice(-4)}`,
+        contact_person: quickCustContact,
+        contact_number: quickCustPhone,
+        email: quickCustEmail,
+      }),
+    });
+    setIsSavingCustomer(false);
 
-    setWbsAllocations([...wbsAllocations, {
-      id: Date.now(),
-      wbs_id: wbsId,
-      wbs_name: finalName,
-      wbs_code: finalCode,
-      start_date: wbsStart,
-      end_date: wbsEnd,
-      total_hours: parseFloat(wbsHours) || 0
-    }]);
-    setWbsName('');
-    setWbsStart('');
-    setWbsEnd('');
-    setWbsHours('');
-    setWbsErrors({});
-    showSuccess('WBS added successfully.');
-  };
-
-  const handleRemoveWbs = (id: number) => {
-    // If it's an existing allocation (id is a small integer, not Date.now())
-    if (projectId && id < 1000000000000) {
-      setDeletingWbsIndex(id);
-      setIsWbsDeleteModalOpen(true);
+    if (res.success && res.data) {
+      const newCust = res.data;
+      showSuccess(`Customer "${newCust.customer_name}" created`);
+      setCustomers((prev) => [newCust, ...prev]);
+      setCustomerId(String(newCust.customer_id));
+      setIsCustomerModalOpen(false);
+      setQuickCustName('');
+      setQuickCustContact('');
+      setQuickCustPhone('');
+      setQuickCustEmail('');
     } else {
-      setWbsAllocations(wbsAllocations.filter((d: any) => d.id !== id));
-      showSuccess('WBS removed successfully.');
+      showError(res.message || 'Failed to create customer');
     }
   };
 
-  const confirmDeleteWbs = () => {
-    if (deletingWbsIndex !== null) {
-      setWbsAllocations(wbsAllocations.filter((d: any) => d.id !== deletingWbsIndex));
-      setIsWbsDeleteModalOpen(false);
-      setDeletingWbsIndex(null);
-      showSuccess('WBS allocation removed. Save project to apply changes.');
+  // Multi-WBS Template Import into Project
+  const handleToggleWbsTemplate = async (templateId: number) => {
+    const isSelected = selectedWbsTemplateIds.includes(templateId);
+    const newSelected = isSelected
+      ? selectedWbsTemplateIds.filter((id) => id !== templateId)
+      : [...selectedWbsTemplateIds, templateId];
+
+    setSelectedWbsTemplateIds(newSelected);
+
+    if (!isSelected) {
+      try {
+        const ptId = projectTypeId ? Number(projectTypeId) : 0;
+        const endpoint = ptId
+          ? `/wbs-templates/${templateId}/project-types/${ptId}/wbs`
+          : `/wbs-templates/${templateId}`;
+
+        const res = await apiRequest<any>(endpoint);
+        if (res.success && res.data) {
+          const tmpl = wbsTemplates.find((t) => t.template_id === templateId);
+          const detailsList = Array.isArray(res.data) ? res.data : res.data.details || [];
+
+          const newItems: ProjectWbsAllocation[] = detailsList.map((d: any, idx: number) => ({
+            id: `tmpl-${templateId}-${idx}-${Date.now()}`,
+            wbs_id: d.wbs_id || null,
+            wbs_code: d.wbs_code || `WBS-${idx + 1}`,
+            wbs_name: d.wbs_name || d.task_name || d.name || `Task ${idx + 1}`,
+            wbs_type: 'both',
+            unit: 'hours',
+            planned_quantity: 1,
+            rate: 0,
+            budget_amount: 0,
+            total_hours: 8,
+            planned_labour_cost: 0,
+            planned_material_cost: 0,
+            start_date: startDate || '',
+            end_date: endDate || '',
+            is_custom: false,
+          }));
+
+          setWbsAllocations((prev) => [...prev, ...newItems]);
+          showSuccess(`Imported ${newItems.length} WBS tasks from "${tmpl?.template_name || 'Template'}"`);
+        }
+      } catch (err: any) {
+        showError('Could not import template: ' + err.message);
+      }
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Add Custom Project WBS
+  const handleAddCustomWbs = () => {
+    const newItem: ProjectWbsAllocation = {
+      id: `custom-proj-wbs-${Date.now()}`,
+      wbs_name: '',
+      wbs_type: 'both',
+      unit: 'hours',
+      planned_quantity: 1,
+      rate: 0,
+      budget_amount: 0,
+      total_hours: 8,
+      planned_labour_cost: 0,
+      planned_material_cost: 0,
+      start_date: startDate || '',
+      end_date: endDate || '',
+      is_custom: true,
+    };
+    setWbsAllocations((prev) => [...prev, newItem]);
+  };
+
+  const handleRemoveWbs = (id: string | number) => {
+    setWbsAllocations((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  const handleUpdateWbs = (id: string | number, updates: Partial<ProjectWbsAllocation>) => {
+    setWbsAllocations((prev) =>
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        const updated = { ...w, ...updates };
+
+        // Auto-calculate budget amount
+        if (updates.planned_labour_cost !== undefined || updates.planned_material_cost !== undefined) {
+          updated.budget_amount = (updated.planned_labour_cost || 0) + (updated.planned_material_cost || 0);
+        } else if (updates.planned_quantity !== undefined || updates.rate !== undefined) {
+          updated.budget_amount = (updated.planned_quantity || 0) * (updated.rate || 0);
+        }
+
+        return updated;
+      })
+    );
+  };
+
+  // Document Upload
+  const handleUploadDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormErrors({});
-    setIsSubmitting(true);
+    if (!projectId) {
+      showWarning('Please save the project first before uploading documents.');
+      return;
+    }
+    if (!uploadDocName.trim() || !uploadFile) {
+      showError('Document name and file are required');
+      return;
+    }
 
-    const payload: any = {
-      project_name: projectName,
-      customer_id: customerId ? parseInt(customerId, 10) : undefined,
-      project_type_id: projectTypeId ? parseInt(projectTypeId, 10) : undefined,
-      country_id: countryId ? parseInt(countryId, 10) : undefined,
-      budget_amount: budgetAmount ? parseFloat(budgetAmount) : 0,
-      project_address: projectAddress,
-      client_name: clientName,
-      client_code: clientCode,
-      latitude: latitude ? parseFloat(latitude) : undefined,
-      longitude: longitude ? parseFloat(longitude) : undefined,
-      radius_meters: radiusMeters,
-      project_date: projectDate,
+    setIsUploadingDoc(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const res = await apiRequest<EntityDocument>('/documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity_type: 'project',
+          entity_id: projectId,
+          doc_type_id: Number(uploadDocType),
+          document_name: uploadDocName.trim(),
+          file_base64: base64,
+          file_name: uploadFile.name,
+        }),
+      });
+
+      setIsUploadingDoc(false);
+      if (res.success) {
+        showSuccess('Document uploaded successfully');
+        setIsDocUploadModalOpen(false);
+        setUploadDocName('');
+        setUploadFile(null);
+        fetchProjectDocuments();
+      } else {
+        showError(res.message || 'Upload failed');
+      }
+    };
+    reader.readAsDataURL(uploadFile);
+  };
+
+  const handleDeleteDocument = async (docId: number) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    const res = await apiRequest(`/documents/${docId}`, { method: 'DELETE' });
+    if (res.success) {
+      showSuccess('Document deleted');
+      fetchProjectDocuments();
+    } else {
+      showError(res.message || 'Delete failed');
+    }
+  };
+
+  // Main Submit (Create or Update Project)
+  const handleSubmitProject = async (e?: React.FormEvent | React.MouseEvent) => {
+    e?.preventDefault?.();
+    if (!projectName.trim()) {
+      showError('Project Name is required');
+      return;
+    }
+    if (!customerId) {
+      showError('Customer is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const payload = {
+      project_code: projectCode,
+      project_name: projectName.trim(),
+      customer_id: Number(customerId),
+      source_quotation_id: sourceQuotationId ? Number(sourceQuotationId) : null,
+      quotation_reference: quotationReference || null,
+      project_type_id: projectTypeId ? Number(projectTypeId) : null,
+      currency_id: Number(currencyId || 1),
+      budget_amount: parseFloat(budgetAmount) || 0,
       status,
-      note,
-      wbs_allocations: wbsAllocations.length > 0 ? wbsAllocations.map((w: any) => ({ ...w, total_hours: parseFloat(w.total_hours) || 0 })) : undefined
+      start_date: startDate || null,
+      end_date: endDate || null,
+      project_address: projectAddress || null,
+      note: note || null,
+      wbs_allocations: wbsAllocations.map((w) => ({
+        id: typeof w.id === 'number' ? w.id : undefined,
+        wbs_id: w.wbs_id || null,
+        wbs_code: w.wbs_code || null,
+        wbs_name: w.wbs_name,
+        wbs_type: w.wbs_type,
+        unit: w.unit,
+        planned_quantity: w.planned_quantity,
+        rate: w.rate,
+        budget_amount: w.budget_amount,
+        total_hours: w.total_hours,
+        planned_labour_cost: w.planned_labour_cost,
+        planned_material_cost: w.planned_material_cost,
+        start_date: w.start_date || null,
+        end_date: w.end_date || null,
+        is_custom: w.is_custom ? 1 : 0,
+      })),
     };
 
-    if (projectId) {
-      const res = await apiRequest(`/projects/${projectId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      if (res.success) {
-        showSuccess('Project updated successfully.');
-        onBack();
+    try {
+      let res;
+      if (projectId) {
+        res = await apiRequest(`/projects/${projectId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
       } else {
-        if (res.errors && res.errors.length > 0) {
-          setFormErrors(parseApiErrors(res.errors));
-        }
-        showError(res.message || 'Failed to update project.');
+        res = await apiRequest('/projects', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
       }
-    } else {
-      payload.project_code = projectCode;
-      const res = await apiRequest('/projects', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+
       if (res.success) {
-        showSuccess('Project created successfully.');
-        onBack();
+        showSuccess(`Project ${projectId ? 'updated' : 'created'} successfully!`);
+        if (onBack) onBack();
       } else {
-        if (res.errors && res.errors.length > 0) {
-          setFormErrors(parseApiErrors(res.errors));
-        }
-        showError(res.message || 'Failed to create project.');
+        showError(res.message || 'Failed to save project');
       }
+    } catch (err: any) {
+      showError(err.message || 'Network error occurred');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
+
+  const customerOptions: SearchableOption[] = customers.map((c) => ({
+    value: c.customer_id,
+    label: c.customer_name,
+    code: c.customer_code,
+    subLabel: c.contact_number || c.email || '',
+  }));
 
   if (isLoadingProject) {
     return (
-      <div style={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ padding: '4rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
         <LoadingSpinner />
+        <span style={{ color: 'var(--text-secondary)' }}>Loading project details...</span>
       </div>
     );
   }
 
   return (
-    <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
-      <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-        <div>
-          <h1 className="page-title">{projectId ? 'Master / Edit Project' : 'Master / Add Project'}</h1>
-          <p className="page-subtitle">Configure project details, customer linking, location boundaries, and task disciplines</p>
+    <FormPageLayout
+      title={projectId ? `Project: ${projectName || projectCode}` : 'New Project'}
+      subtitle="Manage project execution, WBS hierarchy, optional labour & materials, and project documents"
+      onBack={onBack}
+      onSave={handleSubmitProject}
+      isSaving={isSubmitting}
+      saveLabel="Save Project"
+    >
+
+      {/* Linked Quotation Banner */}
+      {(sourceQuotationId || quotationReference) && (
+        <div
+          style={{
+            background: 'rgba(16,185,129,0.1)',
+            border: '1px solid rgba(16,185,129,0.3)',
+            padding: '0.75rem 1.25rem',
+            borderRadius: '8px',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Sparkles size={18} color="#10b981" />
+            <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#10b981' }}>
+              Linked to Approved Quotation {quotationReference ? `(${quotationReference})` : `(#${sourceQuotationId})`}
+            </span>
+          </div>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            Quotation details, WBS trees, and documents have been imported automatically.
+          </span>
         </div>
-        <button onClick={onBack} style={{ background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem 1rem', borderRadius: '8px', gap: '0.5rem', border: '1px solid var(--border-color)' }} className="hover-bg">
-          <ArrowLeft size={18} /> Back
-        </button>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+        {[
+          { key: 'details', label: '1. Project Details', icon: FolderKanban },
+          { key: 'wbs', label: `2. WBS & Tasks (${wbsAllocations.length})`, icon: Layers },
+          { key: 'documents', label: `3. Project Documents (${documents.length})`, icon: Paperclip },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key as any)}
+              style={{
+                padding: '0.65rem 1.2rem',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: isActive ? '2px solid #6366f1' : '2px solid transparent',
+                color: isActive ? '#6366f1' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+              }}
+            >
+              <Icon size={16} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      <form noValidate onSubmit={handleSubmit} className="grid-auto" style={{ alignItems: 'start' }}>
-        
-        {/* LEFT COLUMN: Project Form */}
-        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.5rem' }}>Project Details</h3>
-          
-          <FormInput label="Project Code" type="text" value={projectCode} onChange={e => { setProjectCode(e.target.value); setFormErrors(prev => ({...prev, project_code: ''})); }} required disabled={!!project} error={formErrors.project_code} />
-          <FormInput label="Project Name" type="text" value={projectName} onChange={e => { setProjectName(e.target.value); setFormErrors(prev => ({...prev, project_name: ''})); }} required error={formErrors.project_name} />
-          
-          {/* Customer & Project Type Dropdowns */}
-          <div className="grid-2-col">
-            <FormSelect
-              label="Customer / Client"
-              value={customerId}
-              onChange={(e) => {
-                const cId = e.target.value;
-                setCustomerId(cId);
-                const selectedCust = customers.find(c => String(c.customer_id) === cId);
-                if (selectedCust) {
-                  setClientName(selectedCust.customer_name);
-                  setClientCode(selectedCust.customer_code);
-                  if (selectedCust.country_id) setCountryId(String(selectedCust.country_id));
-                }
-              }}
-              options={[
-                { value: '', label: '-- Select Customer --' },
-                ...customers.map(c => ({ value: String(c.customer_id), label: `${c.customer_name} (${c.customer_code})` }))
-              ]}
-            />
-            <FormSelect
-              label="Project Type"
-              value={projectTypeId}
-              onChange={(e) => setProjectTypeId(e.target.value)}
-              options={[
-                { value: '', label: '-- Select Project Type --' },
-                ...projectTypes.map(pt => ({ value: String(pt.type_id), label: pt.type_name }))
-              ]}
-            />
-          </div>
-
-          <div className="grid-2-col">
-            <FormSelect
-              label="Country"
-              value={countryId}
-              onChange={(e) => setCountryId(e.target.value)}
-              options={[
-                { value: '', label: '-- Select Country --' },
-                ...countries.map(c => ({ value: String(c.country_id), label: c.country_name }))
-              ]}
-            />
-            <FormSelect
-              label="Community"
-              value={communityId}
-              onChange={(e) => setCommunityId(e.target.value)}
-              options={[
-                { value: '', label: '-- Select Community --' },
-                ...communities.map(cm => ({ value: String(cm.community_id), label: cm.community_name }))
-              ]}
-            />
-          </div>
-
-          <div className="grid-2-col">
-            <FormInput label="Project Budget (₹)" type="number" value={budgetAmount} onChange={e => setBudgetAmount(e.target.value)} placeholder="e.g. 500000" />
-            <FormInput label="Project Radius (meters)" type="number" value={radiusMeters} onChange={e => { setRadiusMeters(parseInt(e.target.value) || 500); setFormErrors(prev => ({...prev, radius_meters: ''})); }} required error={formErrors.radius_meters} />
-          </div>
-          <FormInput label="Project Date" type="date" value={projectDate} onChange={e => { setProjectDate(e.target.value); setFormErrors(prev => ({...prev, project_date: ''})); }} required error={formErrors.project_date} />
-          
-          <div className="grid-2-col">
-            <FormInput label="Client Code" type="text" value={clientCode} onChange={e => { setClientCode(e.target.value); setFormErrors(prev => ({...prev, client_code: ''})); }} required error={formErrors.client_code} />
-            <FormInput label="Client Name" type="text" value={clientName} onChange={e => { setClientName(e.target.value); setFormErrors(prev => ({...prev, client_name: ''})); }} required error={formErrors.client_name} />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Note</label>
-            <textarea className="form-input" rows={2} value={note} onChange={e => setNote(e.target.value)} />
-          </div>
-
-          <FormSelect
-            label="Status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
-            options={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'cancelled', label: 'Cancelled' },
-            ]}
-          />
-
-          <Button type="submit" variant="primary" style={{ marginTop: '1rem', width: '100%' }} disabled={isSubmitting}>
-            <Save size={18} style={{ marginRight: '0.5rem' }} /> {isSubmitting ? 'Saving...' : 'Submit Project'}
-          </Button>
-        </div>
-
-        {/* RIGHT COLUMN: Map & Disciplines */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          {/* Map Area */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MapPin size={18} color="var(--accent-primary)" /> Project Location
+      {/* ── TAB 1: PROJECT DETAILS ───────────────────────────────────────────── */}
+      {activeTab === 'details' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FolderKanban size={18} color="#6366f1" /> General Information
             </h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>Drag project location / search project location (OpenStreetMap integration preview)</p>
-            
-            {/* Interactive Map (OpenStreetMap) */}
-            <div style={{ width: '100%', height: '300px', background: '#1e293b', borderRadius: '8px', position: 'relative', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-               <MapContainer 
-                 center={[parseFloat(latitude) || 18.5204, parseFloat(longitude) || 73.8567]} 
-                 zoom={13} 
-                 style={{ height: '100%', width: '100%' }}
-                 scrollWheelZoom={true}
-               >
-                 <TileLayer
-                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                 />
-                 <LocationMarker 
-                   position={{ lat: parseFloat(latitude) || 18.5204, lng: parseFloat(longitude) || 73.8567 }}
-                   setPosition={(pos) => {
-                     setLatitude(pos.lat.toFixed(6));
-                     setLongitude(pos.lng.toFixed(6));
-                   }} 
-                 />
-               </MapContainer>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+              {/* Project Code */}
+              <FormInput
+                label="Project Code"
+                type="text"
+                value={projectCode}
+                onChange={(e) => setProjectCode(e.target.value)}
+                required
+              />
+
+              {/* Project Name */}
+              <FormInput
+                label="Project Name"
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="e.g. Marina View Luxury Villa Fitout"
+                required
+              />
+
+              {/* Customer Searchable Select */}
+              <SearchableSelect
+                label="Customer"
+                placeholder="Search customer..."
+                options={customerOptions}
+                value={customerId}
+                onChange={(val) => setCustomerId(String(val))}
+                onAddNew={() => setIsCustomerModalOpen(true)}
+                addNewLabel="+ Add New Customer"
+                required
+              />
+
+              {/* Project Type */}
+              <FormSelect
+                label="Project Type"
+                value={projectTypeId}
+                onChange={(e) => setProjectTypeId(e.target.value)}
+                options={[
+                  { value: '', label: 'Select Project Type...' },
+                  ...projectTypes.map((pt) => ({
+                    value: String(pt.type_id),
+                    label: `${pt.type_name} (${pt.type_code})`,
+                  })),
+                ]}
+                required
+              />
+
+              {/* Currency */}
+              <FormSelect
+                label="Currency"
+                value={currencyId}
+                onChange={(e) => setCurrencyId(e.target.value)}
+                options={currencies.map((c) => ({
+                  value: String(c.currency_id),
+                  label: `${c.currency_code} (${c.symbol}) — ${c.currency_name}`,
+                }))}
+                required
+              />
+
+              {/* Budget Amount */}
+              <FormInput
+                label={`Budget / Contract Value (${selectedCurrency.symbol})`}
+                type="number"
+                step="0.01"
+                value={budgetAmount}
+                onChange={(e) => setBudgetAmount(e.target.value)}
+              />
+
+              {/* Start & End Dates */}
+              <FormInput
+                label="Start Date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+              />
+
+              <FormInput
+                label="Target End Date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+
+              {/* Status */}
+              <FormSelect
+                label="Status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                options={[
+                  { value: 'active', label: 'Active / In Progress' },
+                  { value: 'draft', label: 'Draft' },
+                  { value: 'completed', label: 'Completed' },
+                  { value: 'on_hold', label: 'On Hold' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                ]}
+                required
+              />
+
+              {/* Source Quotation Dropdown (optional) */}
+              {!projectId && (
+                <div>
+                  <FormSelect
+                    label="Import from Quotation (Optional)"
+                    value={sourceQuotationId}
+                    onChange={(e) => handleSelectQuotation(e.target.value)}
+                    options={[
+                      { value: '', label: 'None (Start from scratch)' },
+                      ...quotations.map((q) => ({
+                        value: String(q.quotation_id),
+                        label: `${q.quotation_code} — ${q.customer_name || 'Client'} (${q.status})`,
+                      })),
+                    ]}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Selecting an approved quotation imports all WBS trees and pricing.
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div className="grid-2-col" style={{ marginTop: '1rem' }}>
-              <FormInput label="Latitude" type="number" step="any" value={latitude} onChange={e => { setLatitude(e.target.value); setFormErrors(prev => ({...prev, latitude: ''})); }} required error={formErrors.latitude} />
-              <FormInput label="Longitude" type="number" step="any" value={longitude} onChange={e => { setLongitude(e.target.value); setFormErrors(prev => ({...prev, longitude: ''})); }} required error={formErrors.longitude} />
+            {/* Address & Notes */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginTop: '1.25rem' }}>
+              <FormInput
+                label="Site Address / Location"
+                type="text"
+                value={projectAddress}
+                onChange={(e) => setProjectAddress(e.target.value)}
+                placeholder="e.g. Palm Jumeirah Villa 42, Dubai"
+              />
+
+              <FormInput
+                label="Project Notes / Scope"
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Key project milestones or client instructions..."
+              />
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Work Breakdown Structure (WBS) */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>Work Breakdown Structure (WBS)</h3>
-            
-            <div className="grid-2-col" style={{ marginBottom: '1rem' }}>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">WBS Name / Code <span style={{ color: '#ef4444' }}>*</span></label>
-                <input 
-                  type="text" 
-                  className={`form-input ${wbsErrors.wbsName ? 'invalid-input' : ''}`}
-                  list="wbs-master-list"
-                  value={wbsName} 
-                  onChange={e => { setWbsName(e.target.value); setWbsErrors(prev => ({...prev, wbsName: ''})); }} 
-                  placeholder="e.g. Electrical Installation or WBS-01" 
-                />
-                {wbsErrors.wbsName && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>{wbsErrors.wbsName}</span>}
-                <datalist id="wbs-master-list">
-                  {masterWbsList.map(w => (
-                    <option key={w.id} value={w.wbs_name}>{w.wbs_code}</option>
-                  ))}
-                </datalist>
+      {/* ── TAB 2: WBS & TASKS ──────────────────────────────────────────────── */}
+      {activeTab === 'wbs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Layers size={18} color="#a855f7" /> Work Breakdown Structure (WBS)
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Single combined WBS tree imported from quotation or template. Add extra project-specific tasks anytime.
+                </p>
               </div>
-              <FormInput label="Start Date" type="date" value={wbsStart} onChange={e => { setWbsStart(e.target.value); setWbsErrors(prev => ({...prev, wbsStart: '', wbsEnd: ''})); }} required error={wbsErrors.wbsStart} />
-              <FormInput label="End Date" type="date" value={wbsEnd} onChange={e => { setWbsEnd(e.target.value); setWbsErrors(prev => ({...prev, wbsEnd: ''})); }} required error={wbsErrors.wbsEnd} />
-              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                  <FormInput label="Total Hours" type="number" value={wbsHours} onChange={e => { setWbsHours(e.target.value); setWbsErrors(prev => ({...prev, wbsHours: ''})); }} required error={wbsErrors.wbsHours} />
-                </div>
-                <Button type="button" variant="primary" onClick={handleAddWbs} style={{ height: '42px', padding: '0 1.5rem', marginTop: '1.6rem' }}>
-                  <Plus size={18} /> Add WBS
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button type="button" variant="secondary" onClick={handleAddCustomWbs}>
+                  <Sparkles size={14} /> + Add Extra Project WBS
                 </Button>
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table" style={{ width: '100%', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>WBS Code</th>
-                    <th>WBS Name</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Hrs.</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {wbsAllocations.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>No WBS allocated yet</td>
-                    </tr>
-                  ) : (
-                    wbsAllocations.map((w, index) => (
-                      <tr key={w.id}>
-                        <td>{index + 1}</td>
-                        <td>{w.wbs_code || '-'}</td>
-                        <td>{w.wbs_name}</td>
-                        <td>{w.start_date || '-'}</td>
-                        <td>{w.end_date || '-'}</td>
-                        <td>{w.total_hours}</td>
-                        <td>
-                          <button type="button" onClick={() => handleRemoveWbs(w.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {/* Available WBS Templates */}
+            {availableWbsTemplates.length > 0 && (
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                  Import WBS from Master Templates:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {availableWbsTemplates.map((t) => {
+                    const isSelected = selectedWbsTemplateIds.includes(t.template_id);
+                    return (
+                      <button
+                        key={t.template_id}
+                        type="button"
+                        onClick={() => handleToggleWbsTemplate(t.template_id)}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '20px',
+                          border: isSelected ? '1px solid #a855f7' : '1px solid var(--border-color)',
+                          background: isSelected ? 'rgba(168,85,247,0.15)' : 'transparent',
+                          color: isSelected ? '#d8b4fe' : 'var(--text-secondary)',
+                          fontSize: '0.82rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        {isSelected && <Check size={13} color="#a855f7" />}
+                        {t.template_name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* WBS Allocations List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {wbsAllocations.map((wbs, idx) => (
+                <div
+                  key={wbs.id}
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: wbs.is_custom ? '1px solid rgba(168,85,247,0.4)' : '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#a855f7' }}>#{idx + 1}</span>
+                      <input
+                        type="text"
+                        value={wbs.wbs_name}
+                        onChange={(e) => handleUpdateWbs(wbs.id, { wbs_name: e.target.value })}
+                        placeholder="WBS Task Name"
+                        style={{
+                          flex: 1,
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-input)',
+                          color: 'var(--text-primary)',
+                          fontWeight: 600,
+                          fontSize: '0.9rem',
+                        }}
+                        required
+                      />
+                      {wbs.is_custom && <Badge variant="warning">✨ Extra Project WBS</Badge>}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="date"
+                        value={wbs.start_date}
+                        onChange={(e) => handleUpdateWbs(wbs.id, { start_date: e.target.value })}
+                        title="Start Date"
+                        style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                      />
+                      <span style={{ color: 'var(--text-secondary)' }}>to</span>
+                      <input
+                        type="date"
+                        value={wbs.end_date}
+                        onChange={(e) => handleUpdateWbs(wbs.id, { end_date: e.target.value })}
+                        title="End Date"
+                        style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                      />
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => handleRemoveWbs(wbs.id)}
+                        style={{ padding: '0.3rem 0.5rem', color: '#ef4444' }}
+                        title="Remove Task"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Planned Quantities & Costs Row */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                      gap: '0.75rem',
+                      background: 'rgba(0,0,0,0.15)',
+                      padding: '0.65rem',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <div>
+                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Hours</label>
+                      <input
+                        type="number"
+                        value={wbs.total_hours || ''}
+                        onChange={(e) => handleUpdateWbs(wbs.id, { total_hours: parseFloat(e.target.value) || 0 })}
+                        style={{ width: '100%', padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Labour Cost ({selectedCurrency.symbol})</label>
+                      <input
+                        type="number"
+                        value={wbs.planned_labour_cost || ''}
+                        onChange={(e) => handleUpdateWbs(wbs.id, { planned_labour_cost: parseFloat(e.target.value) || 0 })}
+                        style={{ width: '100%', padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Material Cost ({selectedCurrency.symbol})</label>
+                      <input
+                        type="number"
+                        value={wbs.planned_material_cost || ''}
+                        onChange={(e) => handleUpdateWbs(wbs.id, { planned_material_cost: parseFloat(e.target.value) || 0 })}
+                        style={{ width: '100%', padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Total Task Budget</label>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#10b981', paddingTop: '0.3rem' }}>
+                        {selectedCurrency.symbol} {wbs.budget_amount.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {wbsAllocations.length === 0 && (
+                <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                  No WBS tasks assigned. Import from WBS templates above or click "+ Add Extra Project WBS".
+                </div>
+              )}
             </div>
           </div>
         </div>
-      </form>
-    </div>
+      )}
+
+      {/* ── TAB 3: PROJECT DOCUMENTS ────────────────────────────────────────── */}
+      {activeTab === 'documents' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Paperclip size={18} color="#10b981" /> Project Documents & Attachments
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Upload drawings, BOQs, contracts, and handover documents specifically linked to this project.
+                </p>
+              </div>
+
+              {projectId ? (
+                <Button variant="primary" onClick={() => setIsDocUploadModalOpen(true)}>
+                  <Upload size={14} /> Upload New Document
+                </Button>
+              ) : (
+                <Badge variant="warning">Save project to enable document uploads</Badge>
+              )}
+            </div>
+
+            {/* Document Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+              {documents.map((doc) => (
+                <div
+                  key={doc.document_id}
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                    <FileText size={22} color="#6366f1" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {doc.document_name}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {doc.created_at ? doc.created_at.split('T')[0] : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }}>
+                    <a
+                      href={doc.file_path || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        color: '#6366f1',
+                        textDecoration: 'none',
+                        background: 'rgba(99,102,241,0.1)',
+                      }}
+                    >
+                      <Eye size={12} /> View
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDocument(doc.document_id)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        color: '#ef4444',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {documents.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                  No documents uploaded for this project yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── QUICK CUSTOMER CREATION MODAL ────────────────────────────────────── */}
+      <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title="Add New Customer">
+        <form onSubmit={handleQuickCustomerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <FormInput
+            label="Customer Name"
+            type="text"
+            value={quickCustName}
+            onChange={(e) => setQuickCustName(e.target.value)}
+            placeholder="e.g. Emaar Properties"
+            required
+          />
+          <FormInput
+            label="Contact Person"
+            type="text"
+            value={quickCustContact}
+            onChange={(e) => setQuickCustContact(e.target.value)}
+            placeholder="e.g. John Smith"
+          />
+          <FormInput
+            label="Contact Number"
+            type="text"
+            value={quickCustPhone}
+            onChange={(e) => setQuickCustPhone(e.target.value)}
+            placeholder="+971 50 123 4567"
+          />
+          <FormInput
+            label="Email Address"
+            type="email"
+            value={quickCustEmail}
+            onChange={(e) => setQuickCustEmail(e.target.value)}
+            placeholder="client@example.com"
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <Button type="button" variant="secondary" onClick={() => setIsCustomerModalOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={isSavingCustomer}>
+              {isSavingCustomer ? 'Saving...' : 'Save & Select'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── PROJECT DOCUMENT UPLOAD MODAL ────────────────────────────────────── */}
+      <Modal isOpen={isDocUploadModalOpen} onClose={() => setIsDocUploadModalOpen(false)} title="Upload Project Document">
+        <form onSubmit={handleUploadDocument} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormInput
+            label="Document Name"
+            type="text"
+            value={uploadDocName}
+            onChange={(e) => setUploadDocName(e.target.value)}
+            placeholder="e.g. Architectural Blueprint, Approved BOQ"
+            required
+          />
+
+          <div>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem', display: 'block' }}>
+              Select File (PDF, Excel, Word, Images) <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <input
+              type="file"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setUploadFile(e.target.files[0]);
+                  if (!uploadDocName) setUploadDocName(e.target.files[0].name.replace(/\.[^/.]+$/, ''));
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-input)',
+                color: 'var(--text-primary)',
+              }}
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+              required
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <Button type="button" variant="secondary" onClick={() => setIsDocUploadModalOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={isUploadingDoc}>
+              {isUploadingDoc ? 'Uploading...' : 'Upload Document'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </FormPageLayout>
   );
 };
+
+export default ProjectForm;

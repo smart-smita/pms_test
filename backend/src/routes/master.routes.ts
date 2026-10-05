@@ -21,6 +21,7 @@ router.get('/taxes', ctrl.getTaxes);
 
 // Write / Manage endpoints (Requires master / project_types / document_types / disciplines permission)
 router.post('/communities', requirePermission('masters', 'view'), ctrl.createCommunity);
+router.put('/communities/:id', requirePermission('masters', 'view'), ctrl.updateCommunity);
 
 router.post('/project-types', requirePermission('project_types', 'manage'), ctrl.createProjectType);
 router.put('/project-types/:id', requirePermission('project_types', 'manage'), ctrl.updateProjectType);
@@ -36,5 +37,15 @@ router.put('/currencies/:id', requirePermission('currencies', 'manage'), ctrl.up
 
 router.post('/taxes', requirePermission('taxes', 'manage'), ctrl.createTax);
 router.put('/taxes/:id', requirePermission('taxes', 'manage'), ctrl.updateTax);
+
+// Calendars
+router.get('/calendars', ctrl.getCalendars);
+router.post('/calendars', requirePermission('masters', 'manage'), ctrl.createCalendar);
+router.put('/calendars/:id', requirePermission('masters', 'manage'), ctrl.updateCalendar);
+
+// Holidays
+router.get('/holidays', ctrl.getHolidays);
+router.post('/holidays', requirePermission('masters', 'manage'), ctrl.createHoliday);
+router.delete('/holidays/:id', requirePermission('masters', 'manage'), ctrl.deleteHoliday);
 
 export default router;

@@ -63,6 +63,8 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
   const invoices = data?.invoices || [];
   const payments = data?.payments || [];
   const financials = data?.financials;
+  const termsTemplates: any[] = (data as any)?.terms_templates || [];
+  const termsSnapshots: any[] = (data as any)?.terms_snapshots || [];
 
   const handleDownloadPdf = (quotationId: number, code: string) => {
     const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
@@ -404,12 +406,68 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
           {/* TAB 3: TERMS & PERMITS */}
           {activeTab === 'terms' && (
             <div>
-              {quotation?.terms_conditions && (
+              {/* Multi-Template Chips */}
+              {termsTemplates.length > 0 && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                    Contractual Terms Templates ({termsTemplates.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {termsTemplates.map((t: any) => (
+                      <span key={t.id || t.template_id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)', padding: '0.3rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}>
+                        <FileText size={13} color="#818cf8" /> {t.template_name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Grouped Terms Snapshots */}
+              {termsSnapshots.length > 0 ? (
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+                  <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+                    Contractual Terms & Conditions ({termsSnapshots.length})
+                  </h4>
+
+                  {/* Group items by template */}
+                  {Array.from(new Set(termsSnapshots.map((s: any) => s.template_name || 'Custom Conditions'))).map((grpName: any, gIdx) => {
+                    const groupTerms = termsSnapshots.filter((s: any) => (s.template_name || 'Custom Conditions') === grpName);
+                    return (
+                      <div key={gIdx} style={{ marginBottom: '1rem' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#38bdf8', paddingBottom: '0.25rem', borderBottom: '1px solid rgba(56,189,248,0.2)', marginBottom: '0.5rem' }}>
+                          {gIdx + 1}. {grpName}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {groupTerms.map((term: any, tIdx: number) => (
+                            <div key={term.snapshot_id || tIdx} style={{ padding: '0.5rem 0.75rem', background: 'rgba(15,23,42,0.6)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '3px',
+                                  background: term.is_mandatory ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)',
+                                  color: term.is_mandatory ? '#ef4444' : '#818cf8',
+                                  border: term.is_mandatory ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(99,102,241,0.3)',
+                                }}>
+                                  {term.is_mandatory ? 'MANDATORY' : 'OPTIONAL'}
+                                </span>
+                                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{term.title}</span>
+                              </div>
+                              <p style={{ fontSize: '0.8rem', color: '#cbd5e1', margin: 0, lineHeight: 1.4 }}>{term.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : quotation?.terms_conditions ? (
                 <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
                   <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Contractual Terms & Conditions Snapshot</h4>
                   <p style={{ fontSize: '0.85rem', color: '#cbd5e1', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{quotation.terms_conditions}</p>
                 </div>
-              )}
+              ) : null}
 
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Attached Documents & Permits ({documents.length})</h4>
               {documents.length === 0 ? (

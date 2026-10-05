@@ -10,6 +10,8 @@ interface BadgeProps {
   children: React.ReactNode;
   /** Auto-derive variant from the text value (status string) */
   auto?: boolean;
+  style?: React.CSSProperties;
+  className?: string;
 }
 
 /** Map a raw status string → badge variant */
@@ -43,9 +45,9 @@ function statusToVariant(raw: string): BadgeVariant {
   return map[s] || 'neutral';
 }
 
-export const Badge: React.FC<BadgeProps> = ({ variant, children, auto }) => {
+export const Badge: React.FC<BadgeProps> = ({ variant, children, auto, style, className }) => {
   const resolved: BadgeVariant = auto
     ? statusToVariant(String(children))
     : variant || 'info';
-  return <span className={`badge badge-${resolved}`}>{children}</span>;
+  return <span className={`badge badge-${resolved}${className ? ' ' + className : ''}`} style={style}>{children}</span>;
 };

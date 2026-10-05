@@ -21,7 +21,18 @@ export async function apiRequest<T = any>(
       headers,
     });
 
-    const json = await res.json();
+    const contentType = res.headers.get('content-type');
+    let json: any;
+
+    if (contentType && contentType.includes('application/json')) {
+      json = await res.json();
+    } else {
+      const text = await res.text();
+      return {
+        success: false,
+        message: `Server returned an unexpected response (HTTP ${res.status}): ${text.substring(0, 100)}...`,
+      };
+    }
 
     if (!res.ok && res.status === 401) {
       // Clear token on auth failure

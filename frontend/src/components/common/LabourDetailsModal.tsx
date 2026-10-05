@@ -4,6 +4,7 @@ import { Button } from './Button';
 import { Badge } from './Badge';
 import { apiRequest } from '../../services/api';
 import { LoadingSpinner } from './LoadingSpinner';
+import { getDocumentUrl } from '../../utils/documentHelper';
 import { DocumentRenewalModal } from './DocumentRenewalModal';
 import { DocumentModal } from './DocumentModal';
 import {
@@ -306,7 +307,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                       {passport && renderStatusBadge(passport.expiry_calc)}
                       {passport?.file_path && (
                         <a
-                          href={passport.file_path}
+                          href={getDocumentUrl(passport.file_path)}
                           target="_blank"
                           rel="noreferrer"
                           style={{
@@ -400,7 +401,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                     <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
                       {visa.file_path && (
                         <a
-                          href={visa.file_path}
+                          href={getDocumentUrl(visa.file_path)}
                           target="_blank"
                           rel="noreferrer"
                           style={{
@@ -472,7 +473,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
                         {labourCard.file_path && (
                           <a
-                            href={labourCard.file_path}
+                            href={getDocumentUrl(labourCard.file_path)}
                             target="_blank"
                             rel="noreferrer"
                             style={{
@@ -537,7 +538,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
                         {contract.file_path && (
                           <a
-                            href={contract.file_path}
+                            href={getDocumentUrl(contract.file_path)}
                             target="_blank"
                             rel="noreferrer"
                             style={{
@@ -628,7 +629,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                           )}
                           {doc.file_path && (
                             <a
-                              href={doc.file_path}
+                              href={getDocumentUrl(doc.file_path)}
                               target="_blank"
                               rel="noreferrer"
                               style={{

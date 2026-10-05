@@ -1,0 +1,7300 @@
+{
+  "roles": {
+    "columns": [
+      {
+        "name": "role_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "role_name",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "permissions": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "module",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "action",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "permission_code",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "role_permissions": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "role_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "permission_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "customers": {
+    "columns": [
+      {
+        "name": "customer_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "customer_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "customer_name",
+        "type": "varchar",
+        "fullType": "varchar(200)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "contact_person",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "contact_number",
+        "type": "varchar",
+        "fullType": "varchar(30)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "email",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "state",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "city",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "community_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "nationality_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('active','inactive')",
+        "nullable": false,
+        "default": "'active'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "gst_number",
+        "type": "varchar",
+        "fullType": "varchar(20)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "pan_number",
+        "type": "varchar",
+        "fullType": "varchar(15)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "currency_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "billing_state",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "project_types": {
+    "columns": [
+      {
+        "name": "type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "type_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "type_name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": []
+  },
+  "currencies": {
+    "columns": [
+      {
+        "name": "currency_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "currency_code",
+        "type": "varchar",
+        "fullType": "varchar(10)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "currency_name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "symbol",
+        "type": "varchar",
+        "fullType": "varchar(10)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "exchange_rate",
+        "type": "decimal",
+        "fullType": "decimal(15,6)",
+        "nullable": true,
+        "default": "1.000000",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "decimal_places",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "2",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_base",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "taxes": {
+    "columns": [
+      {
+        "name": "tax_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "tax_name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_type",
+        "type": "enum",
+        "fullType": "enum('VAT','GST','CGST_SGST','IGST','SALES_TAX','OTHER')",
+        "nullable": false,
+        "default": "'VAT'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_split",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "cgst_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sgst_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "country_id",
+        "REFERENCED_TABLE_NAME": "countries",
+        "REFERENCED_COLUMN_NAME": "country_id"
+      }
+    ]
+  },
+  "disciplines": {
+    "columns": [
+      {
+        "name": "discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "discipline_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "discipline_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": []
+  },
+  "countries": {
+    "columns": [
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "country_code",
+        "type": "char",
+        "fullType": "char(2)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "country_name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "phone_code",
+        "type": "varchar",
+        "fullType": "varchar(10)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "nationalities": {
+    "columns": [
+      {
+        "name": "nationality_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "nationality_name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "communities": {
+    "columns": [
+      {
+        "name": "community_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "community_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "state",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "terms_templates": {
+    "columns": [
+      {
+        "name": "template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "template_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "terms_content",
+        "type": "longtext",
+        "fullType": "longtext",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "version",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "country_id",
+        "REFERENCED_TABLE_NAME": "countries",
+        "REFERENCED_COLUMN_NAME": "country_id"
+      },
+      {
+        "COLUMN_NAME": "project_type_id",
+        "REFERENCED_TABLE_NAME": "project_types",
+        "REFERENCED_COLUMN_NAME": "type_id"
+      },
+      {
+        "COLUMN_NAME": "discipline_id",
+        "REFERENCED_TABLE_NAME": "disciplines",
+        "REFERENCED_COLUMN_NAME": "discipline_id"
+      },
+      {
+        "COLUMN_NAME": "created_by",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      }
+    ]
+  },
+  "materials": {
+    "columns": [
+      {
+        "name": "material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "material_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "category",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('active','inactive')",
+        "nullable": true,
+        "default": "'active'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "material_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "brand_spec",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "hsn_sac_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "18.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "min_stock_level",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "reorder_level",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "vendor_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "labours": {
+    "columns": [
+      {
+        "name": "labour_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "contact_number",
+        "type": "varchar",
+        "fullType": "varchar(20)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "aadhar_id",
+        "type": "varchar",
+        "fullType": "varchar(20)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "labour_type",
+        "type": "enum",
+        "fullType": "enum('contractor','direct_labour','temporary')",
+        "nullable": false,
+        "default": "'direct_labour'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "contractor_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "assigned_project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "nationality_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "community_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "emreads_id",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "email",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('active','inactive')",
+        "nullable": true,
+        "default": "'active'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "labour_category",
+        "type": "enum",
+        "fullType": "enum('employee','contract','temporary')",
+        "nullable": true,
+        "default": "'contract'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "monthly_salary",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_rate",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "hourly_rate",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "employees": {
+    "columns": [
+      {
+        "name": "employee_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "employee_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "email",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "password_hash",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "role_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "department",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "hourly_rate",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "25.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('active','inactive')",
+        "nullable": false,
+        "default": "'active'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "reporting_to_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "assigned_project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "assigned_wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "nationality_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "community_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "emreads_id",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "contact_number",
+        "type": "varchar",
+        "fullType": "varchar(30)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "role_id",
+        "REFERENCED_TABLE_NAME": "roles",
+        "REFERENCED_COLUMN_NAME": "role_id"
+      }
+    ]
+  },
+  "company_calendar": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "calendar_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "working_days_json",
+        "type": "longtext",
+        "fullType": "longtext",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "working_hours_per_day",
+        "type": "decimal",
+        "fullType": "decimal(4,2)",
+        "nullable": true,
+        "default": "10.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "holidays": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "calendar_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "holiday_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "type",
+        "type": "enum",
+        "fullType": "enum('public_holiday','site_shutdown','unavailable')",
+        "nullable": true,
+        "default": "'public_holiday'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "calendar_id",
+        "REFERENCED_TABLE_NAME": "company_calendar",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "work_breakdown_structures": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "wbs_code",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "wbs_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_type",
+        "type": "enum",
+        "fullType": "enum('labour','material','both')",
+        "nullable": false,
+        "default": "'labour'",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "wbs_templates": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "template_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "template_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_type_id",
+        "REFERENCED_TABLE_NAME": "project_types",
+        "REFERENCED_COLUMN_NAME": "type_id"
+      }
+    ]
+  },
+  "wbs_template_details": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_code",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "template_id",
+        "REFERENCED_TABLE_NAME": "wbs_templates",
+        "REFERENCED_COLUMN_NAME": "id"
+      },
+      {
+        "COLUMN_NAME": "wbs_id",
+        "REFERENCED_TABLE_NAME": "work_breakdown_structures",
+        "REFERENCED_COLUMN_NAME": "id"
+      },
+      {
+        "COLUMN_NAME": "parent_id",
+        "REFERENCED_TABLE_NAME": "wbs_template_details",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "wbs_template_project_types": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_type_id",
+        "REFERENCED_TABLE_NAME": "project_types",
+        "REFERENCED_COLUMN_NAME": "type_id"
+      },
+      {
+        "COLUMN_NAME": "template_id",
+        "REFERENCED_TABLE_NAME": "wbs_templates",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "quotations": {
+    "columns": [
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "customer_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "new_project_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "currency_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "exchange_rate",
+        "type": "decimal",
+        "fullType": "decimal(15,6)",
+        "nullable": false,
+        "default": "1.000000",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quotation_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "validity_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "subtotal_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "discount_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "terms_conditions",
+        "type": "longtext",
+        "fullType": "longtext",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','pending_approval','approved','rejected','revised','converted')",
+        "nullable": false,
+        "default": "'draft'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "revision_number",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "approved_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "approved_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rejection_reason",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "tax_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_type",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "cgst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sgst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "igst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planning_required",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "customer_id",
+        "REFERENCED_TABLE_NAME": "customers",
+        "REFERENCED_COLUMN_NAME": "customer_id"
+      },
+      {
+        "COLUMN_NAME": "created_by",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      },
+      {
+        "COLUMN_NAME": "approved_by",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      }
+    ]
+  },
+  "quotation_wbs_items": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "item_type",
+        "type": "enum",
+        "fullType": "enum('labour','material','other')",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "'lump_sum'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "qty",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "1.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "discount_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "line_total",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "quotation_discipline_id",
+        "REFERENCED_TABLE_NAME": "quotation_disciplines",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "quotation_wbs_labour": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "quotation_discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "labour_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "labour_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "labour_type",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      },
+      {
+        "COLUMN_NAME": "quotation_discipline_id",
+        "REFERENCED_TABLE_NAME": "quotation_disciplines",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "quotation_wbs_material": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "quotation_discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "material_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit",
+        "type": "varchar",
+        "fullType": "varchar(30)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      },
+      {
+        "COLUMN_NAME": "quotation_discipline_id",
+        "REFERENCED_TABLE_NAME": "quotation_disciplines",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "quotation_taxes": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "tax_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "tax_name",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_type",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "taxable_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      },
+      {
+        "COLUMN_NAME": "tax_id",
+        "REFERENCED_TABLE_NAME": "taxes",
+        "REFERENCED_COLUMN_NAME": "tax_id"
+      }
+    ]
+  },
+  "quotation_terms_templates": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "template_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "quotation_terms_template_items": {
+    "columns": [
+      {
+        "name": "item_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "title",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_mandatory",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "template_id",
+        "REFERENCED_TABLE_NAME": "terms_templates",
+        "REFERENCED_COLUMN_NAME": "template_id"
+      }
+    ]
+  },
+  "quotation_snapshots": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "snapshot_hash",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "snapshot_data",
+        "type": "longtext",
+        "fullType": "longtext",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      }
+    ]
+  },
+  "planning": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "customer_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "calendar_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','in_review','approved','rejected')",
+        "nullable": true,
+        "default": "'draft'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "version",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      },
+      {
+        "COLUMN_NAME": "calendar_id",
+        "REFERENCED_TABLE_NAME": "company_calendar",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "planning_wbs": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "planning_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_code",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "level",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_start",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_end",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "duration",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "planning_id",
+        "REFERENCED_TABLE_NAME": "planning",
+        "REFERENCED_COLUMN_NAME": "id"
+      },
+      {
+        "COLUMN_NAME": "parent_id",
+        "REFERENCED_TABLE_NAME": "planning_wbs",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "planning_tasks": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "planning_wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_name",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "duration",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "manually_adjusted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "'pending'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sort_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "planning_wbs_id",
+        "REFERENCED_TABLE_NAME": "planning_wbs",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "planning_task_dependencies": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "predecessor_task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "dependency_type",
+        "type": "enum",
+        "fullType": "enum('FS','SS','FF','SF')",
+        "nullable": true,
+        "default": "'FS'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "lag_days",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "task_id",
+        "REFERENCED_TABLE_NAME": "planning_tasks",
+        "REFERENCED_COLUMN_NAME": "id"
+      },
+      {
+        "COLUMN_NAME": "predecessor_task_id",
+        "REFERENCED_TABLE_NAME": "planning_tasks",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "planning_resources": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "planning_task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "resource_type",
+        "type": "enum",
+        "fullType": "enum('labour','employee','material','equipment')",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "resource_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quantity",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "1.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "planning_task_id",
+        "REFERENCED_TABLE_NAME": "planning_tasks",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "planning_revisions": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "planning_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "version",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "snapshot_data",
+        "type": "longtext",
+        "fullType": "longtext",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "planning_id",
+        "REFERENCED_TABLE_NAME": "planning",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "projects": {
+    "columns": [
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "customer_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "source_quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "emreads_id",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "contact_email",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "community_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "nationality_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "country_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "address_line_1",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "address_line_2",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "city",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "state",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "pincode",
+        "type": "varchar",
+        "fullType": "varchar(20)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "location_area",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "client_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "client_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,7)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "longitude",
+        "type": "decimal",
+        "fullType": "decimal(10,7)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "radius_meters",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "500",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','active','on_hold','completed','cancelled','inactive')",
+        "nullable": false,
+        "default": "'draft'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "budget_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "currency_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "exchange_rate",
+        "type": "decimal",
+        "fullType": "decimal(15,6)",
+        "nullable": false,
+        "default": "1.000000",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "terms_conditions",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quotation_reference",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planning_required",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planning_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "customer_id",
+        "REFERENCED_TABLE_NAME": "customers",
+        "REFERENCED_COLUMN_NAME": "customer_id"
+      },
+      {
+        "COLUMN_NAME": "source_quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      }
+    ]
+  },
+  "project_wbs": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_type_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "parent_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "display_order",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "end_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "note",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "budget_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_end_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_labour_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_material_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_other_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quotation_discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_type",
+        "type": "enum",
+        "fullType": "enum('labour','material','both')",
+        "nullable": false,
+        "default": "'labour'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit",
+        "type": "varchar",
+        "fullType": "varchar(30)",
+        "nullable": true,
+        "default": "'hours'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remaining_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "extra_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "progress_percent",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "level",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_code",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_start",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_end",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "current_start",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "current_end",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_duration",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "current_duration",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "scope",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quality_standard",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "acceptance_criteria",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "wbs_id",
+        "REFERENCED_TABLE_NAME": "work_breakdown_structures",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "tasks": {
+    "columns": [
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "required_worker_count",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "estimated_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "start_time",
+        "type": "time",
+        "fullType": "time",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "target_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "target_time",
+        "type": "time",
+        "fullType": "time",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('pending','in-progress','completed','delayed')",
+        "nullable": false,
+        "default": "'pending'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "task_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "budget_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_start_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_end_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "progress_percentage",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "priority",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "'medium'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_labour_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_material_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_other_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_template_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_billable",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_start",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_end",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "current_start",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "current_end",
+        "type": "date",
+        "fullType": "date",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "baseline_duration",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "current_duration",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "manually_adjusted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planning_task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "wbs_id",
+        "REFERENCED_TABLE_NAME": "project_wbs",
+        "REFERENCED_COLUMN_NAME": "id"
+      }
+    ]
+  },
+  "task_dependencies": {
+    "columns": [
+      {
+        "name": "dependency_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "predecessor_task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "dependency_type",
+        "type": "enum",
+        "fullType": "enum('FS','SS','FF','SF')",
+        "nullable": true,
+        "default": "'FS'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "lag_days",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "task_assignments": {
+    "columns": [
+      {
+        "name": "assignment_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "employee_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "assigned_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "employee_id",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      },
+      {
+        "COLUMN_NAME": "task_id",
+        "REFERENCED_TABLE_NAME": "tasks",
+        "REFERENCED_COLUMN_NAME": "task_id"
+      }
+    ]
+  },
+  "task_labour_assignments": {
+    "columns": [
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": ""
+      },
+      {
+        "name": "labour_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": ""
+      },
+      {
+        "name": "assigned_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "timesheets": {
+    "columns": [
+      {
+        "name": "timesheet_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "employee_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "log_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "working_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "comment",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate_snapshot",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "labour_work_logs": {
+    "columns": [
+      {
+        "name": "work_log_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "labour_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "work_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_time",
+        "type": "time",
+        "fullType": "time",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_time",
+        "type": "time",
+        "fullType": "time",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_working_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate_type",
+        "type": "enum",
+        "fullType": "enum('hourly','daily')",
+        "nullable": false,
+        "default": "'hourly'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "work_description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "work_status",
+        "type": "enum",
+        "fullType": "enum('pending','in_progress','completed')",
+        "nullable": false,
+        "default": "'completed'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "payment_status",
+        "type": "enum",
+        "fullType": "enum('pending','approved','paid','rejected','cancelled')",
+        "nullable": false,
+        "default": "'pending'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "in_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "labour_count",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate_per_labour",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "labour_payments": {
+    "columns": [
+      {
+        "name": "payment_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "payment_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "labour_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "payment_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_amount",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "payment_method",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "'cash'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "reference_number",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('pending','approved','paid','rejected','cancelled')",
+        "nullable": false,
+        "default": "'pending'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remarks",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": []
+  },
+  "labour_payment_items": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "payment_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "work_log_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "attendance_logs": {
+    "columns": [
+      {
+        "name": "attendance_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "employee_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "attendance_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "check_in_time",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "check_out_time",
+        "type": "datetime",
+        "fullType": "datetime",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_working_hours",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('open','completed','outside_area','missing_checkout')",
+        "nullable": false,
+        "default": "'open'",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      },
+      {
+        "name": "in_distance_meters",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_distance_meters",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_radius_meters",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "500",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_status",
+        "type": "enum",
+        "fullType": "enum('inside','outside')",
+        "nullable": true,
+        "default": "'inside'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_status",
+        "type": "enum",
+        "fullType": "enum('inside','outside')",
+        "nullable": true,
+        "default": "'inside'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "employee_id",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      },
+      {
+        "COLUMN_NAME": "task_id",
+        "REFERENCED_TABLE_NAME": "tasks",
+        "REFERENCED_COLUMN_NAME": "task_id"
+      }
+    ]
+  },
+  "labour_attendance": {
+    "columns": [
+      {
+        "name": "labour_attendance_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "labour_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "attendance_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_time",
+        "type": "time",
+        "fullType": "time",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_time",
+        "type": "time",
+        "fullType": "time",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "daily_pay_amount",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "worker_count",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": "1",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "comment",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_deleted",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "deleted_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "hourly_rate",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "calculated_payment",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "in_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "out_address",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "project_materials": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "material_name",
+        "type": "varchar",
+        "fullType": "varchar(150)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "'Nos'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit_rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "received_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "used_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remaining_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "extra_quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "planned_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "actual_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remaining_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": []
+  },
+  "project_material_logs": {
+    "columns": [
+      {
+        "name": "log_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "action_type",
+        "type": "enum",
+        "fullType": "enum('received','used')",
+        "nullable": false,
+        "default": "'used'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "quantity",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "unit_rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "log_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "notes",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "material_surveys": {
+    "columns": [
+      {
+        "name": "survey_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "survey_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "survey_month",
+        "type": "varchar",
+        "fullType": "varchar(20)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','approved')",
+        "nullable": false,
+        "default": "'draft'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": false,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "material_survey_items": {
+    "columns": [
+      {
+        "name": "id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "survey_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "material_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "opening_qty",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "added_qty",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "used_qty",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "wastage_qty",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remaining_qty",
+        "type": "decimal",
+        "fullType": "decimal(12,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "used_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remaining_cost",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": []
+  },
+  "site_surveys": {
+    "columns": [
+      {
+        "name": "survey_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "survey_code",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "customer_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "survey_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "conducted_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "entry_type",
+        "type": "enum",
+        "fullType": "enum('system_entry','report_attachment')",
+        "nullable": false,
+        "default": "'system_entry'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "location_details",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "latitude",
+        "type": "decimal",
+        "fullType": "decimal(10,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "longitude",
+        "type": "decimal",
+        "fullType": "decimal(11,8)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "comments",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "remarks",
+        "type": "text",
+        "fullType": "text",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "attached_report_path",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','completed','verified','rejected')",
+        "nullable": false,
+        "default": "'completed'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "updated_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": "on update current_timestamp()"
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "conducted_by",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      },
+      {
+        "COLUMN_NAME": "discipline_id",
+        "REFERENCED_TABLE_NAME": "disciplines",
+        "REFERENCED_COLUMN_NAME": "discipline_id"
+      }
+    ]
+  },
+  "site_survey_photos": {
+    "columns": [
+      {
+        "name": "photo_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "survey_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "photo_name",
+        "type": "varchar",
+        "fullType": "varchar(200)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "file_path",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "caption",
+        "type": "varchar",
+        "fullType": "varchar(255)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "survey_id",
+        "REFERENCED_TABLE_NAME": "site_surveys",
+        "REFERENCED_COLUMN_NAME": "survey_id"
+      }
+    ]
+  },
+  "invoices": {
+    "columns": [
+      {
+        "name": "invoice_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "invoice_number",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": false,
+        "default": null,
+        "key": "UNI",
+        "extra": ""
+      },
+      {
+        "name": "customer_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "schedule_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "survey_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "currency_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "tax_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "invoice_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "due_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "subtotal_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "total_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','pending_approval','approved','sent','partially_paid','paid','cancelled')",
+        "nullable": true,
+        "default": "'draft'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "approved_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_type",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "cgst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sgst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "igst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "customer_id",
+        "REFERENCED_TABLE_NAME": "customers",
+        "REFERENCED_COLUMN_NAME": "customer_id"
+      },
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      },
+      {
+        "COLUMN_NAME": "schedule_id",
+        "REFERENCED_TABLE_NAME": "billing_schedules",
+        "REFERENCED_COLUMN_NAME": "schedule_id"
+      },
+      {
+        "COLUMN_NAME": "currency_id",
+        "REFERENCED_TABLE_NAME": "currencies",
+        "REFERENCED_COLUMN_NAME": "currency_id"
+      },
+      {
+        "COLUMN_NAME": "tax_id",
+        "REFERENCED_TABLE_NAME": "taxes",
+        "REFERENCED_COLUMN_NAME": "tax_id"
+      }
+    ]
+  },
+  "invoice_items": {
+    "columns": [
+      {
+        "name": "item_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "invoice_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "discipline_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "description",
+        "type": "text",
+        "fullType": "text",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "is_extra_work",
+        "type": "tinyint",
+        "fullType": "tinyint(1)",
+        "nullable": false,
+        "default": "0",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "project_wbs_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "task_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "quantity",
+        "type": "decimal",
+        "fullType": "decimal(10,2)",
+        "nullable": true,
+        "default": "1.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "rate",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "discount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "tax_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "cgst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "sgst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "igst_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": true,
+        "default": "0.00",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "invoice_id",
+        "REFERENCED_TABLE_NAME": "invoices",
+        "REFERENCED_COLUMN_NAME": "invoice_id"
+      },
+      {
+        "COLUMN_NAME": "discipline_id",
+        "REFERENCED_TABLE_NAME": "disciplines",
+        "REFERENCED_COLUMN_NAME": "discipline_id"
+      },
+      {
+        "COLUMN_NAME": "project_wbs_id",
+        "REFERENCED_TABLE_NAME": "project_wbs",
+        "REFERENCED_COLUMN_NAME": "id"
+      },
+      {
+        "COLUMN_NAME": "task_id",
+        "REFERENCED_TABLE_NAME": "tasks",
+        "REFERENCED_COLUMN_NAME": "task_id"
+      }
+    ]
+  },
+  "invoice_payments": {
+    "columns": [
+      {
+        "name": "payment_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "invoice_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "payment_date",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "payment_method",
+        "type": "varchar",
+        "fullType": "varchar(50)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "reference_number",
+        "type": "varchar",
+        "fullType": "varchar(100)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('pending','completed','failed')",
+        "nullable": true,
+        "default": "'completed'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "invoice_id",
+        "REFERENCED_TABLE_NAME": "invoices",
+        "REFERENCED_COLUMN_NAME": "invoice_id"
+      }
+    ]
+  },
+  "billing_schedules": {
+    "columns": [
+      {
+        "name": "schedule_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "quotation_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "billing_month",
+        "type": "date",
+        "fullType": "date",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "expected_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('pending','completed_work_logged','invoiced','paid')",
+        "nullable": false,
+        "default": "'pending'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "quotation_id",
+        "REFERENCED_TABLE_NAME": "quotations",
+        "REFERENCED_COLUMN_NAME": "quotation_id"
+      }
+    ]
+  },
+  "monthly_completed_work": {
+    "columns": [
+      {
+        "name": "completed_work_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "PRI",
+        "extra": "auto_increment"
+      },
+      {
+        "name": "schedule_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "project_id",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": false,
+        "default": null,
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "completion_percentage",
+        "type": "decimal",
+        "fullType": "decimal(5,2)",
+        "nullable": true,
+        "default": "100.00",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "approved_amount",
+        "type": "decimal",
+        "fullType": "decimal(15,2)",
+        "nullable": false,
+        "default": null,
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "status",
+        "type": "enum",
+        "fullType": "enum('draft','submitted','approved','rejected')",
+        "nullable": true,
+        "default": "'draft'",
+        "key": "",
+        "extra": ""
+      },
+      {
+        "name": "approved_by",
+        "type": "int",
+        "fullType": "int(11)",
+        "nullable": true,
+        "default": "NULL",
+        "key": "MUL",
+        "extra": ""
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp",
+        "fullType": "timestamp",
+        "nullable": true,
+        "default": "current_timestamp()",
+        "key": "",
+        "extra": ""
+      }
+    ],
+    "foreignKeys": [
+      {
+        "COLUMN_NAME": "schedule_id",
+        "REFERENCED_TABLE_NAME": "billing_schedules",
+        "REFERENCED_COLUMN_NAME": "schedule_id"
+      },
+      {
+        "COLUMN_NAME": "project_id",
+        "REFERENCED_TABLE_NAME": "projects",
+        "REFERENCED_COLUMN_NAME": "project_id"
+      },
+      {
+        "COLUMN_NAME": "approved_by",
+        "REFERENCED_TABLE_NAME": "employees",
+        "REFERENCED_COLUMN_NAME": "employee_id"
+      }
+    ]
+  }
+}

@@ -19,7 +19,7 @@ export const createEmployeeSchema = z.object({
   passport: z.any().optional(),
   visa: z.any().optional(),
   contract: z.any().optional(),
-  emreads: z.any().optional(),
+  national_id: z.any().optional(),
 });
 
 export const updateEmployeeSchema = z.object({
@@ -37,4 +37,8 @@ export const updateEmployeeSchema = z.object({
   nationality_id: z.number().int().nullable().optional(),
   country_id: z.number().int().nullable().optional(),
   emreads_id: z.string().nullable().optional(),
+  passport: z.any().optional(),
+  visa: z.any().optional(),
+  national_id: z.any().optional(),
+  contract: z.any().optional(),
 });

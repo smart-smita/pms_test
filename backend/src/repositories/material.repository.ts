@@ -76,8 +76,9 @@ export class MaterialRepository {
              (SELECT COUNT(*) FROM material_quotation_items WHERE quotation_id = q.quotation_id) AS item_count,
              (SELECT SUM(total_amount) FROM material_quotation_items WHERE quotation_id = q.quotation_id) AS total_amount
       FROM material_quotations q
-      JOIN projects p ON q.project_id = p.project_id
-      JOIN project_wbs w ON q.wbs_id = w.id
+      LEFT JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN project_wbs pw ON q.wbs_id = pw.id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -94,8 +95,9 @@ export class MaterialRepository {
     const [rows] = await dbPool.query<RowDataPacket[]>(
       `SELECT q.*, p.project_name, w.wbs_name
        FROM material_quotations q
-       JOIN projects p ON q.project_id = p.project_id
-       JOIN project_wbs w ON q.wbs_id = w.id
+       LEFT JOIN projects p ON q.project_id = p.project_id
+       LEFT JOIN project_wbs pw ON q.wbs_id = pw.id
+       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE q.quotation_id = ?`,
       [id]
     );
@@ -170,8 +172,9 @@ export class MaterialRepository {
     let sql = `
       SELECT s.*, p.project_name, w.wbs_name
       FROM material_surveys s
-      JOIN projects p ON s.project_id = p.project_id
-      JOIN project_wbs w ON s.wbs_id = w.id
+      LEFT JOIN projects p ON s.project_id = p.project_id
+      LEFT JOIN project_wbs pw ON s.wbs_id = pw.id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -188,8 +191,9 @@ export class MaterialRepository {
     const [rows] = await dbPool.query<RowDataPacket[]>(
       `SELECT s.*, p.project_name, w.wbs_name
        FROM material_surveys s
-       JOIN projects p ON s.project_id = p.project_id
-       JOIN project_wbs w ON s.wbs_id = w.id
+       LEFT JOIN projects p ON s.project_id = p.project_id
+       LEFT JOIN project_wbs pw ON s.wbs_id = pw.id
+       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
        WHERE s.survey_id = ?`,
       [id]
     );
@@ -275,7 +279,8 @@ export class MaterialRepository {
         (COALESCE(ind.planned_amount, 0) - COALESCE(iss.used_cost, 0)) AS cost_variance
       FROM materials m
       CROSS JOIN projects p
-      CROSS JOIN project_wbs w ON w.project_id = p.project_id
+      CROSS JOIN project_wbs pw ON pw.project_id = p.project_id
+      LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
       LEFT JOIN (
         SELECT q.project_id, q.wbs_id, qi.material_id, 
                SUM(qi.planned_quantity) AS planned_qty,
@@ -284,7 +289,7 @@ export class MaterialRepository {
         JOIN material_quotations q ON qi.quotation_id = q.quotation_id
         WHERE q.status = 'approved'
         GROUP BY q.project_id, q.wbs_id, qi.material_id
-      ) ind ON ind.project_id = p.project_id AND ind.wbs_id = w.id AND ind.material_id = m.material_id
+      ) ind ON ind.project_id = p.project_id AND ind.wbs_id = pw.id AND ind.material_id = m.material_id
       LEFT JOIN (
         SELECT s.project_id, s.wbs_id, si.material_id, 
                SUM(si.used_qty) AS used_qty,
@@ -294,7 +299,7 @@ export class MaterialRepository {
         FROM material_survey_items si
         JOIN material_surveys s ON si.survey_id = s.survey_id
         GROUP BY s.project_id, s.wbs_id, si.material_id
-      ) iss ON iss.project_id = p.project_id AND iss.wbs_id = w.id AND iss.material_id = m.material_id
+      ) iss ON iss.project_id = p.project_id AND iss.wbs_id = pw.id AND iss.material_id = m.material_id
       WHERE (ind.planned_qty > 0 OR iss.used_qty > 0 OR iss.remaining_qty > 0)
     `;
     const params: any[] = [];
@@ -337,4 +342,228 @@ export class MaterialRepository {
       cost_variance: costVariance,
     };
   }
+
+  // ── 5. Project Materials Tracking (Material WBS) ───────────────────────
+  async getProjectMaterials(filters: { project_id?: number; wbs_id?: number; search?: string } = {}): Promise<any[]> {
+    let sql = `
+      SELECT 
+        pm.*,
+        p.project_name,
+        p.project_code,
+        w.wbs_name,
+        w.wbs_code,
+        m.material_code,
+        m.category
+      FROM project_materials pm
+      JOIN projects p ON pm.project_id = p.project_id
+      JOIN project_wbs pw ON pm.wbs_id = pw.id
+      JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+      LEFT JOIN materials m ON pm.material_id = m.material_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    if (filters.project_id) {
+      sql += ` AND pm.project_id = ?`;
+      params.push(filters.project_id);
+    }
+    if (filters.wbs_id) {
+      sql += ` AND pm.wbs_id = ?`;
+      params.push(filters.wbs_id);
+    }
+    if (filters.search) {
+      sql += ` AND (pm.material_name LIKE ? OR w.wbs_name LIKE ? OR p.project_name LIKE ?)`;
+      params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
+    }
+    sql += ` ORDER BY pm.id DESC`;
+
+    const [rows] = await dbPool.query<RowDataPacket[]>(sql, params);
+    return rows;
+  }
+
+  async getProjectMaterialById(id: number): Promise<any | null> {
+    const [rows] = await dbPool.query<RowDataPacket[]>(
+      `SELECT pm.*, p.project_name, w.wbs_name 
+       FROM project_materials pm
+       JOIN projects p ON pm.project_id = p.project_id
+       JOIN project_wbs pw ON pm.wbs_id = pw.id
+       JOIN work_breakdown_structures w ON pw.wbs_id = w.id
+       WHERE pm.id = ?`,
+      [id]
+    );
+    return rows[0] || null;
+  }
+
+  async createProjectMaterial(data: {
+    project_id: number;
+    wbs_id: number;
+    material_id?: number | null;
+    material_name: string;
+    unit?: string;
+    unit_rate?: number;
+    planned_quantity?: number;
+    notes?: string;
+  }): Promise<number> {
+    const rate = Number(data.unit_rate || 0);
+    const plannedQty = Number(data.planned_quantity || 0);
+    const plannedCost = plannedQty * rate;
+    const remainingQty = plannedQty;
+    const remainingCost = plannedCost;
+
+    const [res] = await dbPool.query<ResultSetHeader>(
+      `INSERT INTO project_materials (
+         project_id, wbs_id, material_id, material_name, unit, unit_rate,
+         planned_quantity, received_quantity, used_quantity, remaining_quantity, extra_quantity,
+         planned_cost, actual_cost, remaining_cost, notes
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?, 0, ?, ?)`,
+      [
+        data.project_id,
+        data.wbs_id,
+        data.material_id || null,
+        data.material_name,
+        data.unit || 'Nos',
+        rate,
+        plannedQty,
+        remainingQty,
+        plannedCost,
+        remainingCost,
+        data.notes || null,
+      ]
+    );
+    return res.insertId;
+  }
+
+  async updateProjectMaterial(id: number, data: any): Promise<boolean> {
+    const existing = await this.getProjectMaterialById(id);
+    if (!existing) return false;
+
+    const plannedQty = data.planned_quantity !== undefined ? Number(data.planned_quantity) : Number(existing.planned_quantity);
+    const receivedQty = data.received_quantity !== undefined ? Number(data.received_quantity) : Number(existing.received_quantity);
+    const usedQty = data.used_quantity !== undefined ? Number(data.used_quantity) : Number(existing.used_quantity);
+    const rate = data.unit_rate !== undefined ? Number(data.unit_rate) : Number(existing.unit_rate);
+
+    const plannedCost = plannedQty * rate;
+    const actualCost = usedQty * rate;
+    const extraQty = Math.max(0, usedQty - plannedQty);
+    const baseQty = receivedQty > 0 ? receivedQty : plannedQty;
+    const remainingQty = Math.max(0, baseQty - usedQty);
+    const remainingCost = remainingQty * rate;
+
+    const [res] = await dbPool.query<ResultSetHeader>(
+      `UPDATE project_materials SET
+         material_name = COALESCE(?, material_name),
+         unit = COALESCE(?, unit),
+         unit_rate = ?,
+         planned_quantity = ?,
+         received_quantity = ?,
+         used_quantity = ?,
+         remaining_quantity = ?,
+         extra_quantity = ?,
+         planned_cost = ?,
+         actual_cost = ?,
+         remaining_cost = ?,
+         notes = COALESCE(?, notes)
+       WHERE id = ?`,
+      [
+        data.material_name !== undefined ? data.material_name : existing.material_name,
+        data.unit !== undefined ? data.unit : existing.unit,
+        rate,
+        plannedQty,
+        receivedQty,
+        usedQty,
+        remainingQty,
+        extraQty,
+        plannedCost,
+        actualCost,
+        remainingCost,
+        data.notes !== undefined ? data.notes : existing.notes,
+        id,
+      ]
+    );
+    return res.affectedRows > 0;
+  }
+
+  async deleteProjectMaterial(id: number): Promise<boolean> {
+    const [res] = await dbPool.query<ResultSetHeader>(`DELETE FROM project_materials WHERE id = ?`, [id]);
+    return res.affectedRows > 0;
+  }
+
+  async logProjectMaterialAction(id: number, data: {
+    action_type: 'received' | 'used';
+    quantity: number;
+    unit_rate?: number;
+    log_date?: string;
+    notes?: string;
+  }): Promise<boolean> {
+    const existing = await this.getProjectMaterialById(id);
+    if (!existing) throw new Error('Project material record not found');
+
+    const qty = Number(data.quantity);
+    if (qty <= 0) throw new Error('Quantity must be greater than zero');
+
+    const rate = data.unit_rate !== undefined ? Number(data.unit_rate) : Number(existing.unit_rate);
+    const cost = qty * rate;
+    const logDate = data.log_date || new Date().toISOString().split('T')[0];
+
+    let receivedQty = Number(existing.received_quantity);
+    let usedQty = Number(existing.used_quantity);
+    const plannedQty = Number(existing.planned_quantity);
+
+    if (data.action_type === 'received') {
+      receivedQty += qty;
+    } else if (data.action_type === 'used') {
+      usedQty += qty;
+    }
+
+    const extraQty = Math.max(0, usedQty - plannedQty);
+    const baseQty = receivedQty > 0 ? receivedQty : plannedQty;
+    const remainingQty = Math.max(0, baseQty - usedQty);
+    const actualCost = usedQty * rate;
+    const remainingCost = remainingQty * rate;
+
+    const conn = await dbPool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      await conn.query(
+        `UPDATE project_materials SET
+           unit_rate = ?,
+           received_quantity = ?,
+           used_quantity = ?,
+           remaining_quantity = ?,
+           extra_quantity = ?,
+           actual_cost = ?,
+           remaining_cost = ?
+         WHERE id = ?`,
+        [rate, receivedQty, usedQty, remainingQty, extraQty, actualCost, remainingCost, id]
+      );
+
+      await conn.query(
+        `INSERT INTO project_material_logs (
+           project_material_id, project_id, wbs_id, material_id,
+           action_type, quantity, unit_rate, cost, log_date, notes
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id, existing.project_id, existing.wbs_id, existing.material_id || null,
+          data.action_type, qty, rate, cost, logDate, data.notes || null
+        ]
+      );
+
+      await conn.commit();
+      return true;
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async getProjectMaterialLogs(projectMaterialId: number): Promise<any[]> {
+    const [rows] = await dbPool.query<RowDataPacket[]>(
+      `SELECT * FROM project_material_logs WHERE project_material_id = ? ORDER BY log_date DESC, log_id DESC`,
+      [projectMaterialId]
+    );
+    return rows;
+  }
 }
+

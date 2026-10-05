@@ -53,8 +53,8 @@ export class LabourWorkLogRepository {
       SELECT 
         wl.work_log_id, wl.labour_id, l.name AS labour_name, l.labour_type, l.contact_number,
         wl.project_id, p.project_code, p.project_name,
-        wl.wbs_id, pw.wbs_code, w.wbs_name,
-        wl.task_id, t.task_code, t.task_name,
+        wl.wbs_id, w.wbs_code, w.wbs_name,
+        wl.task_id, CONCAT('TSK-', LPAD(t.task_id, 4, '0')) AS task_code, t.task_name,
         DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS work_date,
         wl.in_time, wl.out_time,
         wl.total_working_hours, wl.rate_type, wl.rate, wl.amount,
@@ -68,8 +68,8 @@ export class LabourWorkLogRepository {
       LEFT JOIN project_wbs pw ON wl.wbs_id = pw.id
       LEFT JOIN work_breakdown_structures w ON pw.wbs_id = w.id
       JOIN tasks t ON wl.task_id = t.task_id
-      LEFT JOIN users u1 ON wl.created_by = u1.id
-      LEFT JOIN users u2 ON wl.updated_by = u2.id
+      LEFT JOIN employees u1 ON wl.created_by = u1.employee_id
+      LEFT JOIN employees u2 ON wl.updated_by = u2.employee_id
       WHERE (wl.is_deleted = 0 OR wl.is_deleted IS NULL)
     `;
     const params: any[] = [];
@@ -146,8 +146,8 @@ export class LabourWorkLogRepository {
       `SELECT 
         wl.work_log_id, wl.labour_id, l.name AS labour_name, l.labour_type, l.contact_number,
         wl.project_id, p.project_code, p.project_name,
-        wl.wbs_id, pw.wbs_code, w.wbs_name,
-        wl.task_id, t.task_code, t.task_name,
+        wl.wbs_id, w.wbs_code, w.wbs_name,
+        wl.task_id, CONCAT('TSK-', LPAD(t.task_id, 4, '0')) AS task_code, t.task_name,
         DATE_FORMAT(wl.work_date, '%Y-%m-%d') AS work_date,
         wl.in_time, wl.out_time,
         wl.total_working_hours, wl.rate_type, wl.rate, wl.amount,
