@@ -908,7 +908,7 @@ export const Labours: React.FC<LaboursProps> = ({
       {/* Add / Edit Labour Form Card */}
       {showAddLabour && (
         <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid var(--accent-primary, #6366f1)' }}>
-          <div className="flex items-center justify-between mb-3 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
+          <div className="flex items-center justify-between mb-3 pb-2" style={{ borderBottom: '1px solid var(--border-color, var(--border-color))' }}>
             <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
               <Users size={18} style={{ color: 'var(--accent-primary, #6366f1)' }} />
               {editingLabour ? `Edit Labour / Contractor: ${editingLabour.name}` : 'Register New Labour / Contractor'}
@@ -1151,7 +1151,7 @@ export const Labours: React.FC<LaboursProps> = ({
                   </div>
                 </div>
 
-                <div style={{ padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                <div style={{ padding: '1rem', background: 'var(--border-color)', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
                   <h4 style={{ margin: '0 0 0.75rem 0', color: '#38bdf8', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <Shield size={16} /> Passport Details (Optional)
                   </h4>
@@ -1356,7 +1356,7 @@ export const Labours: React.FC<LaboursProps> = ({
       {/* Add / Edit Work Log Form Card */}
       {showAddWorkLog && (
         <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))' }}>
+          <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, var(--border-color))' }}>
             <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
               <Clock size={18} style={{ color: '#3b82f6' }} />
               {editingWorkLog ? 'Edit Task Work Log' : 'Add Daily Labour Task Work Log'}
@@ -1518,7 +1518,7 @@ export const Labours: React.FC<LaboursProps> = ({
                       : workLogForm.rate
                   ).toFixed(2)}`}
                   className="form-input"
-                  style={{ background: 'rgba(255, 255, 255, 0.05)', fontWeight: 700, color: '#10b981' }}
+                  style={{ background: 'var(--border-color)', fontWeight: 700, color: '#10b981' }}
                 />
               </div>
             </div>

@@ -7,7 +7,7 @@ export const LoadingSpinner: React.FC = () => {
         style={{
           width: '36px',
           height: '36px',
-          border: '3px solid rgba(255,255,255,0.1)',
+          border: '3px solid var(--border-color)',
           borderTopColor: '#6366f1',
           borderRadius: '50%',
           animation: 'spin 1s linear infinite',

@@ -538,7 +538,7 @@ export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: stri
                   >
                     {isSubmitting ? (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                        <span style={{ width: '14px', height: '14px', border: '2px solid var(--border-color)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
                         Saving…
                       </span>
                     ) : editingTs ? (

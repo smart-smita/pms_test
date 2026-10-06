@@ -427,7 +427,7 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
                   <div
                     key={d.quotation_discipline_id || idx}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
                       padding: '0.85rem 1rem',
@@ -528,7 +528,7 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
                     }}
                   >
@@ -581,7 +581,7 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
                     style={{
                       padding: '0.75rem',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
                       display: 'flex',
                       alignItems: 'center',

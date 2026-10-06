@@ -334,7 +334,7 @@ export const ProjectListTab: React.FC<ProjectListTabProps> = ({
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
             <thead>
-              <tr style={{ background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border-color)' }}>
+              <tr style={{ background: 'var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
                 <th style={{ padding: '0.9rem 1.25rem', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.74rem', letterSpacing: '0.04em' }}>CODE</th>
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.74rem', letterSpacing: '0.04em' }}>PROJECT NAME & CLIENT</th>
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.74rem', letterSpacing: '0.04em' }}>LOCATION</th>
@@ -354,7 +354,7 @@ export const ProjectListTab: React.FC<ProjectListTabProps> = ({
                     borderBottom: '1px solid var(--border-color)',
                     transition: 'background 0.15s ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--border-color)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   {/* Code Link */}

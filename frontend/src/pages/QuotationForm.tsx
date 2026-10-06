@@ -1414,7 +1414,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                   <div
                     key={item.id}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-md)',
                       padding: '1rem',
@@ -1782,7 +1782,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                     style={{
                       padding: '0.75rem 1rem',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -1900,7 +1900,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                     style={{
                       padding: '0.75rem',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
                       display: 'flex',
                       alignItems: 'center',

@@ -802,7 +802,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
               </thead>
               <tbody>
                 {currencies.map((c) => (
-                  <tr key={c.currency_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <tr key={c.currency_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                     <td style={{ padding: '0.5rem', fontWeight: 600 }}>{c.currency_code}</td>
                     <td style={{ padding: '0.5rem' }}>{c.currency_name}</td>
                     <td style={{ padding: '0.5rem', color: '#38bdf8' }}>{c.symbol}</td>
@@ -835,7 +835,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
               </thead>
               <tbody>
                 {taxes.map((t) => (
-                  <tr key={t.tax_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: t.status === 1 ? 1 : 0.6 }}>
+                  <tr key={t.tax_id} style={{ borderBottom: '1px solid var(--border-color)', opacity: t.status === 1 ? 1 : 0.6 }}>
                     <td style={{ padding: '0.5rem', fontFamily: 'monospace' }}>{t.tax_code || '-'}</td>
                     <td style={{ padding: '0.5rem', fontWeight: 600 }}>{t.tax_name}</td>
                     <td style={{ padding: '0.5rem' }}><Badge variant="info">{t.tax_type || 'VAT'}</Badge></td>
@@ -978,7 +978,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             
             <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                <thead style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <thead style={{ background: 'var(--border-color)' }}>
                   <tr>
                     <th style={{ padding: '0.5rem', textAlign: 'left', width: '25%' }}>Discipline</th>
                     <th style={{ padding: '0.5rem', textAlign: 'left', width: '40%' }}>Description</th>
@@ -1065,7 +1065,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             </div>
           </div>
 
-          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <span>Subtotal Amount:</span>
               <strong>{invoiceForm.subtotal_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>

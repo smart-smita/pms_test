@@ -174,12 +174,12 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         </h3>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-          <div style={{ padding: '1rem', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)' }}>
+          <div style={{ padding: '1rem', borderRadius: '8px', background: 'var(--border-color)', border: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>PLANNED HOURS</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.25rem' }}>{planned.toFixed(2)} hrs</div>
           </div>
 
-          <div style={{ padding: '1rem', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-color)' }}>
+          <div style={{ padding: '1rem', borderRadius: '8px', background: 'var(--border-color)', border: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>ACTUAL HOURS</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8', marginTop: '0.25rem' }}>{actual.toFixed(2)} hrs</div>
           </div>

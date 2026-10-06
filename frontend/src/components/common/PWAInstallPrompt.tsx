@@ -189,7 +189,7 @@ export const PWAInstallPrompt: React.FC = () => {
           <div
             style={{
               background: '#1e293b',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: '1px solid var(--border-color)',
               borderRadius: '1.25rem',
               maxWidth: '380px',
               width: '100%',

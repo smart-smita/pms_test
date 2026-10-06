@@ -97,7 +97,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           padding: '0.45rem 0.75rem',
           borderRadius: '8px',
           border: error ? '1px solid #ef4444' : isOpen ? '1px solid #6366f1' : '1px solid var(--border-color)',
-          backgroundColor: disabled ? 'rgba(255,255,255,0.02)' : 'var(--bg-card, #111827)',
+          backgroundColor: disabled ? 'var(--border-color)' : 'var(--bg-card, #111827)',
           color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
           cursor: disabled ? 'not-allowed' : 'pointer',
           display: 'flex',
@@ -266,7 +266,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                       transition: 'background 0.15s ease',
                     }}
                     onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--border-color)';
                     }}
                     onMouseLeave={(e) => {
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';

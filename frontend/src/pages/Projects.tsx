@@ -222,7 +222,7 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
             <span>{r.progress_percentage}%</span>
             <span style={{ color: '#94a3b8' }}>{r.completed_task_count}/{r.task_count} Tasks</span>
           </div>
-          <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+          <div style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{ width: `${r.progress_percentage}%`, height: '100%', background: '#6366f1' }} />
           </div>
         </div>

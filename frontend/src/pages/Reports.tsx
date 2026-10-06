@@ -896,7 +896,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
               width: '40px', height: '40px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.15)',
+              background: 'var(--border-color)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <Calendar size={20} color="#fff" />
@@ -905,7 +905,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
               <div style={{ fontWeight: 700, fontSize: viewportW < 576 ? '0.95rem' : '1.1rem', color: '#fff' }}>
                 Employee Attendance Day Wise Hrs Report
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.15rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--border-color)', marginTop: '0.15rem' }}>
                 PMS Construction • Day-by-day attendance showing In/Out time, working hours, and addresses
               </div>
             </div>
@@ -916,7 +916,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
               padding: '0.55rem 1.15rem',
-              background: hasData ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.1)',
+              background: hasData ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--border-color)',
               color: '#fff', border: 'none', borderRadius: '8px',
               fontWeight: 600, fontSize: '0.85rem',
               cursor: hasData ? 'pointer' : 'not-allowed',
@@ -1192,7 +1192,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
               width: '40px', height: '40px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.15)',
+              background: 'var(--border-color)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <Calendar size={20} color="#fff" />
@@ -1201,7 +1201,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
               <div style={{ fontWeight: 700, fontSize: viewportW < 576 ? '0.95rem' : '1.1rem', color: '#fff' }}>
                 Attendance Report 3 (Summary)
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.15rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--border-color)', marginTop: '0.15rem' }}>
                 PMS Construction • Employee-wise day-wise attendance status matrix
               </div>
             </div>
@@ -1212,7 +1212,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
               padding: '0.55rem 1.15rem',
-              background: hasData ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.1)',
+              background: hasData ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--border-color)',
               color: '#fff', border: 'none', borderRadius: '8px',
               fontWeight: 600, fontSize: '0.85rem',
               cursor: hasData ? 'pointer' : 'not-allowed',
@@ -1500,7 +1500,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
               width: '40px', height: '40px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.15)',
+              background: 'var(--border-color)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <TableProperties size={20} color="#fff" />
@@ -1509,7 +1509,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
               <div style={{ fontWeight: 700, fontSize: viewportW < 576 ? '0.95rem' : '1.1rem', color: '#fff' }}>
                 Employee Attendance Day Wise Report View 2
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.15rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--border-color)', marginTop: '0.15rem' }}>
                 PMS Construction • Day-wise In/Out &amp; Hours Matrix
               </div>
             </div>
@@ -1520,7 +1520,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
               padding: '0.55rem 1.15rem',
-              background: employeeSections.length > 0 ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.1)',
+              background: employeeSections.length > 0 ? 'linear-gradient(135deg, #10b981, #059669)' : 'var(--border-color)',
               color: '#fff',
               border: 'none', borderRadius: '8px',
               fontWeight: 600, fontSize: '0.85rem',
@@ -1971,7 +1971,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading report data...</div>
         ) : !hasData ? (
           <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-            <HardHat size={48} style={{ margin: '0 auto 1rem', color: 'rgba(255,255,255,0.1)' }} />
+            <HardHat size={48} style={{ margin: '0 auto 1rem', color: 'var(--border-color)' }} />
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', color: 'var(--text-primary)' }}>No data available</h3>
             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Adjust your filters to see results.</p>
           </div>
@@ -2232,7 +2232,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
             padding: '0.6rem 1.25rem',
             borderRadius: '8px',
             border: 'none',
-            background: activeTab === 'employee' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
+            background: activeTab === 'employee' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'var(--border-color)',
             color: activeTab === 'employee' ? '#fff' : 'var(--text-secondary)',
             fontWeight: 600,
             fontSize: '0.9rem',
@@ -2250,7 +2250,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
             padding: '0.6rem 1.25rem',
             borderRadius: '8px',
             border: 'none',
-            background: activeTab === 'labour' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'rgba(255,255,255,0.05)',
+            background: activeTab === 'labour' ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : 'var(--border-color)',
             color: activeTab === 'labour' ? '#fff' : 'var(--text-secondary)',
             fontWeight: 600,
             fontSize: '0.9rem',

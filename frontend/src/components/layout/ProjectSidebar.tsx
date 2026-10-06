@@ -123,7 +123,7 @@ export const ProjectSidebar: React.FC<ProjectSidebarProps> = ({ activeTab, onTab
           display: 'flex',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+          borderBottom: '1px solid var(--border-color)',
         }}>
           {!isCollapsed && (
             <button

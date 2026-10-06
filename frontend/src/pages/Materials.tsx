@@ -400,7 +400,7 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
           </div>
 
           {/* View Switcher */}
-          <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.35rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--border-color)', padding: '0.35rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
             <button
               type="button"
               onClick={() => setActiveTab('project_materials')}
@@ -644,7 +644,7 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
                                 type="button"
                                 onClick={() => openHistoryModal(mat)}
                                 title="View Receipt & Usage History"
-                                style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+                                style={{ padding: '0.25rem 0.45rem', borderRadius: '6px', fontSize: '0.72rem', background: 'var(--border-color)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', cursor: 'pointer' }}
                               >
                                 <History size={12} />
                               </button>

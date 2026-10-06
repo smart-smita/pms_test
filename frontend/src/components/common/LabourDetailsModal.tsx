@@ -208,7 +208,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                 <div
                   style={{
                     padding: '1.25rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--border-color)',
                     borderRadius: '12px',
                     border: '1px solid var(--border-color)',
                   }}
@@ -260,7 +260,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                 <div
                   style={{
                     padding: '1.25rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--border-color)',
                     borderRadius: '12px',
                     border: '1px solid var(--border-color)',
                   }}
@@ -269,11 +269,11 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                     <Shield size={16} /> Identity & Government Documents
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
-                    <div style={{ padding: '0.85rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ padding: '0.85rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.78rem' }}>National ID / Aadhaar ID</span>
                       <strong style={{ fontSize: '0.95rem' }}>{labour.aadhar_id || 'Not Provided'}</strong>
                     </div>
-                    <div style={{ padding: '0.85rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ padding: '0.85rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.78rem' }}>EMREADS ID / Emirates ID</span>
                       <strong style={{ fontSize: '0.95rem' }}>{labour.emreads_id || emreads?.document_number || 'Not Provided'}</strong>
                     </div>
@@ -357,7 +357,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                   <div
                     style={{
                       padding: '1.25rem',
-                      background: 'rgba(255, 255, 255, 0.02)',
+                      background: 'var(--border-color)',
                       borderRadius: '12px',
                       border: '1px solid var(--border-color)',
                     }}
@@ -442,7 +442,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                 <div
                   style={{
                     padding: '1.25rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--border-color)',
                     borderRadius: '12px',
                     border: '1px solid var(--border-color)',
                   }}
@@ -507,7 +507,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                 <div
                   style={{
                     padding: '1.25rem',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--border-color)',
                     borderRadius: '12px',
                     border: '1px solid var(--border-color)',
                   }}
@@ -596,7 +596,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           padding: '0.85rem 1rem',
-                          background: 'rgba(255, 255, 255, 0.02)',
+                          background: 'var(--border-color)',
                           borderRadius: '8px',
                           border: '1px solid var(--border-color)',
                         }}
@@ -691,7 +691,7 @@ export const LabourDetailsModal: React.FC<LabourDetailsModalProps> = ({
                         key={n.id}
                         style={{
                           padding: '0.85rem 1rem',
-                          background: 'rgba(255, 255, 255, 0.02)',
+                          background: 'var(--border-color)',
                           borderRadius: '8px',
                           border: '1px solid var(--border-color)',
                           display: 'flex',

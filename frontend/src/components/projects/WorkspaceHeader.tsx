@@ -272,7 +272,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                     cursor: 'pointer',
                     textAlign: 'left',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--border-color)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   <Download size={14} color="#818cf8" /> Export Excel
@@ -296,7 +296,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                     cursor: 'pointer',
                     textAlign: 'left',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--border-color)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   <Copy size={14} color="#38bdf8" /> Duplicate Project
@@ -320,7 +320,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                     cursor: 'pointer',
                     textAlign: 'left',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--border-color)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   <Power size={14} /> {project.status === 'active' ? 'Deactivate' : 'Activate'}

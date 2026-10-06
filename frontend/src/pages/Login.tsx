@@ -112,7 +112,7 @@ export const Login: React.FC<LoginProps> = ({ onForgotPassword }) => {
           </Button>
         </form>
 
-        <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: '0.75rem', color: '#94a3b8' }}>
+        <div style={{ marginTop: '2rem', padding: '1rem', background: 'var(--border-color)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', fontSize: '0.75rem', color: '#94a3b8' }}>
           <div style={{ fontWeight: 700, color: '#f8fafc', marginBottom: '0.35rem' }}>Demo Seed Credentials:</div>
           <div>Admin: <code>ADMIN001</code> / <code>Admin@123</code></div>
           <div>Manager: <code>MGR001</code> / <code>Manager@123</code></div>

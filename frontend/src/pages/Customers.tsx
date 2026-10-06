@@ -539,7 +539,7 @@ export const Customers: React.FC = () => {
             {/* Section 1: Company Profile */}
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.02)',
+                background: 'var(--border-color)',
                 border: '1px solid var(--border-color)',
                 borderRadius: 'var(--radius-md)',
                 padding: '1rem',
@@ -609,7 +609,7 @@ export const Customers: React.FC = () => {
             {/* Section 2: Contact Information */}
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.02)',
+                background: 'var(--border-color)',
                 border: '1px solid var(--border-color)',
                 borderRadius: 'var(--radius-md)',
                 padding: '1rem',
@@ -676,7 +676,7 @@ export const Customers: React.FC = () => {
             {/* Section 3: Regional & Billing Address */}
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.02)',
+                background: 'var(--border-color)',
                 border: '1px solid var(--border-color)',
                 borderRadius: 'var(--radius-md)',
                 padding: '1rem',
@@ -867,7 +867,7 @@ export const Customers: React.FC = () => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                 gap: '0.75rem',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'var(--border-color)',
                 padding: '1rem',
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--border-color)',
@@ -925,7 +925,7 @@ export const Customers: React.FC = () => {
               {/* Contact Card */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'var(--border-color)',
                   border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
                   padding: '1rem',
@@ -991,7 +991,7 @@ export const Customers: React.FC = () => {
               {/* Location Card */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'var(--border-color)',
                   border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
                   padding: '1rem',
@@ -1051,7 +1051,7 @@ export const Customers: React.FC = () => {
             {viewingCustomer.address && (
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'var(--border-color)',
                   border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
                   padding: '1rem',

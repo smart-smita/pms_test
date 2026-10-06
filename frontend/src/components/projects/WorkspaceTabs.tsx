@@ -167,7 +167,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
                     fontSize: '0.7rem',
                     padding: '0.1rem 0.4rem',
                     borderRadius: '999px',
-                    background: isActive ? '#4f46e5' : 'rgba(255,255,255,0.1)',
+                    background: isActive ? '#4f46e5' : 'var(--border-color)',
                     color: '#ffffff',
                     fontWeight: 700,
                     flexShrink: 0,

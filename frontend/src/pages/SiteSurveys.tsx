@@ -712,7 +712,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           title={`Site Survey Details (${viewingSurvey.survey_code})`}
         >
           <div style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem', background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Project:</span>
                 <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{viewingSurvey.project_name} ({viewingSurvey.project_code})</div>
@@ -740,7 +740,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
             </div>
 
             {viewingSurvey.comments && (
-              <div style={{ marginBottom: '1rem', background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '8px' }}>
+              <div style={{ marginBottom: '1rem', background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px' }}>
                 <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>Inspector Comments:</span>
                 <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-primary)', fontSize: '0.85rem' }}>{viewingSurvey.comments}</p>
               </div>

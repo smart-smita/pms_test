@@ -717,39 +717,39 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
                 {/* Tab 1: Employee Information */}
                 {detailsTab === 'info' && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Employee Code</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.employee_code}</strong>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Full Name</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.name}</strong>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Email Address</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.email}</strong>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Department</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.department || 'N/A'}</strong>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Contact Number</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.contact_number || 'N/A'}</strong>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Role</span>
                       <Badge variant="info">{selectedDetails.employee.role_name}</Badge>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Account Status</span>
                       <Badge variant={selectedDetails.employee.status === 'active' ? 'success' : 'danger'}>{selectedDetails.employee.status}</Badge>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Assigned Project</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.assigned_project_name || 'None'}</strong>
                     </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ background: 'var(--border-color)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', textTransform: 'uppercase' }}>Assigned WBS Discipline</span>
                       <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{selectedDetails.employee.assigned_wbs_name || 'None'}</strong>
                     </div>
@@ -761,7 +761,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       {/* Passport Card */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                           <strong style={{ color: '#38bdf8', fontSize: '0.9rem' }}>Passport Details</strong>
                           {renderDocBadge(selectedDetails.passport?.expiry_calc)}
@@ -780,7 +780,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
                       </div>
 
                       {/* Visa Card */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                           <strong style={{ color: '#a855f7', fontSize: '0.9rem' }}>Visa Details</strong>
                           {renderDocBadge(selectedDetails.visa?.expiry_calc)}
@@ -799,7 +799,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
                       </div>
 
                       {/* National ID / Emirates ID Card */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                           <strong style={{ color: '#4ade80', fontSize: '0.9rem' }}>Emirates ID / National ID</strong>
                           {renderDocBadge(selectedDetails.emreads?.expiry_calc)}
@@ -842,7 +842,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
                       <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>Assigned Projects ({selectedDetails.assigned_projects?.length || 0})</h5>
                       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                         {selectedDetails.assigned_projects?.map((p: any) => (
-                          <div key={p.project_id} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.4rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid var(--border-color)' }}>
+                          <div key={p.project_id} style={{ background: 'var(--border-color)', padding: '0.4rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', border: '1px solid var(--border-color)' }}>
                             <strong>{p.project_code || `P0${p.project_id}`}</strong> {p.project_name} ({p.status})
                           </div>
                         ))}
@@ -1068,7 +1068,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
                     fontSize: '0.78rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: docSectionTab === tab.key ? '#4f46e5' : 'rgba(255,255,255,0.05)',
+                    background: docSectionTab === tab.key ? '#4f46e5' : 'var(--border-color)',
                     color: docSectionTab === tab.key ? '#ffffff' : 'var(--text-secondary)',
                   }}
                 >
@@ -1079,7 +1079,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
 
             {/* Passport */}
             {docSectionTab === 'passport' && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <div className="grid-2-col">
                   <FormInput label="Passport Number" value={passportForm.document_number} onChange={(e) => setPassportForm({ ...passportForm, document_number: e.target.value })} placeholder="e.g. Z1234567" />
                   <FormSelect
@@ -1106,7 +1106,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
 
             {/* Visa */}
             {docSectionTab === 'visa' && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <div className="grid-2-col">
                   <FormInput label="Visa Number" value={visaForm.document_number} onChange={(e) => setVisaForm({ ...visaForm, document_number: e.target.value })} placeholder="e.g. 201/2026/12345" />
                   <FormSelect
@@ -1147,7 +1147,7 @@ export const Employees: React.FC<EmployeesProps> = ({ isEmbedded, initialAction,
 
             {/* National ID / Emirates ID */}
             {docSectionTab === 'national_id' && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <div className="grid-2-col">
                   <FormInput
                     label="ID Number (Emirates ID / National ID / 16-Digit ID)"

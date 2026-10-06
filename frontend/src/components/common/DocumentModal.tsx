@@ -195,7 +195,7 @@ export const DocumentModal: React.FC<DocumentModalProps> = ({
             onSubmit={handleUploadSubmit}
             style={{
               padding: '1.25rem',
-              background: 'rgba(255, 255, 255, 0.03)',
+              background: 'var(--border-color)',
               borderRadius: '12px',
               border: '1px solid var(--border-color)',
               marginBottom: '1.5rem',
@@ -288,7 +288,7 @@ export const DocumentModal: React.FC<DocumentModalProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '1rem',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'var(--border-color)',
                   borderRadius: '10px',
                   border: '1px solid var(--border-color)',
                 }}

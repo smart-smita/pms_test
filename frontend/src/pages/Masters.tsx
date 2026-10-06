@@ -791,7 +791,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                   </Badge>
                 </div>
                 {viewingItem.description && (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, background: 'rgba(255,255,255,0.03)', padding: '0.65rem', borderRadius: '6px' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0, background: 'var(--border-color)', padding: '0.65rem', borderRadius: '6px' }}>
                     {viewingItem.description}
                   </p>
                 )}
@@ -807,7 +807,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                         style={{
                           padding: '0.75rem 0.95rem',
                           borderRadius: '8px',
-                          background: 'rgba(255,255,255,0.02)',
+                          background: 'var(--border-color)',
                           border: '1px solid var(--border-color)',
                         }}
                       >
@@ -897,7 +897,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                     <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>Holidays ({viewingItem.holidays.length})</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {viewingItem.holidays.map((h: any, idx: number) => (
-                        <div key={idx} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '0.85rem' }}>
+                        <div key={idx} style={{ padding: '0.5rem', background: 'var(--border-color)', borderRadius: '6px', fontSize: '0.85rem' }}>
                           <span style={{ fontWeight: 600, color: '#f87171' }}>{h.holiday_date ? h.holiday_date.split('T')[0] : ''}</span> 
                           {' - '} {h.description || 'No description'} 
                           <span style={{ color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>({h.type.replace('_', ' ')})</span>
@@ -1228,7 +1228,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                         flexDirection: 'column',
                         gap: '0.4rem',
                         padding: '0.65rem',
-                        background: 'rgba(255,255,255,0.02)',
+                        background: 'var(--border-color)',
                         borderRadius: '8px',
                         border: '1px solid var(--border-color)',
                       }}
@@ -1376,7 +1376,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                         flexDirection: 'column',
                         gap: '0.4rem',
                         padding: '0.65rem',
-                        background: 'rgba(255,255,255,0.02)',
+                        background: 'var(--border-color)',
                         borderRadius: '8px',
                         border: '1px solid var(--border-color)',
                       }}

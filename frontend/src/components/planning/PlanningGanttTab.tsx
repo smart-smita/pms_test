@@ -352,7 +352,7 @@ export const PlanningGanttTab: React.FC<PlanningGanttTabProps> = ({ planning }) 
                         top: 0,
                         bottom: 0,
                         width: dayWidth,
-                        borderRight: '1px solid rgba(255, 255, 255, 0.04)',
+                        borderRight: '1px solid var(--border-color)',
                         background: date.getDay() === 0 ? 'rgba(239, 68, 68, 0.03)' : 'transparent',
                         pointerEvents: 'none',
                       }}

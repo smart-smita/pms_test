@@ -433,7 +433,7 @@ export const WbsTemplates: React.FC<WbsTemplatesProps> = ({ isEmbedded, initialA
               justifyContent: 'space-between',
               gap: '0.5rem',
               flexWrap: 'wrap',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              borderBottom: '1px solid var(--border-color)',
               paddingBottom: '0.4rem',
             }}
           >

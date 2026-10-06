@@ -769,7 +769,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
 
             {/* Available WBS Templates */}
             {availableWbsTemplates.length > 0 && (
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'var(--border-color)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
                 <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                   Import WBS from Master Templates:
                 </div>
@@ -812,7 +812,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
                   style={{
                     padding: '1rem',
                     borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--border-color)',
                     border: wbs.is_custom ? '1px solid rgba(168,85,247,0.4)' : '1px solid var(--border-color)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -923,7 +923,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
               ))}
 
               {wbsAllocations.length === 0 && (
-                <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'var(--border-color)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
                   No WBS tasks assigned. Import from WBS templates above or click "+ Add Extra Project WBS".
                 </div>
               )}
@@ -963,7 +963,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
                   style={{
                     padding: '1rem',
                     borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--border-color)',
                     border: '1px solid var(--border-color)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -1025,7 +1025,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
               ))}
 
               {documents.length === 0 && (
-                <div style={{ gridColumn: '1 / -1', padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
+                <div style={{ gridColumn: '1 / -1', padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'var(--border-color)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
                   No documents uploaded for this project yet.
                 </div>
               )}

@@ -187,7 +187,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
                   <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'var(--border-color)', borderRadius: '8px', color: '#f8fafc' }} />
                   <Area type="monotone" dataKey="hours" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorHours)" />
@@ -355,7 +355,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
                 <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip 
                   contentStyle={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-primary)' }} 
@@ -461,7 +461,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', maxHeight: '300px' }}>
             {metrics.alerts?.map((alert: any, idx: number) => (
-              <div key={idx} style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', borderLeft: `3px solid ${alert.type === 'danger' ? '#ef4444' : alert.type === 'warning' ? '#f59e0b' : '#3b82f6'}` }}>
+              <div key={idx} style={{ padding: '0.75rem', borderRadius: '8px', background: 'var(--border-color)', borderLeft: `3px solid ${alert.type === 'danger' ? '#ef4444' : alert.type === 'warning' ? '#f59e0b' : '#3b82f6'}` }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>{alert.title}</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{alert.message}</div>
               </div>

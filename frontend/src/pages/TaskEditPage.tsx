@@ -335,7 +335,7 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
             marginTop: '1.5rem',
             padding: '1rem',
             borderRadius: '10px',
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: 'var(--border-color)',
             border: '1px solid var(--border-color)',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',

@@ -283,7 +283,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
           {/* TAB 1: OVERVIEW & LOCATION */}
           {activeTab === 'overview' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+              <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                 <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <Building2 size={16} color="#6366f1" /> Client & Account Details
                 </h4>
@@ -314,7 +314,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+              <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                 <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <MapPin size={16} color="#f43f5e" /> Project Location & Geofence
                 </h4>
@@ -375,7 +375,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
               ) : (
                 <table className="minimal-table" style={{ width: '100%', fontSize: '0.85rem' }}>
                   <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <tr style={{ background: 'var(--border-color)' }}>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Discipline</th>
                       <th style={{ textAlign: 'center', padding: '0.6rem' }}>Unit</th>
                       <th style={{ textAlign: 'right', padding: '0.6rem' }}>Quantity</th>
@@ -424,7 +424,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
 
               {/* Grouped Terms Snapshots */}
               {termsSnapshots.length > 0 ? (
-                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+                <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
                   <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
                     Contractual Terms & Conditions ({termsSnapshots.length})
                   </h4>
@@ -463,7 +463,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
                   })}
                 </div>
               ) : quotation?.terms_conditions ? (
-                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+                <div style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
                   <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Contractual Terms & Conditions Snapshot</h4>
                   <p style={{ fontSize: '0.85rem', color: '#cbd5e1', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{quotation.terms_conditions}</p>
                 </div>
@@ -477,7 +477,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {documents.map((doc) => (
-                    <div key={doc.document_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div key={doc.document_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{doc.document_name}</div>
                         <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Type: {doc.doc_type_name || 'Document'} | Expiry: {doc.expiry_date ? new Date(doc.expiry_date).toLocaleDateString() : 'N/A'}</div>
@@ -505,7 +505,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
               ) : (
                 <table className="minimal-table" style={{ width: '100%', fontSize: '0.85rem' }}>
                   <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <tr style={{ background: 'var(--border-color)' }}>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Task Name</th>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>WBS Discipline</th>
                       <th style={{ textAlign: 'right', padding: '0.6rem' }}>Est. Hours</th>
@@ -540,7 +540,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {surveys.map((s: any) => (
-                    <div key={s.survey_id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                    <div key={s.survey_id} style={{ background: 'var(--border-color)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <div>
                           <strong style={{ color: '#818cf8', fontSize: '0.95rem' }}>{s.survey_code}</strong>
@@ -590,7 +590,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
               ) : (
                 <table className="minimal-table" style={{ width: '100%', fontSize: '0.85rem' }}>
                   <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <tr style={{ background: 'var(--border-color)' }}>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Invoice #</th>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Date</th>
                       <th style={{ textAlign: 'right', padding: '0.6rem' }}>Subtotal</th>
@@ -629,7 +629,7 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
               ) : (
                 <table className="minimal-table" style={{ width: '100%', fontSize: '0.85rem' }}>
                   <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <tr style={{ background: 'var(--border-color)' }}>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Payment Date</th>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Invoice #</th>
                       <th style={{ textAlign: 'left', padding: '0.6rem' }}>Method / Ref</th>

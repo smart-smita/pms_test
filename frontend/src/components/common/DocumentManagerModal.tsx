@@ -173,7 +173,7 @@ export const DocumentManagerModal: React.FC<DocumentManagerModalProps> = ({
                     justifyContent: 'space-between',
                     padding: '0.75rem 1rem',
                     borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--border-color)',
                     border: '1px solid var(--border-color)',
                   }}
                 >

@@ -6,13 +6,13 @@
   --bg-secondary: #121929;
   --bg-card: #121929;
   --bg-glass: rgba(18, 25, 41, 0.85);
-  --border-color: rgba(255, 255, 255, 0.06);
+  --border-color: var(--border-color);
   --border-focus: #4f46e5;
 
   /* Inputs — solid background so native select is legible */
   --input-bg:        #1e293b;
   --input-bg-solid:  #1e293b;
-  --input-border:    rgba(255, 255, 255, 0.12);
+  --input-border:    var(--border-color);
   --input-text:      #f8fafc;
   --input-placeholder: #94a3b8;
   /* Option list (dropdown panel) */
@@ -58,7 +58,7 @@
   --bg-primary:  #f8fafc;
   --bg-secondary: #ffffff;
   --bg-card:     #ffffff;
-  --bg-glass:    rgba(255, 255, 255, 0.85);
+  --bg-glass:    var(--border-color);
   --border-color: rgba(0, 0, 0, 0.1);
   --border-focus: #4f46e5;
 
@@ -363,8 +363,8 @@ h1, h2, h3, h4, h5 {
 }
 
 .quick-action-btn:hover {
-  background: rgba(255,255,255,0.05);
-  border-color: rgba(255,255,255,0.2);
+  background: var(--border-color);
+  border-color: var(--border-color);
   transform: translateY(-2px);
 }
 
@@ -398,7 +398,7 @@ h1, h2, h3, h4, h5 {
   border-color: var(--border-color);
 }
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-color);
 }
 
 /* Badges */
@@ -454,7 +454,7 @@ h1, h2, h3, h4, h5 {
 
 .sidebar-link:hover {
   color: var(--text-primary);
-  background: rgba(255,255,255,0.03);
+  background: var(--border-color);
 }
 
 .sidebar-link.active {
@@ -479,7 +479,7 @@ h1, h2, h3, h4, h5 {
 .minimal-table td {
   padding: 0.85rem 0;
   font-size: 0.85rem;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border-color);
 }
 .minimal-table tr:last-child td {
   border-bottom: none;
@@ -527,7 +527,7 @@ h1, h2, h3, h4, h5 {
   border-bottom: none;
 }
 .data-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--border-color);
 }
 [data-theme="light"] .data-table tr:hover td {
   background: rgba(0,0,0,0.018);
@@ -617,7 +617,7 @@ select.form-input option {
 textarea.form-input:disabled {
   opacity: 0.85;
   cursor: not-allowed;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--border-color);
   -webkit-text-fill-color: var(--text-muted);
 }
 
@@ -894,7 +894,7 @@ textarea.form-input:disabled {
 }
 
 .datatable-sort-header:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: var(--border-color) !important;
 }
 
 [data-theme="light"] .datatable-sort-header:hover {
@@ -1338,7 +1338,7 @@ textarea.form-input:disabled {
   background: rgba(0, 0, 0, 0.015);
 }
 [data-theme="dark"] .premium-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--border-color);
 }
 .premium-table .text-primary {
   color: var(--text-primary);
@@ -1361,7 +1361,7 @@ textarea.form-input:disabled {
   /* overflow: hidden; Removed to allow dropdowns */
 }
 [data-theme="dark"] .progress-bar-bg {
-  background: rgba(255,255,255,0.1);
+  background: var(--border-color);
 }
 .progress-bar-fill {
   height: 100%;
@@ -1418,7 +1418,7 @@ textarea.form-input:disabled {
   background: rgba(0,0,0,0.05);
 }
 [data-theme="dark"] .icon-btn:hover {
-  background: rgba(255,255,255,0.1);
+  background: var(--border-color);
 }
 .icon-edit { color: #8b5cf6; }
 .icon-delete { color: #ef4444; }

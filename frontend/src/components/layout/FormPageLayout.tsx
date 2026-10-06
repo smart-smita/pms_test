@@ -101,7 +101,7 @@ export const FormPageLayout: React.FC<FormPageLayoutProps> = ({
               }}
             >
               {isSaving ? (
-                <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                <div className="spinner" style={{ width: '16px', height: '16px', border: '2px solid var(--border-color)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
               ) : (
                 <Save size={16} />
               )}

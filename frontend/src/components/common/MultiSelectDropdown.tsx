@@ -73,7 +73,7 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
           padding: '0.25rem 0.5rem',
           borderRadius: '8px',
           border: isOpen ? '1px solid #6366f1' : '1px solid var(--border-color)',
-          backgroundColor: disabled ? 'rgba(255,255,255,0.02)' : 'var(--bg-card, #111827)',
+          backgroundColor: disabled ? 'var(--border-color)' : 'var(--bg-card, #111827)',
           cursor: disabled ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -165,7 +165,7 @@ export const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
                     borderRadius: '4px',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                    if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--border-color)';
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
