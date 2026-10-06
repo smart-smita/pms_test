@@ -349,23 +349,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
             </div>
           )}
         </div>
-        {!isCollapsed && (
-          <button
-            className="sidebar-close-btn hamburger-btn"
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              padding: '4px',
-              borderRadius: '6px',
-            }}
-            aria-label="Close sidebar"
-          >
-            <X size={20} />
-          </button>
-        )}
       </div>
 
       {/* Nav List */}
