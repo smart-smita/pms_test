@@ -16,6 +16,12 @@ export interface CreateSiteSurveyDTO {
   longitude?: number | null;
   comments?: string | null;
   remarks?: string | null;
+  wbs_id?: number | null;
+  site_conditions?: string | null;
+  measurements?: string | null;
+  labour_requirements?: string | null;
+  material_requirements?: string | null;
+  observations?: string | null;
   attached_report_path?: string | null;
   status?: 'draft' | 'completed' | 'verified' | 'rejected';
   created_by?: number | null;
@@ -104,7 +110,7 @@ export class SiteSurveyRepository {
       `
       SELECT ssp.*, 
         (
-          SELECT JSON_ARRAYAGG(JSON_OBJECT('id', d.discipline_id, 'name', d.discipline_name))
+          SELECT CONCAT('[', GROUP_CONCAT(JSON_OBJECT('id', d.discipline_id, 'name', d.discipline_name)), ']')
           FROM site_survey_photo_disciplines spd
           JOIN disciplines d ON spd.discipline_id = d.discipline_id
           WHERE spd.photo_id = ssp.photo_id
@@ -131,8 +137,8 @@ export class SiteSurveyRepository {
       let code = data.survey_code;
       if (!code) {
         const dateStr = new Date().toISOString().slice(0, 7).replace('-', '');
-        const [seqRow]: any = await connection.query(`SELECT COUNT(*) as count FROM site_surveys`);
-        const nextSeq = (seqRow[0].count + 1).toString().padStart(4, '0');
+        const [seqRow]: any = await connection.query(`SELECT COALESCE(MAX(survey_id), 0) as maxId FROM site_surveys`);
+        const nextSeq = (seqRow[0].maxId + 1).toString().padStart(4, '0');
         code = `SRV-${dateStr}-${nextSeq}`;
       }
 
@@ -141,8 +147,8 @@ export class SiteSurveyRepository {
         INSERT INTO site_surveys (
           survey_code, project_id, customer_id, discipline_id, survey_date,
           conducted_by, entry_type, location_details, latitude, longitude,
-          comments, remarks, attached_report_path, status, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          comments, remarks, wbs_id, site_conditions, measurements, labour_requirements, material_requirements, observations, attached_report_path, status, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           code,
@@ -157,6 +163,12 @@ export class SiteSurveyRepository {
           data.longitude || null,
           data.comments || null,
           data.remarks || null,
+          data.wbs_id || null,
+          data.site_conditions || null,
+          data.measurements || null,
+          data.labour_requirements || null,
+          data.material_requirements || null,
+          data.observations || null,
           data.attached_report_path || null,
           data.status || 'completed',
           userId || data.created_by || null,
@@ -242,6 +254,12 @@ export class SiteSurveyRepository {
           location_details = ?,
           comments = ?,
           remarks = ?,
+          wbs_id = ?,
+          site_conditions = ?,
+          measurements = ?,
+          labour_requirements = ?,
+          material_requirements = ?,
+          observations = ?,
           attached_report_path = COALESCE(?, attached_report_path),
           status = COALESCE(?, status)
         WHERE survey_id = ?
@@ -254,6 +272,12 @@ export class SiteSurveyRepository {
           data.location_details !== undefined ? data.location_details : null,
           data.comments !== undefined ? data.comments : null,
           data.remarks !== undefined ? data.remarks : null,
+          data.wbs_id !== undefined ? data.wbs_id : null,
+          data.site_conditions !== undefined ? data.site_conditions : null,
+          data.measurements !== undefined ? data.measurements : null,
+          data.labour_requirements !== undefined ? data.labour_requirements : null,
+          data.material_requirements !== undefined ? data.material_requirements : null,
+          data.observations !== undefined ? data.observations : null,
           data.attached_report_path,
           data.status,
           id,

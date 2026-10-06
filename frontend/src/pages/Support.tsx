@@ -74,7 +74,7 @@ export const Support: React.FC = () => {
             <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Need Immediate Help?</h3>
             <p style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
               For urgent queries, please call the IT helpdesk at <br/> 
-              <strong style={{ color: 'var(--text-primary)' }}>+91-800-HTCO-ERP</strong> (Ext: 442)
+              <strong style={{ color: 'var(--text-primary)' }}>+91-800-PMS-ERP</strong> (Ext: 442)
             </p>
           </div>
         </div>

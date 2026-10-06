@@ -23,7 +23,7 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
   doc
     .fontSize(10)
     .font('Helvetica')
-    .text('HTCO Company Ltd.', 50, 50)
+    .text('PMS Company Ltd.', 50, 50)
     .text('123 Business Avenue, Suite 100', 50, 65)
     .text('Dubai, UAE', 50, 80)
     .text('TRN: 123456789012345', 50, 95)
@@ -132,7 +132,7 @@ export const generateQuotationPDF = (quotation: any, res: Response) => {
   doc
     .fontSize(10)
     .font('Helvetica')
-    .text('HTCO Construction & Engineering Ltd.', 50, 50)
+    .text('PMS Construction & Engineering Ltd.', 50, 50)
     .text('Project Management & Contracting Division', 50, 65)
     .text('Dubai / Riyadh / New Delhi', 50, 80)
     .text(`Date: ${new Date(quotation.quotation_date).toLocaleDateString()}`, 50, 95)
@@ -280,7 +280,7 @@ export const generateQuotationPDF = (quotation: any, res: Response) => {
     }
   }
 
-  doc.fontSize(9).font('Helvetica').text('Thank you for choosing HTCO ERP for your project engineering requirements.', 50, 740, { align: 'center', width: 500 });
+  doc.fontSize(9).font('Helvetica').text('Thank you for choosing PMS ERP for your project engineering requirements.', 50, 740, { align: 'center', width: 500 });
 
   doc.end();
 };
@@ -302,7 +302,7 @@ export const generateSiteSurveyPDF = (survey: any, res: Response) => {
   doc
     .fontSize(10)
     .font('Helvetica')
-    .text('HTCO Company Ltd.', 50, 50)
+    .text('PMS Company Ltd.', 50, 50)
     .text('Dubai, UAE', 50, 65)
     .moveDown();
 

@@ -54,12 +54,11 @@ export class TaskService {
     }
 
     const assignedEmployeeIds = data.assigned_employee_ids || [];
-    const requiredCount = Number(data.required_worker_count || 1);
+    let requiredCount = Number(data.required_worker_count || 1);
     if (assignedEmployeeIds.length > requiredCount) {
-      throw new Error(
-        `Cannot assign ${assignedEmployeeIds.length} employees to a task that requires only ${requiredCount} worker(s). ` +
-        `Increase required_worker_count or reduce the assignment list.`
-      );
+      // Auto-adjust instead of throwing error for better UX
+      requiredCount = assignedEmployeeIds.length;
+      data.required_worker_count = requiredCount;
     }
     const allocations = data.allocations || [];
     const dependencies = data.dependencies || [];
@@ -104,11 +103,11 @@ export class TaskService {
 
     const assignedEmployeeIds = data.assigned_employee_ids;
     if (assignedEmployeeIds !== undefined) {
-      const requiredCount = Number(task.required_worker_count || data.required_worker_count || 1);
+      let requiredCount = Number(task.required_worker_count || data.required_worker_count || 1);
       if (assignedEmployeeIds.length > requiredCount) {
-        throw new Error(
-          `Cannot assign ${assignedEmployeeIds.length} employees to a task that requires only ${requiredCount} worker(s).`
-        );
+        // Auto-adjust instead of throwing error
+        requiredCount = assignedEmployeeIds.length;
+        data.required_worker_count = requiredCount;
       }
     }
     const allocations = data.allocations;

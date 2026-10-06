@@ -1,6 +1,6 @@
 {
-  "name": "HTCO - Employee GPS Attendance & Task Management",
-  "short_name": "HTCO PMS",
+  "name": "PMS - Employee GPS Attendance & Task Management",
+  "short_name": "PMS",
   "description": "Enterprise GPS Attendance, Task Assignment, Timesheet Logging & Project Management System",
   "start_url": "/",
   "scope": "/",

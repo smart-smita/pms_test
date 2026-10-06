@@ -650,7 +650,7 @@ export const Labours: React.FC<LaboursProps> = ({
 
           {hasPermission('labours', 'update') && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 setEditingLabour(item);
                 setShowAddLabour(true);
                 setFormSection('basic');
@@ -669,6 +669,28 @@ export const Labours: React.FC<LaboursProps> = ({
                   emreads_id: item.emreads_id || '',
                   status: (item.status as any) || 'active',
                 });
+
+                // Fetch details for documents
+                try {
+                  const res = await apiService.get(`/labours/${item.labour_id}`);
+                  if (res.success && res.data) {
+                    const d = res.data;
+                    setLabourForm(prev => ({
+                      ...prev,
+                      passport_number: d.passport?.document_number || '',
+                      passport_issue_date: d.passport?.issue_date ? d.passport.issue_date.split('T')[0] : '',
+                      passport_expiry_date: d.passport?.expiry_date ? d.passport.expiry_date.split('T')[0] : '',
+                      passport_file_name: d.passport?.document_file ? 'Existing Document Attached' : '',
+                      visa_number: d.visa?.document_number || '',
+                      visa_issue_date: d.visa?.issue_date ? d.visa.issue_date.split('T')[0] : '',
+                      visa_expiry_date: d.visa?.expiry_date ? d.visa.expiry_date.split('T')[0] : '',
+                      visa_file_name: d.visa?.document_file ? 'Existing Document Attached' : '',
+                      visa_type: d.visa?.sub_type || 'Employment Visa',
+                    }));
+                  }
+                } catch (e) {
+                  console.error('Error fetching labour details', e);
+                }
               }}
               className="action-btn edit"
               title="Edit Labour"

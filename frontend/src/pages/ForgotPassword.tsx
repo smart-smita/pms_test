@@ -94,7 +94,7 @@ export const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onBackToLogin })
           <FormInput
             label="Email Address"
             type="email"
-            placeholder="e.g. admin@htco.com"
+            placeholder="e.g. admin@pms.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

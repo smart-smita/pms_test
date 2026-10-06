@@ -97,11 +97,14 @@ export interface ProjectRow {
 
 export interface TaskRow {
   task_id: number;
+  task_code?: string;
   project_id: number;
   wbs_id?: number;
   wbs_name?: string;
   project_name?: string;
   task_name: string;
+  priority?: string;
+  progress_percentage?: number;
   task_address?: string;
   latitude?: number;
   longitude?: number;

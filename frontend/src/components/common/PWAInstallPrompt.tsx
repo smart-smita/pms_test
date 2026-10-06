@@ -123,7 +123,7 @@ export const PWAInstallPrompt: React.FC = () => {
             <Smartphone size={22} color="#ffffff" />
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: '0.92rem', color: '#ffffff' }}>Install HTCO App</div>
+            <div style={{ fontWeight: 600, fontSize: '0.92rem', color: '#ffffff' }}>Install PMS App</div>
             <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
               Add to home screen for faster GPS punch & offline access
             </div>
@@ -209,7 +209,7 @@ export const PWAInstallPrompt: React.FC = () => {
               </button>
             </div>
             <p style={{ fontSize: '0.88rem', color: '#94a3b8', marginBottom: '1.25rem' }}>
-              Follow these simple steps in Safari to install HTCO PMS to your home screen:
+              Follow these simple steps in Safari to install PMS to your home screen:
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.88rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

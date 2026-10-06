@@ -231,13 +231,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       isAllowed: !isEmployee && (hasPermission('reports', 'view') || isAdminOrManager),
       isActive: currentPage === 'reports/wbs',
     },
-    {
-      id: 'reports/material',
-      label: 'Material Survey Report',
-      icon: Package,
-      isAllowed: !isEmployee && (hasPermission('reports', 'view') || isAdminOrManager),
-      isActive: currentPage === 'reports/material',
-    },
+
     {
       id: 'reports/invoice',
       label: 'Monthly Invoices Report',
@@ -347,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           {!isCollapsed && (
             <div style={{ minWidth: 0, textAlign: 'left' }}>
               <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                HTCO ERP
+                PMS ERP
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.2rem', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 GPS & Workforce
@@ -692,7 +686,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           </div>
           <div style={{ minWidth: 0, flex: 1, overflow: 'hidden', textAlign: 'left' }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', textAlign: 'left' }}>
-              HTCO Construction
+              PMS Construction
             </div>
             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', textAlign: 'left' }}>
               Building the future

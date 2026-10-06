@@ -656,6 +656,12 @@ export interface SiteSurvey {
   longitude?: number | null;
   comments?: string | null;
   remarks?: string | null;
+  wbs_id?: number | null;
+  site_conditions?: string | null;
+  measurements?: string | null;
+  labour_requirements?: string | null;
+  material_requirements?: string | null;
+  observations?: string | null;
   attached_report_path?: string | null;
   status: 'draft' | 'completed' | 'verified' | 'rejected';
   photo_count?: number;

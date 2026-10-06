@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { TaskService } from '../services/task.service';
+import { AuditService } from '../services/audit.service';
 import { createTaskSchema, updateTaskSchema, assignWorkersSchema, updateTaskStatusSchema } from '../validators/task.validator';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 import { AuthenticatedRequest } from '../types';
@@ -80,7 +81,7 @@ export class TaskController {
     }
   };
 
-  create = async (req: Request, res: Response) => {
+  create = async (req: AuthenticatedRequest, res: Response) => {
     const parseResult = createTaskSchema.safeParse(req.body);
     if (!parseResult.success) {
       return sendError(res, 'Validation failed', parseResult.error.errors, 400);
@@ -88,13 +89,21 @@ export class TaskController {
 
     try {
       const task = await this.taskService.createTask(parseResult.data);
+      await AuditService.log({
+        user_id: req.user?.employee_id || (req.user as any)?.id,
+        module: 'tasks',
+        action: 'CREATE_TASK',
+        description: `Created task "${task?.task_name}" in project #${task?.project_id}`,
+        record_id: task?.task_id,
+        ip_address: req.ip
+      });
       return sendSuccess(res, 'Task created successfully', task, 201);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to create task', [], 400);
     }
   };
 
-  update = async (req: Request, res: Response) => {
+  update = async (req: AuthenticatedRequest, res: Response) => {
     const parseResult = updateTaskSchema.safeParse(req.body);
     if (!parseResult.success) {
       return sendError(res, 'Validation failed', parseResult.error.errors, 400);
@@ -103,13 +112,21 @@ export class TaskController {
     try {
       const id = parseInt(req.params.id, 10);
       const updated = await this.taskService.updateTask(id, parseResult.data);
+      await AuditService.log({
+        user_id: req.user?.employee_id || (req.user as any)?.id,
+        module: 'tasks',
+        action: 'UPDATE_TASK',
+        description: `Updated task #${id}`,
+        record_id: id,
+        ip_address: req.ip
+      });
       return sendSuccess(res, 'Task updated successfully', updated);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to update task', [], 400);
     }
   };
 
-  assignWorkers = async (req: Request, res: Response) => {
+  assignWorkers = async (req: AuthenticatedRequest, res: Response) => {
     const parseResult = assignWorkersSchema.safeParse(req.body);
     if (!parseResult.success) {
       return sendError(res, 'Validation failed', parseResult.error.errors, 400);
@@ -118,13 +135,21 @@ export class TaskController {
     try {
       const id = parseInt(req.params.id, 10);
       const updated = await this.taskService.assignWorkersToTask(id, parseResult.data.employee_ids);
+      await AuditService.log({
+        user_id: req.user?.employee_id || (req.user as any)?.id,
+        module: 'tasks',
+        action: 'ASSIGN_WORKERS',
+        description: `Assigned workers to task #${id}`,
+        record_id: id,
+        ip_address: req.ip
+      });
       return sendSuccess(res, 'Workers assigned successfully', updated);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to assign workers', [], 400);
     }
   };
 
-  updateStatus = async (req: Request, res: Response) => {
+  updateStatus = async (req: AuthenticatedRequest, res: Response) => {
     const parseResult = updateTaskStatusSchema.safeParse(req.body);
     if (!parseResult.success) {
       return sendError(res, 'Validation failed', parseResult.error.errors, 400);
@@ -133,18 +158,34 @@ export class TaskController {
     try {
       const id = parseInt(req.params.id, 10);
       const updated = await this.taskService.updateTaskStatus(id, parseResult.data.status);
+      await AuditService.log({
+        user_id: req.user?.employee_id || (req.user as any)?.id,
+        module: 'tasks',
+        action: 'UPDATE_TASK_STATUS',
+        description: `Updated status of task #${id} to ${parseResult.data.status}`,
+        record_id: id,
+        ip_address: req.ip
+      });
       return sendSuccess(res, 'Task status updated successfully', updated);
     } catch (error: any) {
       return sendError(res, error.message || 'Failed to update task status', [], 400);
     }
   };
 
-  delete = async (req: Request, res: Response) => {
+  delete = async (req: AuthenticatedRequest, res: Response) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const deletedBy = (req as any).user.employee_id || (req as any).user.userId || (req as any).user.id;
+      const deletedBy = req.user?.employee_id || (req as any).user.userId || (req as any).user.id;
       const success = await this.taskService.deleteTask(id, deletedBy);
       if (success) {
+        await AuditService.log({
+          user_id: deletedBy,
+          module: 'tasks',
+          action: 'DELETE_TASK',
+          description: `Deleted task #${id}`,
+          record_id: id,
+          ip_address: req.ip
+        });
         res.json({ success: true, message: 'Task deleted successfully' });
       } else {
         res.status(404).json({ success: false, message: 'Task not found' });

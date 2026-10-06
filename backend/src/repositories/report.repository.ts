@@ -762,6 +762,23 @@ export class ReportRepository {
     `;
     const params: any[] = [];
     if (filters?.project_id) { sql += ` AND p.project_id = ?`; params.push(filters.project_id); }
+    if (filters?.manager_id) {
+      sql += ` AND (
+        p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR
+        p.project_id IN (SELECT DISTINCT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        p.project_id IN (SELECT DISTINCT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
+    }
+    if (filters?.employee_id) {
+      sql += ` AND (
+        p.project_id IN (SELECT DISTINCT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id = ?) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ?)
+      )`;
+      params.push(filters.employee_id, filters.employee_id);
+    }
     sql += ` GROUP BY p.project_id, p.project_name, p.project_code, p.budget_amount ORDER BY p.project_name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
 
@@ -811,6 +828,23 @@ export class ReportRepository {
     `;
     const params: any[] = [];
     if (filters?.project_id) { sql += ` AND p.project_id = ?`; params.push(filters.project_id); }
+    if (filters?.manager_id) {
+      sql += ` AND (
+        p.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR
+        p.project_id IN (SELECT DISTINCT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        p.project_id IN (SELECT DISTINCT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
+    }
+    if (filters?.employee_id) {
+      sql += ` AND (
+        p.project_id IN (SELECT DISTINCT t.project_id FROM tasks t JOIN task_assignments ta ON t.task_id = ta.task_id WHERE ta.employee_id = ?) OR
+        p.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ?)
+      )`;
+      params.push(filters.employee_id, filters.employee_id);
+    }
     sql += ` ORDER BY p.project_name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
 
@@ -864,6 +898,23 @@ export class ReportRepository {
     `;
     const params: any[] = [];
     if (filters?.project_id) { sql += ` AND t.project_id = ?`; params.push(filters.project_id); }
+    if (filters?.manager_id) {
+      sql += ` AND (
+        t.project_id IN (SELECT project_id FROM manager_projects WHERE manager_id = ?) OR
+        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM manager_employees WHERE manager_id = ?)) OR
+        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id IN (SELECT employee_id FROM employees WHERE reporting_to_id = ?)) OR
+        t.project_id IN (SELECT assigned_project_id FROM employees WHERE reporting_to_id = ?) OR
+        t.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ?)
+      )`;
+      params.push(filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id, filters.manager_id);
+    }
+    if (filters?.employee_id) {
+      sql += ` AND (
+        t.task_id IN (SELECT task_id FROM task_assignments WHERE employee_id = ?) OR
+        t.project_id IN (SELECT assigned_project_id FROM employees WHERE employee_id = ?)
+      )`;
+      params.push(filters.employee_id, filters.employee_id);
+    }
     sql += ` ORDER BY p.project_name ASC, wbs_name ASC, t.task_name ASC`;
     const [rows] = await dbPool.execute<RowDataPacket[]>(sql, params);
 

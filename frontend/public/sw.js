@@ -1,4 +1,4 @@
-const CACHE_NAME = 'htco-pms-cache-v1';
+const CACHE_NAME = 'pms-cache-v1';
 const OFFLINE_URL = '/offline.html';
 
 const STATIC_PRECACHE = [

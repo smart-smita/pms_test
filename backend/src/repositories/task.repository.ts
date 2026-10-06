@@ -207,6 +207,7 @@ export class TaskRepository {
   async create(data: {
     project_id: number;
     wbs_id?: number;
+    task_code?: string;
     task_name: string;
     description?: string;
     required_worker_count: number;
@@ -216,16 +217,18 @@ export class TaskRepository {
     target_date?: string;
     target_time?: string;
     status: string;
+    priority?: string;
     task_address?: string;
     latitude?: number;
     longitude?: number;
   }): Promise<number> {
     const [result] = await dbPool.execute<ResultSetHeader>(
-      `INSERT INTO tasks (project_id, wbs_id, task_name, description, required_worker_count, estimated_hours, start_date, start_time, target_date, target_time, status, task_address, latitude, longitude)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (project_id, wbs_id, task_code, task_name, description, required_worker_count, estimated_hours, start_date, start_time, target_date, target_time, status, priority, task_address, latitude, longitude)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.project_id,
         data.wbs_id || null,
+        data.task_code || null,
         data.task_name,
         data.description || null,
         data.required_worker_count,
@@ -235,6 +238,7 @@ export class TaskRepository {
         data.target_date || null,
         data.target_time || null,
         data.status,
+        data.priority || 'medium',
         data.task_address || null,
         data.latitude || null,
         data.longitude || null,
@@ -248,6 +252,7 @@ export class TaskRepository {
     const params: any[] = [];
 
     if (data.wbs_id !== undefined) { fields.push('wbs_id = ?'); params.push(data.wbs_id || null); }
+    if (data.task_code !== undefined) { fields.push('task_code = ?'); params.push(data.task_code); }
     if (data.task_name !== undefined) { fields.push('task_name = ?'); params.push(data.task_name); }
     if (data.description !== undefined) { fields.push('description = ?'); params.push(data.description); }
     if (data.required_worker_count !== undefined) { fields.push('required_worker_count = ?'); params.push(data.required_worker_count); }
@@ -257,6 +262,8 @@ export class TaskRepository {
     if (data.target_date !== undefined) { fields.push('target_date = ?'); params.push(data.target_date); }
     if (data.target_time !== undefined) { fields.push('target_time = ?'); params.push(data.target_time); }
     if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
+    if (data.priority !== undefined) { fields.push('priority = ?'); params.push(data.priority); }
+    if (data.progress_percentage !== undefined) { fields.push('progress_percentage = ?'); params.push(data.progress_percentage); }
     if (data.task_address !== undefined) { fields.push('task_address = ?'); params.push(data.task_address || null); }
     if (data.latitude !== undefined) { fields.push('latitude = ?'); params.push(data.latitude || null); }
     if (data.longitude !== undefined) { fields.push('longitude = ?'); params.push(data.longitude || null); }

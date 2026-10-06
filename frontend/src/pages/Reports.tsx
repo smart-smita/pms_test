@@ -661,7 +661,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
     const link = document.createElement('a');
     link.href = url;
     const dateStr = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `HTCO_Employee_Attendance_DayWise_View2_${dateStr}.csv`);
+    link.setAttribute('download', `PMS_Employee_Attendance_DayWise_View2_${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -733,7 +733,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
     const link = document.createElement('a');
     link.href = url;
     const dateStr = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `HTCO_Employee_Attendance_DayWise_Hrs_Report_${dateStr}.csv`);
+    link.setAttribute('download', `PMS_Employee_Attendance_DayWise_Hrs_Report_${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -865,7 +865,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
     const link = document.createElement('a');
     link.href = url;
     const dateStr = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `HTCO_Attendance_Report3_Summary_${dateStr}.csv`);
+    link.setAttribute('download', `PMS_Attendance_Report3_Summary_${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -906,7 +906,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
                 Employee Attendance Day Wise Hrs Report
               </div>
               <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.15rem' }}>
-                HTCO Construction • Day-by-day attendance showing In/Out time, working hours, and addresses
+                PMS Construction • Day-by-day attendance showing In/Out time, working hours, and addresses
               </div>
             </div>
           </div>
@@ -1202,7 +1202,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
                 Attendance Report 3 (Summary)
               </div>
               <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.15rem' }}>
-                HTCO Construction • Employee-wise day-wise attendance status matrix
+                PMS Construction • Employee-wise day-wise attendance status matrix
               </div>
             </div>
           </div>
@@ -1510,7 +1510,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
                 Employee Attendance Day Wise Report View 2
               </div>
               <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.15rem' }}>
-                HTCO Construction • Day-wise In/Out &amp; Hours Matrix
+                PMS Construction • Day-wise In/Out &amp; Hours Matrix
               </div>
             </div>
           </div>
@@ -2371,7 +2371,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
           data={data}
           isLoading={isLoading}
           searchPlaceholder={`Search ${activeReport} records...`}
-          exportFilename={`HTCO_Report_${activeReport}_${new Date().toISOString().split('T')[0]}`}
+          exportFilename={`PMS_Report_${activeReport}_${new Date().toISOString().split('T')[0]}`}
         />
       </div>
     </div>

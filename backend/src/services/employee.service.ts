@@ -326,12 +326,6 @@ export class EmployeeService {
     const emp = await this.userRepo.findById(id);
     if (!emp) throw new Error('Employee not found');
 
-    const [taskCount] = await import('../config/db').then(m => m.dbPool.query<any[]>(`SELECT COUNT(*) as count FROM task_assignments WHERE employee_id = ?`, [id]));
-    if (taskCount[0].count > 0) throw new Error('Cannot delete employee: Assigned to tasks. Re-assign tasks or disable the account instead.');
-
-    const [attendanceCount] = await import('../config/db').then(m => m.dbPool.query<any[]>(`SELECT COUNT(*) as count FROM attendance_logs WHERE employee_id = ?`, [id]));
-    if (attendanceCount[0].count > 0) throw new Error('Cannot delete employee: Has attendance logs. Disable the account instead.');
-
     return await this.userRepo.softDelete(id, deletedBy);
   }
 
@@ -376,19 +370,19 @@ export class EmployeeService {
       documents,
       employee_documents: empDocsList,
       passport: passportDoc
-        ? { ...passportDoc, expiry_calc: calculateDocumentExpiryStatus(passportDoc.expiry_date) }
+        ? { ...empDocsList.find((d: any) => d.document_type === 'passport'), ...passportDoc, expiry_calc: calculateDocumentExpiryStatus(passportDoc.expiry_date) }
         : empDocsList.find((d: any) => d.document_type === 'passport') || null,
       visa: visaDoc
-        ? { ...visaDoc, expiry_calc: calculateDocumentExpiryStatus(visaDoc.expiry_date) }
+        ? { ...empDocsList.find((d: any) => d.document_type === 'visa'), ...visaDoc, expiry_calc: calculateDocumentExpiryStatus(visaDoc.expiry_date) }
         : empDocsList.find((d: any) => d.document_type === 'visa') || null,
       contract: contractDoc
-        ? { ...contractDoc, expiry_calc: calculateDocumentExpiryStatus(contractDoc.expiry_date) }
+        ? { ...empDocsList.find((d: any) => d.document_type === 'contract'), ...contractDoc, expiry_calc: calculateDocumentExpiryStatus(contractDoc.expiry_date) }
         : empDocsList.find((d: any) => d.document_type === 'contract') || null,
       emreads: emreadsDoc
-        ? { ...emreadsDoc, expiry_calc: calculateDocumentExpiryStatus(emreadsDoc.expiry_date) }
+        ? { ...empDocsList.find((d: any) => d.document_type === 'national_id'), ...emreadsDoc, expiry_calc: calculateDocumentExpiryStatus(emreadsDoc.expiry_date) }
         : empDocsList.find((d: any) => d.document_type === 'national_id') || null,
       labour_card: labourCardDoc
-        ? { ...labourCardDoc, expiry_calc: calculateDocumentExpiryStatus(labourCardDoc.expiry_date) }
+        ? { ...empDocsList.find((d: any) => d.document_type === 'labour_card'), ...labourCardDoc, expiry_calc: calculateDocumentExpiryStatus(labourCardDoc.expiry_date) }
         : empDocsList.find((d: any) => d.document_type === 'labour_card') || null,
       notification_history: notificationHistory,
     };

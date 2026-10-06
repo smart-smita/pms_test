@@ -14,7 +14,7 @@ async function runE2ETests() {
     let customerId = custRows[0]?.customer_id;
     if (!customerId) {
       const [res]: any = await pool.query(
-        `INSERT INTO customers (customer_name, customer_code, email, contact_number, status) VALUES ('E2E Test Customer', 'CUST-E2E', 'test@htco.com', '1234567890', 1)`
+        `INSERT INTO customers (customer_name, customer_code, email, contact_number, status) VALUES ('E2E Test Customer', 'CUST-E2E', 'test@pms.com', '1234567890', 1)`
       );
       customerId = res.insertId;
     }

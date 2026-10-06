@@ -2066,6 +2066,9 @@ textarea.form-input:disabled {
   .grid-responsive-wbs-fields {
     grid-template-columns: 1fr 1fr;
   }
+  .grid-responsive-4 {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 768px) {

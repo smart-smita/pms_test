@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const createTaskSchema = z.object({
   project_id: z.number().int().positive('Project ID is required'),
   wbs_id: z.number().int().positive('WBS ID is required'),
+  task_code: z.string().optional(),
   task_name: z.string().min(2, 'Task name is required'),
   description: z.string().optional(),
   required_worker_count: z.number().int().positive('Required worker count must be >= 1').default(1),
@@ -11,7 +12,10 @@ export const createTaskSchema = z.object({
   start_time: z.string().optional(),
   target_date: z.string().optional(),
   target_time: z.string().optional(),
-  assigned_employee_ids: z.array(z.number().int().positive()).max(1, 'A task can be assigned to ONLY ONE employee').optional(),
+  status: z.enum(['pending', 'in_progress', 'in-progress', 'completed', 'delayed']).optional().default('pending'),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().default('medium'),
+  progress_percentage: z.number().min(0).max(100).optional().default(0),
+  assigned_employee_ids: z.array(z.number().int().positive()).optional(),
   assigned_labour_ids: z.array(z.number().int().positive()).optional(),
   allocations: z.array(z.object({
     work_log_id: z.number().int().positive().optional(),
@@ -30,6 +34,7 @@ export const createTaskSchema = z.object({
 
 export const updateTaskSchema = z.object({
   wbs_id: z.number().int().positive().optional(),
+  task_code: z.string().optional(),
   task_name: z.string().min(2).optional(),
   description: z.string().optional(),
   required_worker_count: z.number().int().positive().optional(),
@@ -38,7 +43,10 @@ export const updateTaskSchema = z.object({
   start_time: z.string().optional(),
   target_date: z.string().optional(),
   target_time: z.string().optional(),
-  assigned_employee_ids: z.array(z.number().int().positive()).max(1, 'A task can be assigned to ONLY ONE employee').optional(),
+  status: z.enum(['pending', 'in_progress', 'in-progress', 'completed', 'delayed']).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  progress_percentage: z.number().min(0).max(100).optional(),
+  assigned_employee_ids: z.array(z.number().int().positive()).optional(),
   assigned_labour_ids: z.array(z.number().int().positive()).optional(),
   allocations: z.array(z.object({
     work_log_id: z.number().int().positive().optional(),

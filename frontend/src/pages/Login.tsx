@@ -49,7 +49,7 @@ export const Login: React.FC<LoginProps> = ({ onForgotPassword }) => {
           >
             H
           </div>
-          <h2 style={{ fontSize: '1.6rem', color: '#f8fafc' }}>HTCO GPS Portal</h2>
+          <h2 style={{ fontSize: '1.6rem', color: '#f8fafc' }}>PMS GPS Portal</h2>
           <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             Sign in to access Attendance & Task System
           </p>

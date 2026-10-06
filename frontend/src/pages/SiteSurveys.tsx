@@ -11,7 +11,7 @@ import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKa
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
-import { MaterialSurveys } from './MaterialSurveys';
+
 
 interface SiteSurveysProps {
   initialTab?: 'inspection' | 'material';
@@ -66,6 +66,12 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
     longitude: '',
     comments: '',
     remarks: '',
+    wbs_id: '',
+    site_conditions: '',
+    measurements: '',
+    labour_requirements: '',
+    material_requirements: '',
+    observations: '',
     status: 'completed' as 'draft' | 'completed' | 'verified' | 'rejected',
   });
 
@@ -134,6 +140,12 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
       longitude: '',
       comments: '',
       remarks: '',
+      wbs_id: '',
+      site_conditions: '',
+      measurements: '',
+      labour_requirements: '',
+      material_requirements: '',
+      observations: '',
       status: 'completed',
     });
     setPhotosList([]);
@@ -205,6 +217,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
       project_id: Number(formData.project_id),
       customer_id: selectedProj?.customer_id || (formData.customer_id ? Number(formData.customer_id) : null),
       discipline_id: formData.discipline_id ? Number(formData.discipline_id) : null,
+      wbs_id: formData.wbs_id ? Number(formData.wbs_id) : null,
       conducted_by: Number(formData.conducted_by),
       latitude: formData.latitude ? Number(formData.latitude) : null,
       longitude: formData.longitude ? Number(formData.longitude) : null,
@@ -321,60 +334,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
 
   return (
     <div>
-      {/* Top Survey Tabs Navigation */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-        <button
-          type="button"
-          onClick={() => setActiveSurveyTab('inspection')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            padding: '0.65rem 1.25rem',
-            borderRadius: '10px',
-            border: activeSurveyTab === 'inspection' ? '1px solid #6366f1' : '1px solid var(--border-color)',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.92rem',
-            background: activeSurveyTab === 'inspection' ? '#4f46e5' : 'var(--bg-card)',
-            color: activeSurveyTab === 'inspection' ? '#ffffff' : 'var(--text-secondary)',
-            boxShadow: activeSurveyTab === 'inspection' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <ClipboardCheck size={18} />
-          <span>Site Inspection Surveys</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSurveyTab('material')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            padding: '0.65rem 1.25rem',
-            borderRadius: '10px',
-            border: activeSurveyTab === 'material' ? '1px solid #6366f1' : '1px solid var(--border-color)',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.92rem',
-            background: activeSurveyTab === 'material' ? '#4f46e5' : 'var(--bg-card)',
-            color: activeSurveyTab === 'material' ? '#ffffff' : 'var(--text-secondary)',
-            boxShadow: activeSurveyTab === 'material' ? '0 4px 12px rgba(79, 70, 229, 0.25)' : 'none',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <Package size={18} />
-          <span>Material Surveys</span>
-        </button>
-      </div>
-
-      {activeSurveyTab === 'material' ? (
-        <MaterialSurveys embedded />
-      ) : (
-        <>
-          <div className="page-header">
+      {/* Top Survey Tabs Navigation Removed */}
+      <div className="page-header">
         <div>
           <h1 className="page-title">Site Inspection & Surveys</h1>
           <p className="page-subtitle">Record site surveys, upload inspection photos, map disciplines, and attach reports</p>
@@ -440,7 +401,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               </Button>
               {row.entry_type === 'system_entry' ? (
                 <a
-                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf`}
+                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${localStorage.getItem('token')}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{
@@ -691,13 +652,37 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
             </div>
           )}
 
-          {/* Comments & Remarks */}
+          {/* New Survey Fields */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
             <FormInput
-              label="Inspector Comments"
-              placeholder="Site observations & findings..."
-              value={formData.comments}
-              onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+              label="Site Conditions"
+              placeholder="Describe current site conditions..."
+              value={formData.site_conditions}
+              onChange={(e) => setFormData({ ...formData, site_conditions: e.target.value })}
+            />
+            <FormInput
+              label="Measurements"
+              placeholder="Record any measurements..."
+              value={formData.measurements}
+              onChange={(e) => setFormData({ ...formData, measurements: e.target.value })}
+            />
+            <FormInput
+              label="Labour Requirements"
+              placeholder="Describe required labour..."
+              value={formData.labour_requirements}
+              onChange={(e) => setFormData({ ...formData, labour_requirements: e.target.value })}
+            />
+            <FormInput
+              label="Material Requirements"
+              placeholder="Describe required materials..."
+              value={formData.material_requirements}
+              onChange={(e) => setFormData({ ...formData, material_requirements: e.target.value })}
+            />
+            <FormInput
+              label="Observations"
+              placeholder="Other observations..."
+              value={formData.observations}
+              onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
             />
             <FormInput
               label="Management Remarks"
@@ -706,6 +691,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
             />
           </div>
+
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
@@ -795,8 +781,6 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
         recordName={deletingSurvey?.code || 'this site survey'}
         isLoading={isDeleting}
       />
-        </>
-      )}
     </div>
   );
 };

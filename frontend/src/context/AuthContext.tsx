@@ -83,11 +83,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Admin / Super Admin has full permission
     if (user.role_name === 'Admin' || user.role_name === 'Super Admin') return true;
     
-    // Restrict Edit, Delete, and Status modification actions strictly to Admin / SuperAdmin
-    if (action === 'update' || action === 'delete' || action === 'status') {
-      return false;
-    }
-
     // View actions: All employees get view access to their personal modules
     if (action === 'view') {
       if (['attendance', 'tasks', 'payments', 'reports', 'settings', 'support', 'profile', 'dashboard'].includes(module)) {

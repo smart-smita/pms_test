@@ -70,6 +70,15 @@ export class TimesheetController {
     }
   };
 
+  unifiedLog = async (req: Request, res: Response) => {
+    try {
+      const result = await this.timesheetService.createUnifiedLog(req.body);
+      return sendSuccess(res, 'Unified log created successfully', result, 201);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to log unified work', [], 400);
+    }
+  };
+
   update = async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id, 10);

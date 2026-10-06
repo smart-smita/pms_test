@@ -12,7 +12,7 @@ import { ProjectWorkspace } from './pages/ProjectWorkspace';
 import { PlanningWorkspace } from './pages/PlanningWorkspace';
 import { ProjectCreatePage } from './pages/ProjectCreatePage';
 import { ProjectEditPage } from './pages/ProjectEditPage';
-import { TaskCreatePage } from './pages/TaskCreatePage';
+
 import { TaskDetailPage } from './pages/TaskDetailPage';
 import { TaskEditPage } from './pages/TaskEditPage';
 import { Tasks } from './pages/Tasks';
@@ -38,7 +38,7 @@ import { Invoices } from './pages/Invoices';
 import { PlannedVsActualReport } from './pages/PlannedVsActualReport';
 import { Materials } from './pages/Materials';
 import { MaterialQuotations } from './pages/MaterialQuotations';
-import { MaterialSurveys } from './pages/MaterialSurveys';
+
 import { WbsTemplates } from './pages/WbsTemplates';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
 import { RequirePermission } from './components/common/RequirePermission';
@@ -137,14 +137,12 @@ const AppContent: React.FC = () => {
     // ── 1. Dynamic Task Routes inside Project Workspace ──
     // Route: project/workspace/:projectId/tasks/new
     if (currentPage.includes('/tasks/new')) {
-      const match = currentPage.match(/project\/workspace\/(\d+)\/tasks\/new/);
-      const projectId = match ? parseInt(match[1], 10) : 0;
-      const urlParams = new URLSearchParams(currentPage.split('?')[1] || '');
-      const wbsId = urlParams.has('wbsId') ? parseInt(urlParams.get('wbsId')!, 10) : undefined;
       return (
-        <RequirePermission module="tasks" action="create" fallback={fallback}>
-          <TaskCreatePage projectId={projectId} wbsId={wbsId} onNavigate={nav} />
-        </RequirePermission>
+        <div style={{ padding: '3rem', textAlign: 'center' }}>
+          <h2>Task Creation Moved</h2>
+          <p>Please go to the Manage Project Work tab to log timesheets and auto-create tasks.</p>
+          <button onClick={() => nav('project/workspace')}>Go to Project Workspace</button>
+        </div>
       );
     }
 
@@ -326,6 +324,9 @@ const AppContent: React.FC = () => {
         return <Dashboard onNavigate={nav} />;
       
       // Project Workspace (Primary Route) Fallback
+      case 'project-work':
+        return <RequirePermission module="projects" action="view" fallback={fallback}><ProjectWork /></RequirePermission>;
+
       case 'project/workspace':
         return <RequirePermission module="projects" action="view" fallback={fallback}><ProjectWorkspace onNavigate={nav} /></RequirePermission>;
 
@@ -373,8 +374,7 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="materials" action="view" fallback={fallback}><Materials /></RequirePermission>;
       case 'material-quotations':
         return <RequirePermission module="materials" action="view" fallback={fallback}><MaterialQuotations /></RequirePermission>;
-      case 'material-surveys':
-        return <RequirePermission module="site_surveys" action="view" fallback={fallback}><SiteSurveys initialTab="material" /></RequirePermission>;
+
       case 'wbs-templates':
         return <RequirePermission module="masters" action="manage" fallback={fallback}><Masters initialTab="wbs_templates" onNavigate={nav} /></RequirePermission>;
       case 'masters': 

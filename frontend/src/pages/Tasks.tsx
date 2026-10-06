@@ -26,6 +26,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   const [projectWbs, setProjectWbs] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [labours, setLabours] = useState<any[]>([]);
+  const [materialsMaster, setMaterialsMaster] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Cascading Filter State
@@ -46,7 +47,8 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   // Task Form State
   const [projectId, setProjectId] = useState<number>(0);
   const [wbsId, setWbsId] = useState<number>(0);
-  const [assignedEmployeeId, setAssignedEmployeeId] = useState<number | string>('');
+  const [taskCode, setTaskCode] = useState('');
+  const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>([]);
   const [allocations, setAllocations] = useState<any[]>([]);
   const [taskName, setTaskName] = useState('');
   const [description, setDescription] = useState('');
@@ -56,6 +58,8 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   const [startTime, setStartTime] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [targetTime, setTargetTime] = useState('');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [progressPercentage, setProgressPercentage] = useState<number>(0);
   const [taskAddress, setTaskAddress] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -146,14 +150,16 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       apiRequest<Project[]>('/projects'),
       apiRequest<Employee[]>('/employees'),
       apiRequest<any[]>('/labours'),
+      apiRequest<any[]>('/materials/master'),
     ];
 
-    const [tRes, pRes, eRes, lRes] = await Promise.all(promises);
+    const [tRes, pRes, eRes, lRes, matRes] = await Promise.all(promises);
 
     if (tRes.success && tRes.data) setTasks(tRes.data);
     if (pRes?.success && pRes.data) setProjects(pRes.data);
     if (eRes?.success && eRes.data) setEmployees(eRes.data.filter((e: Employee) => e.status === 'active'));
     if (lRes?.success && lRes.data) setLabours(lRes.data);
+    if (matRes?.success && matRes.data) setMaterialsMaster(matRes.data);
 
     setIsLoading(false);
   };
@@ -200,7 +206,8 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setEditingTask(null);
     setProjectId(projects[0]?.project_id || 0);
     setWbsId(0);
-    setAssignedEmployeeId(user?.employee_id || '');
+    setTaskCode(`TSK-${String(Date.now()).slice(-4)}`);
+    setAssignedEmployeeIds(user?.employee_id ? [String(user.employee_id)] : []);
     setAllocations([]);
     setUsedMaterials([]);
     setTaskName('');
@@ -211,6 +218,8 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setStartTime('09:00');
     setTargetDate(new Date().toISOString().split('T')[0]);
     setTargetTime('18:00');
+    setPriority('medium');
+    setProgressPercentage(0);
     setTaskAddress('');
     setLatitude('');
     setLongitude('');
@@ -224,7 +233,15 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setEditingTask(t);
     setProjectId(t.project_id);
     setWbsId(t.wbs_id || 0);
-    setAssignedEmployeeId(t.assigned_employees && t.assigned_employees.length > 0 ? t.assigned_employees[0].employee_id : '');
+    
+    // Support multiple employees
+    if ((t as any).assigned_employees && Array.isArray((t as any).assigned_employees)) {
+      setAssignedEmployeeIds((t as any).assigned_employees.map((e: any) => String(e.employee_id)));
+    } else if (t.assigned_employee_id) {
+      setAssignedEmployeeIds([String(t.assigned_employee_id)]);
+    } else {
+      setAssignedEmployeeIds([]);
+    }
     
     setAllocations([]);
     setUsedMaterials((t as any).used_materials || []);
@@ -264,6 +281,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       }
     }).catch(console.error);
 
+    setTaskCode(t.task_code || '');
     setTaskName(t.task_name);
     setDescription(t.description || '');
     setWorkerCount(t.required_worker_count);
@@ -272,6 +290,8 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setStartTime(t.start_time || '');
     setTargetDate(t.target_date ? t.target_date.split('T')[0] : '');
     setTargetTime(t.target_time || '');
+    setPriority((t as any).priority || 'medium');
+    setProgressPercentage(t.progress_percentage || 0);
     setTaskAddress((t as any).task_address || '');
     setLatitude((t as any).latitude || '');
     setLongitude((t as any).longitude || '');
@@ -401,7 +421,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       return;
     }
 
-    if (!assignedEmployeeId && allocations.length === 0) {
+    if (assignedEmployeeIds.length === 0 && allocations.length === 0) {
       setFormErrors({ assigned_employee_ids: 'Please select an employee or add a labour allocation.' });
       return;
     }
@@ -410,6 +430,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     const payload: any = {
       project_id: projectId,
       wbs_id: wbsId,
+      task_code: taskCode,
       task_name: taskName,
       description,
       required_worker_count: typeof workerCount === 'string' ? parseInt(workerCount, 10) || 1 : workerCount,
@@ -418,7 +439,10 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       start_time: startTime || undefined,
       target_date: targetDate || undefined,
       target_time: targetTime || undefined,
-      assigned_employee_ids: assignedEmployeeId ? [Number(assignedEmployeeId)] : [],
+      status,
+      priority,
+      progress_percentage: progressPercentage,
+      assigned_employee_ids: assignedEmployeeIds.map(Number),
       allocations: allocations.map(a => ({
         ...a,
         labour_id: typeof a.labour_id === 'string' ? parseInt(a.labour_id, 10) || 0 : a.labour_id,
@@ -627,9 +651,36 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
               : 'Manage tasks, assign responsible employees, and track complete timesheet log history'}
           </p>
         </div>
-        <Button variant="primary" onClick={openCreateModal}>
-          <Plus size={18} /> Create Task
-        </Button>
+        {isAdmin && (
+          <div className="page-actions">
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setEditingTask(null);
+                setTaskCode('');
+                setTaskName('');
+                setDescription('');
+                setWorkerCount(1);
+                setWorkingHours(8);
+                setStartDate('');
+                setStartTime('');
+                setTargetDate('');
+                setTargetTime('');
+                setTaskAddress('');
+                setLatitude('');
+                setLongitude('');
+                setPriority('medium');
+                setStatus('pending');
+                setProgressPercentage(0);
+                setAllocations([]);
+                setDependencies([]);
+                setIsModalOpen(true);
+              }}
+            >
+              <Plus size={18} /> Create Task
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Cascading Filter Bar */}
@@ -880,9 +931,9 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
               <FormInput
                 label="Task Code"
                 type="text"
-                value={editingTask ? editingTask.task_id.toString() : 'Auto-Generate'}
-                readOnly
-                disabled
+                value={taskCode}
+                onChange={(e) => setTaskCode(e.target.value)}
+                placeholder="TSK-..."
               />
               <FormInput
                 label="Task Name *"
@@ -949,28 +1000,60 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 ]}
                 required
               />
+              <FormSelect
+                label="Priority"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as any)}
+                options={[
+                  { value: 'low', label: 'Low' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'high', label: 'High' },
+                  { value: 'urgent', label: 'Urgent' },
+                ]}
+              />
+              <FormInput
+                label="Progress % (0-100)"
+                type="number"
+                min="0"
+                max="100"
+                value={progressPercentage}
+                onChange={(e) => setProgressPercentage(parseInt(e.target.value) || 0)}
+              />
             </div>
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Assignment</h3>
             <div>
-              <FormSelect
-                label="Assign Employee (Task Manager / Lead)"
-                value={assignedEmployeeId}
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                Assign Employee(s) (Task Manager / Lead)
+              </label>
+              <select
+                multiple
+                value={assignedEmployeeIds}
                 onChange={(e) => {
-                  setAssignedEmployeeId(e.target.value);
+                  setAssignedEmployeeIds(Array.from(e.target.selectedOptions, option => option.value));
                   setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
                 }}
-                options={[
-                  { value: '', label: 'Search employee...' },
-                  ...employees.map((emp) => ({
-                    value: emp.employee_id,
-                    label: `${emp.name} (${emp.role_name || emp.employee_code || 'Employee'})`,
-                  })),
-                ]}
-                error={formErrors.assigned_employee_ids}
-              />
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '6px',
+                  border: `1px solid ${formErrors.assigned_employee_ids ? 'var(--error-color)' : 'var(--border-color)'}`,
+                  background: 'var(--input-bg)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem',
+                  minHeight: '120px'
+                }}
+              >
+                {employees.map((emp) => (
+                  <option key={emp.employee_id} value={String(emp.employee_id)}>
+                    {emp.name} ({emp.role_name || emp.employee_code || 'Employee'})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Hold Cmd/Ctrl to select multiple.</span>
+              {formErrors.assigned_employee_ids && <div style={{ color: 'var(--error-color)', fontSize: '0.8rem', marginTop: '0.25rem' }}>{formErrors.assigned_employee_ids}</div>}
             </div>
           </div>
 
@@ -1305,14 +1388,25 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 <div className="grid-3-col" style={{ gap: '1rem', marginBottom: '1rem' }}>
                   <div>
                     <label className="form-label" style={{ fontSize: '0.8rem' }}>Material Name / Master</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={materialForm.material_name}
-                      onChange={(e) => setMaterialForm({ ...materialForm, material_name: e.target.value })}
-                      placeholder="Enter material name..."
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
-                    />
+                    <div style={{ position: "relative" }}>
+                      <input 
+                        type="text" 
+                        list="materialsMasterOptions"
+                        className="form-input" 
+                        placeholder="Search material or type to add new..." 
+                        value={materialForm.material_name} 
+                        onChange={(e) => setMaterialForm({ ...materialForm, material_name: e.target.value })} 
+                        style={{ width: "100%", paddingRight: "2rem", padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      />
+                      <div style={{ position: "absolute", right: "0.5rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </div>
+                    </div>
+                    <datalist id="materialsMasterOptions">
+                      {materialsMaster.map((m: any) => (
+                        <option key={m.material_id} value={m.material_name} />
+                      ))}
+                    </datalist>
                   </div>
                   <div>
                     <label className="form-label" style={{ fontSize: '0.8rem' }}>Used Date</label>

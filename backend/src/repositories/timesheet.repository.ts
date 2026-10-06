@@ -39,7 +39,14 @@ export class TimesheetRepository {
     } catch (e) {
       // Ignore if column exists
     }
+    try {
+      await dbPool.execute(`ALTER TABLE project_material_logs ADD COLUMN project_material_id int(11) NOT NULL AFTER log_id`);
+    } catch(e) {}
+    try {
+      await dbPool.execute(`ALTER TABLE project_material_logs ADD COLUMN material_id int(11) NULL AFTER wbs_id`);
+    } catch(e) {}
   }
+
 
   async findAll(projectId?: number, wbsId?: number, taskId?: number, employeeId?: number, startDate?: string, endDate?: string, managerId?: number): Promise<TimesheetRow[]> {
     let sql = `

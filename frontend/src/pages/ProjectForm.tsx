@@ -310,7 +310,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
 
         const res = await apiRequest<any>(endpoint);
         if (res.success && res.data) {
-          const tmpl = wbsTemplates.find((t) => t.template_id === templateId);
+          const tmpl = wbsTemplates.find((t) => t.id === templateId);
           const detailsList = Array.isArray(res.data) ? res.data : res.data.details || [];
 
           const newItems: ProjectWbsAllocation[] = detailsList.map((d: any, idx: number) => ({
@@ -775,12 +775,12 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                   {availableWbsTemplates.map((t) => {
-                    const isSelected = selectedWbsTemplateIds.includes(t.template_id);
+                    const isSelected = selectedWbsTemplateIds.includes(t.id);
                     return (
                       <button
-                        key={t.template_id}
+                        key={t.id}
                         type="button"
-                        onClick={() => handleToggleWbsTemplate(t.template_id)}
+                        onClick={() => handleToggleWbsTemplate(t.id)}
                         style={{
                           padding: '0.4rem 0.75rem',
                           borderRadius: '20px',

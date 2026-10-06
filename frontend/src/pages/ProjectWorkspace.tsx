@@ -203,6 +203,7 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
           <ManageWorkTab
             projectId={selectedProjectId || 0}
             onNavigate={onNavigate}
+            canManage={true}
           />
         )}
 

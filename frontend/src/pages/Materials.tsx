@@ -950,7 +950,7 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
                   const total = Number(log.total_cost || Number(log.quantity) * Number(log.unit_cost || 0));
 
                   return (
-                    <tr key={log.id}>
+                    <tr key={log.log_id}>
                       <td>{log.log_date ? log.log_date.split('T')[0] : '-'}</td>
                       <td>
                         <span style={{
