@@ -207,7 +207,6 @@ body {
 }
 
 .hamburger-btn {
-  display: none;
   background: none;
   border: none;
   color: var(--text-primary);
@@ -767,8 +766,6 @@ textarea.form-input:disabled {
   .quick-actions-grid { grid-template-columns: 1fr; }
   
   .bottom-nav-bar { display: flex; }
-  .sidebar { display: none; }
-  .hamburger-btn { display: none; }
 }
 
 @media (min-width: 641px) and (max-width: 1024px) {
