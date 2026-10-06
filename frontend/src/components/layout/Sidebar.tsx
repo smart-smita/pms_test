@@ -316,7 +316,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           display: 'flex',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+          borderBottom: '1px solid var(--border-color)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', justifyContent: 'center', minWidth: 0 }}>
@@ -422,7 +422,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
               </button>
 
               {!isCollapsed && isProjectExpanded && (
-                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid rgba(255, 255, 255, 0.1)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                   {filteredProjectSubmenu.map((subItem) => (
                     <button
                       key={subItem.id}
@@ -506,7 +506,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
               </button>
 
               {!isCollapsed && isMasterExpanded && (
-                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid rgba(255, 255, 255, 0.1)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                   {masterSubmenu.map((subItem) => {
                     const isSubActive = isMasterSubActive(currentPage) && (
                       subItem.tabSlug
@@ -598,7 +598,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
               </button>
 
               {!isCollapsed && isReportsExpanded && (
-                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid rgba(255, 255, 255, 0.1)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                   {filteredReportsSubmenu.map((subItem) => (
                     <button
                       key={subItem.id}
@@ -643,7 +643,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           )}
         </nav>
 
-        <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.06)', margin: '1.25rem 0.5rem 1rem 0.5rem' }}></div>
+        <div style={{ height: '1px', background: 'var(--border-color)', margin: '1.25rem 0.5rem 1rem 0.5rem' }}></div>
 
         {!isCollapsed && (
           <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '0 0.5rem 0.4rem 0.5rem', fontWeight: 700, textAlign: 'left' }}>

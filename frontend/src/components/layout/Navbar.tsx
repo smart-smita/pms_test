@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, Menu, Sun, Moon, Search, Bell, Maximize, ChevronDown, User as UserIcon, Check } from 'lucide-react';
+import { LogOut, Menu, Sun, Moon, Search, Bell, Maximize, Minimize, ChevronDown, User as UserIcon, Check } from 'lucide-react';
 import { apiRequest } from '../../services/api';
 
 interface NavbarProps {
@@ -23,6 +23,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const searchablePages = [
+    { title: 'Dashboard', page: 'dashboard' },
+    { title: 'Employees', page: 'employees' },
+    { title: 'Projects', page: 'projects' },
+    { title: 'Tasks', page: 'tasks' },
+    { title: 'Labour', page: 'labour' },
+    { title: 'Materials', page: 'materials' },
+    { title: 'Quotations', page: 'quotations' },
+    { title: 'Settings', page: 'settings' }
+  ];
+
+  const filteredPages = searchablePages.filter(p => 
+    p.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   
   const pageTitle = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
 
@@ -66,10 +86,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifMenu(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [profileRef, notifRef]);
+  }, [profileRef, notifRef, searchRef]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   // Listen for sidebar click
   useEffect(() => {
@@ -191,11 +234,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
       <div className="navbar-right-icons" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0 }}>
         
         {/* Search Bar (Design 2) */}
-        <div className="navbar-search" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <div className="navbar-search" style={{ position: 'relative', display: 'flex', alignItems: 'center' }} ref={searchRef}>
           <Search size={15} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', pointerEvents: 'none' }} />
           <input 
             type="text" 
             placeholder="Search (Ctrl+/)" 
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowSearchResults(true);
+            }}
+            onFocus={(e) => { 
+              e.currentTarget.style.width = '240px'; 
+              e.currentTarget.style.borderColor = '#6366f1'; 
+              if (searchQuery) setShowSearchResults(true);
+            }}
             style={{
               padding: '0.45rem 1rem 0.45rem 2.2rem',
               borderRadius: '20px',
@@ -207,9 +260,50 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
               outline: 'none',
               transition: 'all 0.2s ease',
             }}
-            onFocus={(e) => { e.currentTarget.style.width = '240px'; e.currentTarget.style.borderColor = '#6366f1'; }}
-            onBlur={(e) => { e.currentTarget.style.width = '180px'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
           />
+          {showSearchResults && searchQuery && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 10px)',
+              left: 0,
+              width: '100%',
+              minWidth: '240px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+              zIndex: 50,
+              overflow: 'hidden'
+            }}>
+              {filteredPages.length > 0 ? (
+                filteredPages.map(p => (
+                  <div
+                    key={p.page}
+                    onClick={() => {
+                      if (onNavigate) onNavigate(p.page);
+                      setShowSearchResults(false);
+                      setSearchQuery('');
+                    }}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      cursor: 'pointer',
+                      color: 'var(--text-primary)',
+                      borderBottom: '1px solid var(--border-color)',
+                      fontSize: '0.85rem'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    {p.title}
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+                  No results found
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Action Icons */}
@@ -357,7 +451,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
           </div>
 
           {/* Fullscreen — hidden on mobile */}
-          <Maximize size={18} className="navbar-fullscreen" style={{ cursor: 'pointer' }} />
+          <div onClick={toggleFullscreen} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minWidth: '28px', minHeight: '28px' }} title="Toggle Fullscreen" className="navbar-fullscreen">
+            {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+          </div>
         </div>
 
         {/* User Profile */}
