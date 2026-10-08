@@ -9,6 +9,38 @@ import { Response } from 'express';
 const router = Router();
 const repo = new WbsTemplateRepository();
 
+const sortDetailsTopologically = (details: any[]) => {
+  const result: any[] = [];
+  const byParent = new Map<any, any[]>();
+  
+  for (const d of details) {
+    const pId = d.parent_id || null;
+    if (!byParent.has(pId)) byParent.set(pId, []);
+    byParent.get(pId)!.push(d);
+  }
+
+  const addChildren = (pId: any) => {
+    const children = byParent.get(pId) || [];
+    children.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    for (const c of children) {
+      result.push(c);
+      addChildren(c.id);
+    }
+  };
+
+  const allIds = new Set(details.map(d => d.id));
+  const roots = details.filter(d => !d.parent_id || !allIds.has(d.parent_id));
+  
+  roots.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  
+  for (const r of roots) {
+    result.push(r);
+    addChildren(r.id);
+  }
+
+  return result;
+};
+
 router.use(authenticateJwt);
 
 // ── Templates ──────────────────────────────────────────────────────────────
@@ -91,9 +123,10 @@ router.post('/', requirePermission('wbs', 'create'), async (req: AuthenticatedRe
 
     // Insert hierarchical details
     if (Array.isArray(details) && details.length > 0) {
+      const sortedDetails = sortDetailsTopologically(details);
       const idMap = new Map<string | number, number>();
-      for (let i = 0; i < details.length; i++) {
-        const d = details[i];
+      for (let i = 0; i < sortedDetails.length; i++) {
+        const d = sortedDetails[i];
         if (!d.wbs_name?.trim() && !d.wbs_id) continue;
         const ptId = Number(d.project_type_id);
         if (!ptId) continue;
@@ -154,9 +187,10 @@ router.put('/:id', requirePermission('wbs', 'update'), async (req: Authenticated
     // Replace details if provided
     if (Array.isArray(details)) {
       await repo.deleteAllDetails(id);
+      const sortedDetails = sortDetailsTopologically(details);
       const idMap = new Map<string | number, number>();
-      for (let i = 0; i < details.length; i++) {
-        const d = details[i];
+      for (let i = 0; i < sortedDetails.length; i++) {
+        const d = sortedDetails[i];
         if (!d.wbs_name?.trim() && !d.wbs_id) continue;
         const ptId = Number(d.project_type_id);
         if (!ptId) continue;
