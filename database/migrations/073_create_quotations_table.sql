@@ -1,0 +1,53 @@
+-- Migration for table: quotations
+
+-- UP
+CREATE TABLE `quotations` (
+  `quotation_id` int(11) NOT NULL AUTO_INCREMENT,
+  `quotation_code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `project_id` int(11) DEFAULT NULL,
+  `new_project_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `currency_id` int(11) DEFAULT NULL,
+  `exchange_rate` decimal(15,6) NOT NULL DEFAULT 1.000000,
+  `quotation_date` date NOT NULL,
+  `validity_date` date DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `subtotal_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `tax_percentage` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `tax_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `discount_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `total_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `terms_conditions` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Snapshot of final T&C',
+  `status` enum('draft','pending_approval','approved','rejected','revised','converted') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
+  `revision_number` int(11) NOT NULL DEFAULT 1,
+  `created_by` int(11) DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `rejection_reason` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_deleted` tinyint(1) NOT NULL DEFAULT 0,
+  `deleted_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `tax_id` int(11) DEFAULT NULL,
+  `tax_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cgst_amount` decimal(15,2) DEFAULT 0.00,
+  `sgst_amount` decimal(15,2) DEFAULT 0.00,
+  `igst_amount` decimal(15,2) DEFAULT 0.00,
+  `project_type_id` int(11) DEFAULT NULL,
+  `start_date` date DEFAULT NULL,
+  `end_date` date DEFAULT NULL,
+  `planning_required` tinyint(1) DEFAULT 1,
+  PRIMARY KEY (`quotation_id`),
+  UNIQUE KEY `quotation_code` (`quotation_code`),
+  KEY `customer_id` (`customer_id`),
+  KEY `project_id` (`project_id`),
+  KEY `created_by` (`created_by`),
+  KEY `approved_by` (`approved_by`),
+  CONSTRAINT `fk_quotations_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`project_id`) ON DELETE SET NULL,
+  CONSTRAINT `quotations_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE CASCADE,
+  CONSTRAINT `quotations_ibfk_3` FOREIGN KEY (`created_by`) REFERENCES `employees` (`employee_id`) ON DELETE SET NULL,
+  CONSTRAINT `quotations_ibfk_4` FOREIGN KEY (`approved_by`) REFERENCES `employees` (`employee_id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DOWN
+DROP TABLE IF EXISTS `quotations`;

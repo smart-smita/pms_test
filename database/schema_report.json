@@ -1,0 +1,1729 @@
+[
+  {
+    "table": "attendance_logs",
+    "columns": [
+      "attendance_id",
+      "employee_id",
+      "task_id",
+      "attendance_date",
+      "check_in_time",
+      "check_out_time",
+      "in_latitude",
+      "in_longitude",
+      "in_address",
+      "out_latitude",
+      "out_longitude",
+      "out_address",
+      "total_working_hours",
+      "status",
+      "created_at",
+      "updated_at",
+      "in_distance_meters",
+      "out_distance_meters",
+      "project_radius_meters",
+      "in_status",
+      "out_status",
+      "is_deleted",
+      "deleted_at"
+    ],
+    "primaryKey": "attendance_id"
+  },
+  {
+    "table": "audit_logs",
+    "columns": [
+      "id",
+      "user_id",
+      "action",
+      "module",
+      "description",
+      "record_id",
+      "ip_address",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "billing_schedules",
+    "columns": [
+      "schedule_id",
+      "project_id",
+      "quotation_id",
+      "billing_month",
+      "expected_amount",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "schedule_id"
+  },
+  {
+    "table": "communities",
+    "columns": [
+      "community_id",
+      "community_name",
+      "country_id",
+      "state",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "community_id"
+  },
+  {
+    "table": "company_calendar",
+    "columns": [
+      "id",
+      "project_id",
+      "calendar_name",
+      "working_days_json",
+      "working_hours_per_day",
+      "status",
+      "created_by",
+      "updated_by",
+      "created_at",
+      "updated_at",
+      "deleted_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "countries",
+    "columns": [
+      "country_id",
+      "country_code",
+      "country_name",
+      "phone_code",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "country_id"
+  },
+  {
+    "table": "currencies",
+    "columns": [
+      "currency_id",
+      "currency_code",
+      "currency_name",
+      "country_id",
+      "symbol",
+      "exchange_rate",
+      "decimal_places",
+      "is_base",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "currency_id"
+  },
+  {
+    "table": "customers",
+    "columns": [
+      "customer_id",
+      "customer_code",
+      "customer_name",
+      "contact_person",
+      "contact_number",
+      "email",
+      "country_id",
+      "state",
+      "city",
+      "community_id",
+      "nationality_id",
+      "address",
+      "status",
+      "created_by",
+      "updated_by",
+      "created_at",
+      "updated_at",
+      "gst_number",
+      "pan_number",
+      "tax_id",
+      "currency_id",
+      "billing_state"
+    ],
+    "primaryKey": "customer_id"
+  },
+  {
+    "table": "disciplines",
+    "columns": [
+      "discipline_id",
+      "discipline_code",
+      "discipline_name",
+      "description",
+      "status",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "discipline_id"
+  },
+  {
+    "table": "document_types",
+    "columns": [
+      "doc_type_id",
+      "type_code",
+      "type_name",
+      "applies_to",
+      "has_expiry",
+      "has_number",
+      "has_issue_date",
+      "is_required",
+      "country_id",
+      "status",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "doc_type_id"
+  },
+  {
+    "table": "employee_documents",
+    "columns": [
+      "id",
+      "employee_id",
+      "document_type",
+      "document_number",
+      "issue_date",
+      "expiry_date",
+      "issuing_country",
+      "issuing_country_id",
+      "document_file",
+      "file_size",
+      "mime_type",
+      "sub_type",
+      "status",
+      "remarks",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "employees",
+    "columns": [
+      "employee_id",
+      "employee_code",
+      "name",
+      "email",
+      "password_hash",
+      "role_id",
+      "department",
+      "hourly_rate",
+      "status",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "deleted_at",
+      "reporting_to_id",
+      "assigned_project_id",
+      "assigned_wbs_id",
+      "nationality_id",
+      "community_id",
+      "country_id",
+      "emreads_id",
+      "contact_number"
+    ],
+    "primaryKey": "employee_id"
+  },
+  {
+    "table": "entity_documents",
+    "columns": [
+      "document_id",
+      "entity_type",
+      "entity_id",
+      "doc_type_id",
+      "document_name",
+      "document_number",
+      "issue_date",
+      "expiry_date",
+      "file_path",
+      "file_size",
+      "mime_type",
+      "status",
+      "is_current",
+      "replaced_by_id",
+      "notes",
+      "uploaded_by",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "document_id"
+  },
+  {
+    "table": "expiry_notifications_log",
+    "columns": [
+      "id",
+      "document_id",
+      "entity_type",
+      "entity_id",
+      "days_before",
+      "recipient_user_id",
+      "sent_at",
+      "delivery_status",
+      "error_message"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "goods_receipt_notes",
+    "columns": [
+      "grn_id",
+      "grn_number",
+      "po_id",
+      "project_id",
+      "wbs_id",
+      "vendor_name",
+      "delivery_date",
+      "delivery_challan_number",
+      "invoice_number",
+      "store_location",
+      "remarks",
+      "created_by",
+      "created_at"
+    ],
+    "primaryKey": "grn_id"
+  },
+  {
+    "table": "holidays",
+    "columns": [
+      "id",
+      "calendar_id",
+      "holiday_date",
+      "description",
+      "type",
+      "created_by",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "invoice_items",
+    "columns": [
+      "item_id",
+      "invoice_id",
+      "discipline_id",
+      "description",
+      "amount",
+      "is_extra_work",
+      "project_wbs_id",
+      "task_id",
+      "quantity",
+      "rate",
+      "discount",
+      "tax_percentage",
+      "tax_amount",
+      "cgst_amount",
+      "sgst_amount",
+      "igst_amount"
+    ],
+    "primaryKey": "item_id"
+  },
+  {
+    "table": "invoice_payments",
+    "columns": [
+      "payment_id",
+      "invoice_id",
+      "payment_date",
+      "amount",
+      "payment_method",
+      "reference_number",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "payment_id"
+  },
+  {
+    "table": "invoices",
+    "columns": [
+      "invoice_id",
+      "invoice_number",
+      "customer_id",
+      "project_id",
+      "quotation_id",
+      "schedule_id",
+      "survey_id",
+      "currency_id",
+      "tax_id",
+      "invoice_date",
+      "due_date",
+      "subtotal_amount",
+      "tax_amount",
+      "total_amount",
+      "status",
+      "created_by",
+      "approved_by",
+      "created_at",
+      "tax_type",
+      "cgst_amount",
+      "sgst_amount",
+      "igst_amount"
+    ],
+    "primaryKey": "invoice_id"
+  },
+  {
+    "table": "labour_attendance",
+    "columns": [
+      "labour_attendance_id",
+      "labour_id",
+      "project_id",
+      "wbs_id",
+      "task_id",
+      "attendance_date",
+      "in_time",
+      "out_time",
+      "daily_pay_amount",
+      "worker_count",
+      "comment",
+      "created_at",
+      "is_deleted",
+      "deleted_at",
+      "hourly_rate",
+      "calculated_payment",
+      "in_latitude",
+      "in_longitude",
+      "in_address",
+      "out_latitude",
+      "out_longitude",
+      "out_address"
+    ],
+    "primaryKey": "labour_attendance_id"
+  },
+  {
+    "table": "labour_payment_items",
+    "columns": [
+      "id",
+      "payment_id",
+      "work_log_id",
+      "amount"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "labour_payments",
+    "columns": [
+      "payment_id",
+      "payment_code",
+      "labour_id",
+      "project_id",
+      "payment_date",
+      "total_hours",
+      "total_amount",
+      "payment_method",
+      "reference_number",
+      "status",
+      "remarks",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "payment_id"
+  },
+  {
+    "table": "labour_work_logs",
+    "columns": [
+      "work_log_id",
+      "labour_id",
+      "project_id",
+      "wbs_id",
+      "task_id",
+      "work_date",
+      "in_time",
+      "out_time",
+      "total_working_hours",
+      "rate_type",
+      "rate",
+      "amount",
+      "work_description",
+      "work_status",
+      "payment_status",
+      "created_by",
+      "updated_by",
+      "is_deleted",
+      "deleted_at",
+      "created_at",
+      "updated_at",
+      "in_address",
+      "out_address",
+      "in_latitude",
+      "in_longitude",
+      "out_latitude",
+      "out_longitude",
+      "labour_count",
+      "rate_per_labour"
+    ],
+    "primaryKey": "work_log_id"
+  },
+  {
+    "table": "labours",
+    "columns": [
+      "labour_id",
+      "name",
+      "contact_number",
+      "aadhar_id",
+      "labour_type",
+      "created_at",
+      "updated_at",
+      "contractor_id",
+      "assigned_project_id",
+      "nationality_id",
+      "community_id",
+      "country_id",
+      "emreads_id",
+      "email",
+      "status",
+      "is_deleted",
+      "deleted_at",
+      "labour_category",
+      "monthly_salary",
+      "project_rate",
+      "hourly_rate"
+    ],
+    "primaryKey": "labour_id"
+  },
+  {
+    "table": "manager_employees",
+    "columns": [
+      "id",
+      "manager_id",
+      "employee_id"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "manager_projects",
+    "columns": [
+      "id",
+      "manager_id",
+      "project_id"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "material_indents",
+    "columns": [
+      "indent_id",
+      "indent_code",
+      "project_id",
+      "wbs_id",
+      "required_date",
+      "priority",
+      "required_by",
+      "remarks",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "indent_id"
+  },
+  {
+    "table": "material_logs",
+    "columns": [
+      "log_id",
+      "project_id",
+      "wbs_id",
+      "task_id",
+      "material_id",
+      "usage_date",
+      "quantity",
+      "rate",
+      "actual_cost",
+      "remarks",
+      "created_at"
+    ],
+    "primaryKey": "log_id"
+  },
+  {
+    "table": "material_planning",
+    "columns": [
+      "plan_id",
+      "project_id",
+      "wbs_id",
+      "task_id",
+      "material_id",
+      "planned_date",
+      "quantity",
+      "rate",
+      "planned_cost",
+      "created_at"
+    ],
+    "primaryKey": "plan_id"
+  },
+  {
+    "table": "material_quotation_items",
+    "columns": [
+      "id",
+      "quotation_id",
+      "material_id",
+      "planned_quantity",
+      "rate",
+      "planned_amount",
+      "tax_percentage",
+      "tax_amount",
+      "total_amount"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "material_quotations",
+    "columns": [
+      "quotation_id",
+      "project_id",
+      "wbs_id",
+      "quotation_date",
+      "status",
+      "created_by",
+      "created_at"
+    ],
+    "primaryKey": "quotation_id"
+  },
+  {
+    "table": "material_requirements",
+    "columns": [
+      "indent_id",
+      "indent_number",
+      "project_id",
+      "wbs_id",
+      "indent_date",
+      "required_date",
+      "priority",
+      "required_by_employee_id",
+      "remarks",
+      "status",
+      "created_by",
+      "approved_by",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "deleted_at"
+    ],
+    "primaryKey": "indent_id"
+  },
+  {
+    "table": "material_survey_items",
+    "columns": [
+      "id",
+      "survey_id",
+      "material_id",
+      "opening_qty",
+      "added_qty",
+      "used_qty",
+      "wastage_qty",
+      "remaining_qty",
+      "rate",
+      "used_cost",
+      "remaining_cost"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "material_surveys",
+    "columns": [
+      "survey_id",
+      "project_id",
+      "wbs_id",
+      "survey_date",
+      "survey_month",
+      "status",
+      "created_by",
+      "created_at"
+    ],
+    "primaryKey": "survey_id"
+  },
+  {
+    "table": "materials",
+    "columns": [
+      "material_id",
+      "material_name",
+      "category",
+      "description",
+      "unit",
+      "rate",
+      "status",
+      "created_at",
+      "updated_at",
+      "material_code",
+      "brand_spec",
+      "hsn_sac_code",
+      "tax_percentage",
+      "min_stock_level",
+      "reorder_level",
+      "vendor_id"
+    ],
+    "primaryKey": "material_id"
+  },
+  {
+    "table": "monthly_completed_work",
+    "columns": [
+      "completed_work_id",
+      "schedule_id",
+      "project_id",
+      "completion_percentage",
+      "approved_amount",
+      "status",
+      "approved_by",
+      "created_at"
+    ],
+    "primaryKey": "completed_work_id"
+  },
+  {
+    "table": "nationalities",
+    "columns": [
+      "nationality_id",
+      "nationality_name",
+      "country_id",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "nationality_id"
+  },
+  {
+    "table": "notifications",
+    "columns": [
+      "notification_id",
+      "user_id",
+      "title",
+      "message",
+      "type",
+      "reference_type",
+      "reference_id",
+      "priority",
+      "is_read",
+      "created_at"
+    ],
+    "primaryKey": "notification_id"
+  },
+  {
+    "table": "password_reset_tokens",
+    "columns": [
+      "token_id",
+      "employee_id",
+      "token",
+      "expires_at",
+      "used",
+      "created_at"
+    ],
+    "primaryKey": "token_id"
+  },
+  {
+    "table": "permissions",
+    "columns": [
+      "id",
+      "module",
+      "action",
+      "permission_code"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning",
+    "columns": [
+      "id",
+      "quotation_id",
+      "project_id",
+      "project_type_id",
+      "new_project_name",
+      "customer_id",
+      "calendar_id",
+      "status",
+      "version",
+      "start_date",
+      "end_date",
+      "total_duration",
+      "total_budget",
+      "total_labour_cost",
+      "total_material_cost",
+      "total_tax_amount",
+      "terms_conditions",
+      "rejection_reason",
+      "created_by",
+      "submitted_by",
+      "submitted_at",
+      "created_at",
+      "updated_at",
+      "approved_by",
+      "approved_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_resources",
+    "columns": [
+      "id",
+      "planning_task_id",
+      "resource_type",
+      "resource_id",
+      "quantity",
+      "planned_cost"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_revisions",
+    "columns": [
+      "id",
+      "planning_id",
+      "version",
+      "reason",
+      "change_summary",
+      "snapshot_data",
+      "created_by",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_task_dependencies",
+    "columns": [
+      "id",
+      "task_id",
+      "predecessor_task_id",
+      "dependency_type",
+      "lag_days"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_tasks",
+    "columns": [
+      "id",
+      "planning_wbs_id",
+      "task_name",
+      "task_code",
+      "description",
+      "priority",
+      "baseline_start",
+      "baseline_end",
+      "baseline_duration",
+      "start_date",
+      "end_date",
+      "duration",
+      "planned_hours",
+      "planned_labour_cost",
+      "planned_material_cost",
+      "planned_other_cost",
+      "manually_adjusted",
+      "status",
+      "sort_order"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_taxes",
+    "columns": [
+      "id",
+      "planning_id",
+      "tax_id",
+      "tax_name",
+      "tax_code",
+      "tax_type",
+      "tax_percentage",
+      "taxable_amount",
+      "tax_amount",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_terms_snapshots",
+    "columns": [
+      "snapshot_id",
+      "planning_id",
+      "template_id",
+      "template_name",
+      "title",
+      "description",
+      "is_mandatory",
+      "sort_order",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "snapshot_id"
+  },
+  {
+    "table": "planning_terms_templates",
+    "columns": [
+      "id",
+      "planning_id",
+      "template_id",
+      "template_name",
+      "sort_order",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_wbs",
+    "columns": [
+      "id",
+      "planning_id",
+      "quotation_discipline_id",
+      "wbs_id",
+      "wbs_template_id",
+      "parent_id",
+      "wbs_name",
+      "wbs_code",
+      "wbs_type",
+      "level",
+      "sort_order",
+      "unit",
+      "planned_quantity",
+      "rate",
+      "budget_amount",
+      "planned_hours",
+      "planned_labour_cost",
+      "planned_material_cost",
+      "planned_other_cost",
+      "baseline_start",
+      "baseline_end",
+      "baseline_duration",
+      "start_date",
+      "end_date",
+      "duration",
+      "description"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_wbs_labour",
+    "columns": [
+      "id",
+      "planning_id",
+      "planning_wbs_id",
+      "quotation_labour_id",
+      "labour_id",
+      "labour_name",
+      "labour_type",
+      "worker_count",
+      "hours",
+      "rate",
+      "amount",
+      "start_date",
+      "end_date",
+      "notes",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "planning_wbs_material",
+    "columns": [
+      "id",
+      "planning_id",
+      "planning_wbs_id",
+      "quotation_material_id",
+      "material_id",
+      "material_name",
+      "quantity",
+      "unit",
+      "rate",
+      "amount",
+      "start_date",
+      "end_date",
+      "notes",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "project_material_logs",
+    "columns": [
+      "log_id",
+      "project_material_id",
+      "project_id",
+      "wbs_id",
+      "material_id",
+      "action_type",
+      "quantity",
+      "unit_rate",
+      "cost",
+      "log_date",
+      "notes",
+      "created_at"
+    ],
+    "primaryKey": "log_id"
+  },
+  {
+    "table": "project_materials",
+    "columns": [
+      "id",
+      "project_id",
+      "wbs_id",
+      "material_id",
+      "material_name",
+      "unit",
+      "unit_rate",
+      "planned_quantity",
+      "received_quantity",
+      "used_quantity",
+      "remaining_quantity",
+      "extra_quantity",
+      "planned_cost",
+      "actual_cost",
+      "remaining_cost",
+      "notes",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "project_selected_templates",
+    "columns": [
+      "id",
+      "project_id",
+      "template_id",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "project_taxes",
+    "columns": [
+      "id",
+      "project_id",
+      "tax_id",
+      "tax_name",
+      "tax_code",
+      "tax_type",
+      "tax_percentage",
+      "taxable_amount",
+      "tax_amount",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "project_terms_snapshots",
+    "columns": [
+      "snapshot_id",
+      "project_id",
+      "template_id",
+      "template_name",
+      "title",
+      "description",
+      "is_mandatory",
+      "sort_order",
+      "status",
+      "created_at"
+    ],
+    "primaryKey": "snapshot_id"
+  },
+  {
+    "table": "project_terms_templates",
+    "columns": [
+      "id",
+      "project_id",
+      "template_id",
+      "template_name",
+      "sort_order",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "project_types",
+    "columns": [
+      "type_id",
+      "type_code",
+      "type_name",
+      "description",
+      "status",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "type_id"
+  },
+  {
+    "table": "project_wbs",
+    "columns": [
+      "id",
+      "project_id",
+      "wbs_id",
+      "wbs_template_id",
+      "project_type_id",
+      "parent_id",
+      "display_order",
+      "start_date",
+      "end_date",
+      "total_hours",
+      "note",
+      "status",
+      "created_by",
+      "updated_by",
+      "deleted_by",
+      "created_at",
+      "updated_at",
+      "deleted_at",
+      "budget_amount",
+      "actual_start_date",
+      "actual_end_date",
+      "actual_hours",
+      "planned_labour_cost",
+      "planned_material_cost",
+      "planned_other_cost",
+      "quotation_discipline_id",
+      "wbs_type",
+      "unit",
+      "planned_quantity",
+      "actual_quantity",
+      "rate",
+      "remaining_hours",
+      "extra_hours",
+      "progress_percent",
+      "level",
+      "wbs_code",
+      "wbs_name",
+      "baseline_start",
+      "baseline_end",
+      "current_start",
+      "current_end",
+      "baseline_duration",
+      "current_duration",
+      "description",
+      "scope",
+      "quality_standard",
+      "acceptance_criteria"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "projects",
+    "columns": [
+      "project_id",
+      "project_code",
+      "customer_id",
+      "source_quotation_id",
+      "project_type_id",
+      "emreads_id",
+      "contact_email",
+      "community_id",
+      "nationality_id",
+      "country_id",
+      "project_name",
+      "project_address",
+      "address_line_1",
+      "address_line_2",
+      "city",
+      "state",
+      "pincode",
+      "location_area",
+      "client_name",
+      "client_code",
+      "latitude",
+      "longitude",
+      "radius_meters",
+      "project_date",
+      "status",
+      "note",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "deleted_at",
+      "budget_amount",
+      "start_date",
+      "end_date",
+      "currency_id",
+      "exchange_rate",
+      "terms_conditions",
+      "quotation_reference",
+      "planning_required",
+      "planning_id"
+    ],
+    "primaryKey": "project_id"
+  },
+  {
+    "table": "purchase_orders",
+    "columns": [
+      "po_id",
+      "po_number",
+      "po_date",
+      "project_id",
+      "wbs_id",
+      "indent_id",
+      "vendor_name",
+      "vendor_id",
+      "expected_delivery_date",
+      "subtotal_amount",
+      "tax_amount",
+      "total_amount",
+      "payment_terms",
+      "delivery_address",
+      "terms_conditions",
+      "status",
+      "created_by",
+      "created_at"
+    ],
+    "primaryKey": "po_id"
+  },
+  {
+    "table": "quotation_disciplines",
+    "columns": [
+      "id",
+      "quotation_id",
+      "project_id",
+      "discipline_id",
+      "discipline_name",
+      "description",
+      "unit",
+      "quantity",
+      "rate",
+      "amount",
+      "terms_conditions",
+      "status",
+      "created_at",
+      "updated_at",
+      "wbs_type",
+      "start_date",
+      "end_date",
+      "wbs_id",
+      "labour_hours",
+      "labour_rate",
+      "labour_cost",
+      "material_quantity",
+      "material_rate",
+      "material_cost",
+      "wbs_template_id",
+      "planned_hours",
+      "wbs_code"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_required_documents",
+    "columns": [
+      "id",
+      "quotation_id",
+      "document_name",
+      "is_required",
+      "status",
+      "document_id"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_snapshots",
+    "columns": [
+      "id",
+      "quotation_id",
+      "snapshot_hash",
+      "snapshot_data",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_taxes",
+    "columns": [
+      "id",
+      "quotation_id",
+      "tax_id",
+      "tax_name",
+      "tax_code",
+      "tax_type",
+      "tax_percentage",
+      "taxable_amount",
+      "tax_amount",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_terms_snapshots",
+    "columns": [
+      "snapshot_id",
+      "quotation_id",
+      "template_id",
+      "template_name",
+      "title",
+      "description",
+      "is_mandatory",
+      "sort_order",
+      "status"
+    ],
+    "primaryKey": "snapshot_id"
+  },
+  {
+    "table": "quotation_terms_template_items",
+    "columns": [
+      "item_id",
+      "template_id",
+      "title",
+      "description",
+      "is_mandatory",
+      "sort_order",
+      "status"
+    ],
+    "primaryKey": "item_id"
+  },
+  {
+    "table": "quotation_terms_templates",
+    "columns": [
+      "id",
+      "quotation_id",
+      "template_id",
+      "template_name",
+      "sort_order",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_wbs_items",
+    "columns": [
+      "id",
+      "quotation_discipline_id",
+      "item_type",
+      "material_id",
+      "description",
+      "unit",
+      "qty",
+      "rate",
+      "amount",
+      "tax_percentage",
+      "tax_amount",
+      "discount_amount",
+      "line_total",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_wbs_labour",
+    "columns": [
+      "id",
+      "quotation_id",
+      "quotation_discipline_id",
+      "labour_id",
+      "labour_name",
+      "labour_type",
+      "hours",
+      "rate",
+      "amount",
+      "created_at",
+      "start_date",
+      "end_date"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_wbs_material",
+    "columns": [
+      "id",
+      "quotation_id",
+      "quotation_discipline_id",
+      "material_id",
+      "material_name",
+      "quantity",
+      "unit",
+      "rate",
+      "amount",
+      "created_at",
+      "start_date",
+      "end_date"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotation_wbs_templates",
+    "columns": [
+      "id",
+      "quotation_id",
+      "template_id",
+      "template_name",
+      "sort_order"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "quotations",
+    "columns": [
+      "quotation_id",
+      "quotation_code",
+      "customer_id",
+      "project_id",
+      "new_project_name",
+      "currency_id",
+      "exchange_rate",
+      "quotation_date",
+      "validity_date",
+      "description",
+      "subtotal_amount",
+      "tax_percentage",
+      "tax_amount",
+      "discount_amount",
+      "total_amount",
+      "terms_conditions",
+      "status",
+      "revision_number",
+      "created_by",
+      "approved_by",
+      "approved_at",
+      "rejection_reason",
+      "is_deleted",
+      "deleted_at",
+      "created_at",
+      "updated_at",
+      "tax_id",
+      "tax_type",
+      "cgst_amount",
+      "sgst_amount",
+      "igst_amount",
+      "project_type_id",
+      "start_date",
+      "end_date",
+      "planning_required"
+    ],
+    "primaryKey": "quotation_id"
+  },
+  {
+    "table": "role_permissions",
+    "columns": [
+      "id",
+      "role_id",
+      "permission_id"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "roles",
+    "columns": [
+      "role_id",
+      "role_name",
+      "created_at"
+    ],
+    "primaryKey": "role_id"
+  },
+  {
+    "table": "site_survey_photo_disciplines",
+    "columns": [
+      "photo_id",
+      "discipline_id"
+    ],
+    "primaryKey": "photo_id"
+  },
+  {
+    "table": "site_survey_photos",
+    "columns": [
+      "photo_id",
+      "survey_id",
+      "photo_name",
+      "file_path",
+      "caption",
+      "created_at"
+    ],
+    "primaryKey": "photo_id"
+  },
+  {
+    "table": "site_surveys",
+    "columns": [
+      "survey_id",
+      "survey_code",
+      "project_id",
+      "customer_id",
+      "discipline_id",
+      "survey_date",
+      "conducted_by",
+      "entry_type",
+      "location_details",
+      "latitude",
+      "longitude",
+      "comments",
+      "remarks",
+      "attached_report_path",
+      "status",
+      "created_by",
+      "created_at",
+      "updated_at",
+      "wbs_id",
+      "site_conditions",
+      "measurements",
+      "labour_requirements",
+      "material_requirements",
+      "observations"
+    ],
+    "primaryKey": "survey_id"
+  },
+  {
+    "table": "task_assignments",
+    "columns": [
+      "assignment_id",
+      "task_id",
+      "employee_id",
+      "assigned_at",
+      "planned_hours",
+      "actual_hours"
+    ],
+    "primaryKey": "assignment_id"
+  },
+  {
+    "table": "task_checklists",
+    "columns": [
+      "id",
+      "task_id",
+      "title",
+      "is_completed",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "task_dependencies",
+    "columns": [
+      "dependency_id",
+      "task_id",
+      "predecessor_task_id",
+      "dependency_type",
+      "lag_days",
+      "created_at"
+    ],
+    "primaryKey": "dependency_id"
+  },
+  {
+    "table": "task_labour_assignments",
+    "columns": [
+      "task_id",
+      "labour_id",
+      "assigned_at"
+    ],
+    "primaryKey": "task_id"
+  },
+  {
+    "table": "task_used_materials",
+    "columns": [
+      "id",
+      "task_id",
+      "project_id",
+      "wbs_id",
+      "material_id",
+      "material_name",
+      "quantity",
+      "unit",
+      "rate",
+      "amount",
+      "used_date",
+      "notes",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "tasks",
+    "columns": [
+      "task_id",
+      "project_id",
+      "quotation_id",
+      "discipline_id",
+      "wbs_id",
+      "task_code",
+      "task_name",
+      "description",
+      "required_worker_count",
+      "estimated_hours",
+      "start_date",
+      "start_time",
+      "target_date",
+      "target_time",
+      "status",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "deleted_at",
+      "task_address",
+      "latitude",
+      "longitude",
+      "budget_amount",
+      "actual_start_date",
+      "actual_end_date",
+      "actual_cost",
+      "progress_percentage",
+      "priority",
+      "planned_labour_cost",
+      "planned_material_cost",
+      "planned_other_cost",
+      "wbs_template_id",
+      "is_billable",
+      "baseline_start",
+      "baseline_end",
+      "current_start",
+      "current_end",
+      "baseline_duration",
+      "current_duration",
+      "manually_adjusted",
+      "planning_task_id"
+    ],
+    "primaryKey": "task_id"
+  },
+  {
+    "table": "taxes",
+    "columns": [
+      "tax_id",
+      "tax_name",
+      "tax_percentage",
+      "country_id",
+      "status",
+      "created_at",
+      "tax_code",
+      "tax_type",
+      "is_split",
+      "cgst_percentage",
+      "sgst_percentage"
+    ],
+    "primaryKey": "tax_id"
+  },
+  {
+    "table": "terms_templates",
+    "columns": [
+      "template_id",
+      "template_name",
+      "description",
+      "country_id",
+      "project_type_id",
+      "discipline_id",
+      "terms_content",
+      "status",
+      "version",
+      "created_by",
+      "updated_by",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "template_id"
+  },
+  {
+    "table": "timesheets",
+    "columns": [
+      "timesheet_id",
+      "project_id",
+      "wbs_id",
+      "task_id",
+      "employee_id",
+      "log_date",
+      "working_hours",
+      "comment",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "deleted_at",
+      "rate_snapshot",
+      "cost"
+    ],
+    "primaryKey": "timesheet_id"
+  },
+  {
+    "table": "vendor_invoices",
+    "columns": [
+      "vendor_invoice_id",
+      "invoice_number",
+      "invoice_date",
+      "po_id",
+      "grn_id",
+      "project_id",
+      "wbs_id",
+      "vendor_name",
+      "invoice_amount",
+      "tax_amount",
+      "payable_amount",
+      "paid_amount",
+      "balance_amount",
+      "payment_status",
+      "created_at"
+    ],
+    "primaryKey": "vendor_invoice_id"
+  },
+  {
+    "table": "vendor_payments",
+    "columns": [
+      "payment_id",
+      "vendor_invoice_id",
+      "payment_date",
+      "amount",
+      "payment_mode",
+      "reference_number",
+      "remarks",
+      "created_at"
+    ],
+    "primaryKey": "payment_id"
+  },
+  {
+    "table": "vendors",
+    "columns": [
+      "vendor_id",
+      "vendor_code",
+      "vendor_name",
+      "contact_person",
+      "email",
+      "phone",
+      "address",
+      "gst_number",
+      "status",
+      "created_at",
+      "updated_at",
+      "is_deleted",
+      "deleted_at"
+    ],
+    "primaryKey": "vendor_id"
+  },
+  {
+    "table": "wbs_template_details",
+    "columns": [
+      "id",
+      "template_id",
+      "project_type_id",
+      "parent_id",
+      "wbs_id",
+      "wbs_name",
+      "wbs_code",
+      "description",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "wbs_template_project_types",
+    "columns": [
+      "id",
+      "template_id",
+      "project_type_id",
+      "sort_order",
+      "created_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "wbs_templates",
+    "columns": [
+      "id",
+      "template_code",
+      "template_name",
+      "project_type_id",
+      "description",
+      "status",
+      "created_by",
+      "created_at",
+      "updated_at",
+      "deleted_at"
+    ],
+    "primaryKey": "id"
+  },
+  {
+    "table": "work_breakdown_structures",
+    "columns": [
+      "id",
+      "wbs_code",
+      "wbs_name",
+      "description",
+      "status",
+      "created_by",
+      "updated_by",
+      "deleted_by",
+      "created_at",
+      "updated_at",
+      "deleted_at",
+      "wbs_type"
+    ],
+    "primaryKey": "id"
+  }
+]
