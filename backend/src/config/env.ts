@@ -25,7 +25,7 @@ export const env = {
   DB_NAME: process.env.DB_NAME || 'gaptm',
   JWT_SECRET: process.env.JWT_SECRET || 'super_secret_jwt_access_key_htco_2026',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'super_secret_jwt_refresh_key_htco_2026',
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '15m',
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
 };
