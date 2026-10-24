@@ -11,6 +11,25 @@ import { showSuccess, showError } from '../utils/toast';
 import { MapPin, LogIn, LogOut, Navigation, Clock, Edit2, Trash2, Users, HardHat, Filter, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+const formatSafeTime = (dateVal: any): string => {
+  if (!dateVal) return '-';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+};
+
+const toDateTimeLocal = (dateVal: any): string => {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export const Attendance: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
@@ -206,8 +225,8 @@ export const Attendance: React.FC<{ projectId?: number }> = ({ projectId }) => {
     }] : []),
     { header: 'Date', accessor: 'attendance_date', sortKey: 'attendance_date' },
     { header: 'Task / Project', accessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Site Work', csvAccessor: (r) => r.task_name ? `${r.task_name} (${r.project_name || ''})` : 'General Site Work', sortKey: (r) => r.task_name || '' },
-    { header: 'Check In Time', accessor: (r) => r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '-', csvAccessor: (r) => r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '-', sortKey: 'check_in_time' },
-    { header: 'Check Out Time', accessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-', csvAccessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-', sortKey: 'check_out_time' },
+    { header: 'Check In Time', accessor: (r) => formatSafeTime(r.check_in_time), csvAccessor: (r) => formatSafeTime(r.check_in_time), sortKey: 'check_in_time' },
+    { header: 'Check Out Time', accessor: (r) => formatSafeTime(r.check_out_time), csvAccessor: (r) => formatSafeTime(r.check_out_time), sortKey: 'check_out_time' },
     {
       header: 'Working Hours',
       accessor: (r) => (
@@ -292,7 +311,7 @@ export const Attendance: React.FC<{ projectId?: number }> = ({ projectId }) => {
                 You are currently checked in!
               </div>
               <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
-                Task: {activeCheckIn.task_name || 'General Site'} | Checked in at {new Date(activeCheckIn.check_in_time).toLocaleTimeString()}
+                Task: {activeCheckIn.task_name || 'General Site'} | Checked in at {formatSafeTime(activeCheckIn.check_in_time)}
               </div>
             </div>
           </div>
@@ -353,8 +372,8 @@ export const Attendance: React.FC<{ projectId?: number }> = ({ projectId }) => {
                 <button
                   onClick={() => {
                     setEditingLog(row);
-                    setEditCheckInTime(row.check_in_time ? new Date(row.check_in_time).toISOString().slice(0, 16) : '');
-                    setEditCheckOutTime(row.check_out_time ? new Date(row.check_out_time).toISOString().slice(0, 16) : '');
+                    setEditCheckInTime(toDateTimeLocal(row.check_in_time));
+                    setEditCheckOutTime(toDateTimeLocal(row.check_out_time));
                     setEditInAddress(row.in_address || '');
                   }}
                   title="Edit Record"
