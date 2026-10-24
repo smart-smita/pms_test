@@ -308,7 +308,7 @@ export class InvoiceRepository {
        LEFT JOIN tasks t ON ii.task_id = t.task_id
        LEFT JOIN project_wbs pw ON ii.project_wbs_id = pw.wbs_id
        WHERE ii.invoice_id = ?
-       ORDER BY ii.item_type ASC, ii.item_id ASC`,
+       ORDER BY ii.item_id ASC`,
       [id]
     );
     invoice.items = itemRows as InvoiceItemRow[];

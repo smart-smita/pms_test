@@ -54,19 +54,22 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
 
   // Left Column: Invoice Meta
   doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e293b').text('Invoice Metadata', 50, detailsTop);
-  doc.font('Helvetica').fontSize(8.5).fillColor('#334155')
-    .text(`Invoice No: `, 50, detailsTop + 14, { continued: true })
-    .font('Helvetica-Bold').text(invoice.invoice_number)
-    .font('Helvetica')
-    .text(`Date: ${new Date(invoice.invoice_date).toLocaleDateString()}`, 50, detailsTop + 27)
-    .text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, 50, detailsTop + 40)
-    .text(`Billing Period: ${(invoice as any).billing_month || 'Current Schedule'}`, 50, detailsTop + 53)
-    .text(`Invoice Type: `, 50, detailsTop + 66, { continued: true })
-    .font('Helvetica-Bold').text((invoice.invoice_type || 'Combined').toUpperCase())
-    .font('Helvetica')
-    .text(`Status: `, 50, detailsTop + 79, { continued: true })
-    .font('Helvetica-Bold').fillColor(invoice.status === 'paid' ? '#16a34a' : (invoice.status === 'approved' ? '#2563eb' : '#d97706'))
-    .text(invoice.status.toUpperCase());
+    const invDateStr = invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : 'N/A';
+    const dueDateStr = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A';
+
+    doc.font('Helvetica').fontSize(8.5).fillColor('#334155')
+      .text(`Invoice No: `, 50, detailsTop + 14, { continued: true })
+      .font('Helvetica-Bold').text(invoice.invoice_number || '')
+      .font('Helvetica')
+      .text(`Date: ${invDateStr}`, 50, detailsTop + 27)
+      .text(`Due Date: ${dueDateStr}`, 50, detailsTop + 40)
+      .text(`Billing Period: ${(invoice as any).billing_month || 'Current Schedule'}`, 50, detailsTop + 53)
+      .text(`Invoice Type: `, 50, detailsTop + 66, { continued: true })
+      .font('Helvetica-Bold').text((invoice.invoice_type || 'Combined').toUpperCase())
+      .font('Helvetica')
+      .text(`Status: `, 50, detailsTop + 79, { continued: true })
+      .font('Helvetica-Bold').fillColor(invoice.status === 'paid' ? '#16a34a' : (invoice.status === 'approved' ? '#2563eb' : '#d97706'))
+      .text((invoice.status || 'draft').toUpperCase());
 
   // ── Bill To ─────────────────────────────────────────────────────────────
   doc.font('Helvetica-Bold').text('Bill To', 300, detailsTop);

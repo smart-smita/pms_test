@@ -725,7 +725,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
   const handleDownloadPdf = async (invoiceId: number, invoiceNum: string) => {
     try {
       setIsDownloadingPdf(invoiceId);
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
       const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/pdf`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
