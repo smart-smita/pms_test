@@ -719,6 +719,7 @@ export const Labours: React.FC<LaboursProps> = ({
         </div>
       ),
       header: 'Actions',
+      excludeFromCSV: true,
     },
   ];
 
@@ -802,6 +803,7 @@ export const Labours: React.FC<LaboursProps> = ({
         </div>
       ),
       header: 'Actions',
+      excludeFromCSV: true,
     },
   ];
 
@@ -1555,14 +1557,15 @@ export const Labours: React.FC<LaboursProps> = ({
             </div>
           </div>
 
-          <div className="form-group mb-4">
+          <div className="form-group mb-4" style={{ width: '100%' }}>
             <label className="form-label">Work Description / Remarks</label>
             <textarea
               placeholder="Specific tasks completed, site progress, notes..."
               value={workLogForm.work_description}
               onChange={(e) => setWorkLogForm({ ...workLogForm, work_description: e.target.value })}
-              className="form-textarea"
-              rows={2}
+              className="form-input form-textarea"
+              rows={3}
+              style={{ width: '100%', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }}
             />
           </div>
 

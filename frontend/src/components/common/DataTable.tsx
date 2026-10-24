@@ -167,7 +167,12 @@ export function DataTable<T extends Record<string, any>>({
   const handleExportCSV = () => {
     if (data.length === 0) return;
     const csvColumns = columns
-      .filter((c) => !c.excludeFromCSV)
+      .filter((c) => {
+        if (c.excludeFromCSV) return false;
+        const headerText = String(c.header || '').trim().toLowerCase();
+        if (headerText === 'action' || headerText === 'actions') return false;
+        return true;
+      })
       .map((c) => {
         let accessorFn: ((row: T) => string | number | null | undefined) | undefined = undefined;
         let key: string | undefined = undefined;

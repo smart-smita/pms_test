@@ -277,10 +277,10 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
       header: 'Survey Code / Date',
       accessor: (r) => (
         <div>
-          <div style={{ fontWeight: 700, color: '#818cf8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div style={{ fontWeight: 700, color: 'var(--accent-primary, #4f46e5)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <FileText size={15} /> {r.survey_code}
           </div>
-          <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #475569)', marginTop: '0.15rem' }}>
             Date: {new Date(r.survey_date).toLocaleDateString()}
           </div>
         </div>
@@ -292,11 +292,11 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
       header: 'Project & Client',
       accessor: (r) => (
         <div>
-          <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <FolderKanban size={14} color="#6366f1" /> {r.project_name || 'N/A'}
           </div>
-          <div style={{ fontSize: '0.78rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <Building2 size={13} color="#38bdf8" /> {r.customer_name || 'N/A'}
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary, #334155)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+            <Building2 size={13} color="#0284c7" /> {r.customer_name || 'N/A'}
           </div>
         </div>
       ),
@@ -327,8 +327,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
     {
       header: 'Inspector',
       accessor: (r) => (
-        <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <User size={13} color="#4ade80" /> {r.conducted_by_name || 'N/A'}
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <User size={13} color="#16a34a" /> {r.conducted_by_name || 'N/A'}
         </div>
       ),
       csvAccessor: (r) => r.conducted_by_name || 'N/A',
@@ -779,7 +779,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
                       <a href={`${apiUrl.replace('/api/v1', '')}${p.file_path}`} target="_blank" rel="noreferrer">
                         <img src={`${apiUrl.replace('/api/v1', '')}${p.file_path}`} alt={p.photo_name || 'Photo'} style={{ width: '100%', height: '110px', objectFit: 'cover' }} />
                       </a>
-                      {p.caption && <div style={{ fontSize: '0.75rem', padding: '0.3rem', color: '#cbd5e1', textAlign: 'center' }}>{p.caption}</div>}
+                      {p.caption && <div style={{ fontSize: '0.75rem', padding: '0.3rem', color: 'var(--text-secondary, #475569)', textAlign: 'center' }}>{p.caption}</div>}
                     </div>
                   ))}
                 </div>

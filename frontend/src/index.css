@@ -665,8 +665,10 @@ h5 {
 .form-input,
 .form-select,
 .form-control,
+.form-textarea,
 textarea.form-input,
-textarea.form-control {
+textarea.form-control,
+textarea.form-textarea {
   width: 100%;
   padding: 0.6rem 0.85rem;
   background: var(--input-bg-solid);
