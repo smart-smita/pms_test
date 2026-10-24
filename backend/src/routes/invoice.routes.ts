@@ -29,10 +29,15 @@ router.patch('/completed-work/:id/status', requirePermission('invoices', 'approv
 // Invoices
 router.get('/', requirePermission('invoices', 'view'), ctrl.getInvoices);
 router.post('/', requirePermission('invoices', 'create'), ctrl.generateInvoice);
+router.post('/:id/regenerate', requirePermission('invoices', 'update'), ctrl.regenerateDraftInvoice);
+router.post('/:id/credit-note', requirePermission('invoices', 'create'), ctrl.createCreditNote);
+router.post('/:id/revise', requirePermission('invoices', 'create'), ctrl.createRevision);
+router.get('/:id/sources', requirePermission('invoices', 'view'), ctrl.getInvoiceSources);
 router.patch('/:id/approve', requirePermission('invoices', 'approve'), ctrl.approveInvoice);
 router.patch('/:id/status', requirePermission('invoices', 'approve'), ctrl.approveInvoice);
 router.get('/:id/payments', requirePermission('invoices', 'view'), ctrl.getPayments);
 router.post('/:id/payments', requirePermission('invoices', 'update'), ctrl.addPayment);
+router.get('/project-costs/:projectId', requirePermission('invoices', 'view'), ctrl.getProjectCosts);
 router.get('/:id/pdf', requirePermission('invoices', 'view'), ctrl.downloadInvoicePDF);
 router.get('/:id', requirePermission('invoices', 'view'), ctrl.getInvoiceDetail);
 

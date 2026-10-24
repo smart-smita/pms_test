@@ -90,7 +90,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (module === 'projects' && user.role_name === 'Manager') return true;
       if (module === 'employees' && user.role_name === 'Manager') return true;
-      return false;
     }
     
     return user.permissions ? user.permissions.includes(`${module}_${action}`) : false;

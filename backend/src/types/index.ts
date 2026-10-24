@@ -92,6 +92,10 @@ export interface ProjectRow {
   pending_amount?: number;
   remaining_budget?: number;
   budget_variance?: number;
+  currency_id?: number | null;
+  currency_code?: string;
+  currency_symbol?: string;
+  exchange_rate?: number;
 }
 
 
@@ -179,7 +183,7 @@ export interface ProjectWBSRow {
   wbs_id: number;
   wbs_code?: string;
   wbs_name?: string;
-  wbs_type?: 'labour' | 'material';
+  wbs_type?: 'labour' | 'material' | 'both';
   unit?: string;
   planned_quantity?: number;
   rate?: number;

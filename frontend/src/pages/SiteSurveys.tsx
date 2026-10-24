@@ -401,7 +401,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               </Button>
               {row.entry_type === 'system_entry' ? (
                 <a
-                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${localStorage.getItem('token')}`}
+                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${encodeURIComponent(localStorage.getItem('access_token') || localStorage.getItem('token') || '')}`}
                   target="_blank"
                   rel="noreferrer"
                   style={{

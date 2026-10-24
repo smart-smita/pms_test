@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../context/WorkCategoryContext';
 import React, { useEffect, useState } from 'react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
@@ -7,13 +8,14 @@ import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 import { apiRequest } from '../services/api';
 import { Invoice, BillingSchedule, MonthlyCompletedWork, Currency, Tax, Country, Project, Customer, InvoicePayment, SiteSurvey, Discipline, InvoiceItem } from '../types';
-import { Plus, FileText, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power } from 'lucide-react';
+import { Plus, FileText, RotateCcw, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 
-export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
+export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = ({ projectId, hideHeader = false }) => {
   const { user } = useAuth();
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const isAdminOrManager = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
 
   const [activeTab, setActiveTab] = useState<'invoices' | 'schedules' | 'completed_work' | 'masters'>('invoices');
@@ -37,9 +39,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const [invoiceCountryId, setInvoiceCountryId] = useState<string>('');
 
   useEffect(() => {
-    if (projectId) {
-      setSelectedProjectId(String(projectId));
-    }
+    setSelectedProjectId(projectId ? String(projectId) : '');
   }, [projectId]);
 
   // Invoice Modal State
@@ -55,6 +55,24 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const [selectedSchedule, setSelectedSchedule] = useState<BillingSchedule | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingTax, setEditingTax] = useState<Tax | null>(null);
+  const [projectCosts, setProjectCosts] = useState<any | null>(null);
+
+  // Phase 6: Credit Note & Revision Modal States
+  const [isCreditNoteModalOpen, setIsCreditNoteModalOpen] = useState(false);
+  const [creditNoteInvoice, setCreditNoteInvoice] = useState<Invoice | null>(null);
+  const [creditNoteReason, setCreditNoteReason] = useState('');
+  const [isSubmittingCreditNote, setIsSubmittingCreditNote] = useState(false);
+
+  const [isReviseModalOpen, setIsReviseModalOpen] = useState(false);
+  const [reviseInvoice, setReviseInvoice] = useState<Invoice | null>(null);
+  const [reviseReason, setReviseReason] = useState('');
+  const [isSubmittingRevise, setIsSubmittingRevise] = useState(false);
+
+  // View Details Modal State
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [invoicePaymentsList, setInvoicePaymentsList] = useState<InvoicePayment[]>([]);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   // Form states
   const [invoiceForm, setInvoiceForm] = useState({
@@ -75,6 +93,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
     subtotal_amount: 0,
     tax_amount: 0,
     total_amount: 0,
+    invoice_type: 'combined' as 'combined' | 'labour' | 'material',
     items: [] as InvoiceItem[],
   });
 
@@ -231,57 +250,221 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
     }
   };
 
-  const openGenerateInvoiceModal = async (cw?: MonthlyCompletedWork) => {
-    if (cw) {
-      setSelectedCompletedWork(cw);
-      const sub = Number(cw.approved_amount);
-      const defaultCurrency = currencies.find(c => c.is_base === 1) || currencies[0];
-      const defaultTax = taxes[0];
-      const taxRate = defaultTax ? Number(defaultTax.tax_percentage) : 0;
-      const isSplit = defaultTax ? Boolean(defaultTax.is_split || defaultTax.tax_type === 'CGST_SGST') : false;
-      const cgstPct = defaultTax && isSplit ? Number(defaultTax.cgst_percentage || taxRate / 2) : 0;
-      const sgstPct = defaultTax && isSplit ? Number(defaultTax.sgst_percentage || taxRate / 2) : 0;
-      const cgstAmt = isSplit ? (sub * cgstPct) / 100 : 0;
-      const sgstAmt = isSplit ? (sub * sgstPct) / 100 : 0;
-      const taxAmt = isSplit ? cgstAmt + sgstAmt : (sub * taxRate) / 100;
-      const igstAmt = (!isSplit && defaultTax && defaultTax.tax_type === 'IGST') ? taxAmt : 0;
-
-      // Fetch site surveys for this project
-      const surveyRes = await apiRequest<SiteSurvey[]>(`/site-surveys?project_id=${cw.project_id}`);
-      if (surveyRes.success && surveyRes.data) {
-        setProjectSurveys(surveyRes.data);
-      } else {
-        setProjectSurveys([]);
-      }
-
-      setInvoiceForm({
-        customer_id: '', // repo automatically resolves from project
-        project_id: String(cw.project_id),
-        quotation_id: '',
-        schedule_id: String(cw.schedule_id),
-        completed_work_id: String(cw.completed_work_id),
-        survey_id: '',
-        currency_id: defaultCurrency ? String(defaultCurrency.currency_id) : '',
-        tax_id: defaultTax ? String(defaultTax.tax_id) : '',
-        tax_type: defaultTax ? defaultTax.tax_type || '' : '',
-        cgst_amount: cgstAmt,
-        sgst_amount: sgstAmt,
-        igst_amount: igstAmt,
-        invoice_date: new Date().toISOString().split('T')[0],
-        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        subtotal_amount: sub,
-        tax_amount: taxAmt,
-        total_amount: sub + taxAmt,
-        items: [
-          {
-            description: `Monthly Billing Schedule #${cw.schedule_id}`,
-            amount: sub,
-            is_extra_work: false,
-          }
-        ]
-      });
+  const openGenerateInvoiceModal = async (cw?: MonthlyCompletedWork, directSchedule?: BillingSchedule) => {
+    const projId = cw ? cw.project_id : (directSchedule ? directSchedule.project_id : (Number(selectedProjectId) || projects[0]?.project_id));
+    if (!projId) {
+      showError('Please select a project first');
+      return;
     }
+
+    // Find schedule
+    let targetSchedule = directSchedule;
+    if (!targetSchedule && cw) {
+      targetSchedule = schedules.find(s => s.schedule_id === cw.schedule_id);
+    }
+    if (!targetSchedule) {
+      const projSchedules = schedules.filter(s => s.project_id === projId && s.status !== 'invoiced' && s.status !== 'paid');
+      targetSchedule = projSchedules[0] || schedules.find(s => s.project_id === projId);
+    }
+
+    if (!targetSchedule) {
+      const sRes = await apiRequest<BillingSchedule[]>(`/invoices/schedules?project_id=${projId}`);
+      if (sRes.success && sRes.data && sRes.data.length > 0) {
+        setSchedules(sRes.data);
+        targetSchedule = sRes.data.find(s => s.status !== 'invoiced' && s.status !== 'paid') || sRes.data[0];
+      }
+    }
+
+    if (!targetSchedule) {
+      showError('No billing schedule found for this project. Please generate billing schedules first.');
+      return;
+    }
+
+    setSelectedSchedule(targetSchedule);
+    setSelectedCompletedWork(cw || null);
+
+    // Fetch site surveys
+    const surveyRes = await apiRequest<SiteSurvey[]>(`/site-surveys?project_id=${projId}`);
+    if (surveyRes.success && surveyRes.data) {
+      setProjectSurveys(surveyRes.data);
+    } else {
+      setProjectSurveys([]);
+    }
+
+    // Fetch project costs (labour + materials)
+    let fetchedCosts: any = null;
+    try {
+      const costsRes = await apiRequest<any>(`/invoices/project-costs/${projId}`);
+      if (costsRes.success && costsRes.data) {
+        fetchedCosts = costsRes.data;
+        setProjectCosts(costsRes.data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // Currency Synchronization: Quotation -> Project -> Invoice
+    const targetProj = projects.find(p => String(p.project_id) === String(projId));
+    const projectCurrency = (targetProj?.currency_id ? currencies.find(c => c.currency_id === targetProj.currency_id) : null)
+      || currencies.find(c => c.is_base === 1) 
+      || currencies[0];
+    const curSym = projectCurrency?.symbol || '₹';
+
+    const defaultTax = taxes[0];
+    const taxRate = defaultTax ? Number(defaultTax.tax_percentage) : 0;
+    const isSplit = defaultTax ? Boolean(defaultTax.is_split || defaultTax.tax_type === 'CGST_SGST') : false;
+    const cgstPct = defaultTax && isSplit ? Number(defaultTax.cgst_percentage || taxRate / 2) : 0;
+    const sgstPct = defaultTax && isSplit ? Number(defaultTax.sgst_percentage || taxRate / 2) : 0;
+
+    let items: InvoiceItem[] = [];
+    if (fetchedCosts && (fetchedCosts.labour_items?.length > 0 || fetchedCosts.material_items?.length > 0)) {
+      items = [
+        ...fetchedCosts.labour_items.map((l: any) => ({
+          discipline_id: l.wbs_id || null,
+          description: `Labour: ${l.labour_name} (${l.labour_type === 'direct_labour' ? 'Direct' : 'Contractor'}) - ${l.work_description || l.task_name} [${l.work_date}]`,
+          amount: Number(l.amount || 0),
+          is_extra_work: false,
+          item_type: 'labour' as const,
+          project_wbs_id: l.wbs_id || null,
+          task_id: l.task_id || null,
+          quantity: Number(l.total_working_hours || 0),
+          rate: Number(l.rate || 0),
+        })),
+        ...fetchedCosts.material_items.map((m: any) => ({
+          discipline_id: m.wbs_id || null,
+          description: `Material: ${m.material_name} (${Number(m.quantity)} ${m.unit} @ ${curSym}${Number(m.rate).toFixed(2)}) - ${m.task_name}`,
+          amount: Number(m.amount || 0),
+          is_extra_work: false,
+          item_type: 'material' as const,
+          project_wbs_id: m.wbs_id || null,
+          task_id: m.task_id || null,
+          quantity: Number(m.quantity || 0),
+          rate: Number(m.rate || 0),
+        })),
+      ];
+    } else {
+      const sub = Number(cw ? cw.approved_amount : targetSchedule.expected_amount);
+      items = [
+        {
+          description: `Monthly Billing Schedule #${targetSchedule.schedule_id} - Milestone Work`,
+          amount: sub,
+          is_extra_work: false,
+        }
+      ];
+    }
+
+    const subtotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const cgstAmt = isSplit ? (subtotal * cgstPct) / 100 : 0;
+    const sgstAmt = isSplit ? (subtotal * sgstPct) / 100 : 0;
+    const taxAmt = isSplit ? cgstAmt + sgstAmt : (subtotal * taxRate) / 100;
+    const igstAmt = (!isSplit && defaultTax && defaultTax.tax_type === 'IGST') ? taxAmt : 0;
+
+    setInvoiceForm({
+      customer_id: '',
+      project_id: String(projId),
+      quotation_id: '',
+      schedule_id: String(targetSchedule.schedule_id),
+      completed_work_id: cw ? String(cw.completed_work_id) : '',
+      survey_id: '',
+      currency_id: projectCurrency ? String(projectCurrency.currency_id) : '',
+      tax_id: defaultTax ? String(defaultTax.tax_id) : '',
+      tax_type: defaultTax ? defaultTax.tax_type || '' : '',
+      cgst_amount: cgstAmt,
+      sgst_amount: sgstAmt,
+      igst_amount: igstAmt,
+      invoice_date: new Date().toISOString().split('T')[0],
+      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      subtotal_amount: subtotal,
+      tax_amount: taxAmt,
+      total_amount: subtotal + taxAmt,
+      invoice_type: 'combined',
+      items,
+    });
+
     setIsInvoiceModalOpen(true);
+  };
+
+  const handlePopulateCombined = () => {
+    if (!projectCosts) return;
+    const cur = currencies.find(c => String(c.currency_id) === invoiceForm.currency_id) || currencies[0];
+    const sym = cur?.symbol || '₹';
+    const newItems: InvoiceItem[] = [
+      ...projectCosts.labour_items.map((l: any) => ({
+        discipline_id: l.wbs_id || null,
+        description: `Labour: ${l.labour_name} (${l.labour_type === 'direct_labour' ? 'Direct' : 'Contractor'}) - ${l.work_description || l.task_name} [${l.work_date}]`,
+        amount: Number(l.amount || 0),
+        is_extra_work: false,
+        item_type: 'labour' as const,
+        project_wbs_id: l.wbs_id || null,
+        task_id: l.task_id || null,
+        quantity: Number(l.total_working_hours || 0),
+        rate: Number(l.rate || 0),
+      })),
+      ...projectCosts.material_items.map((m: any) => ({
+        discipline_id: m.wbs_id || null,
+        description: `Material: ${m.material_name} (${Number(m.quantity)} ${m.unit} @ ${sym}${Number(m.rate).toFixed(2)}) - ${m.task_name}`,
+        amount: Number(m.amount || 0),
+        is_extra_work: false,
+        item_type: 'material' as const,
+        project_wbs_id: m.wbs_id || null,
+        task_id: m.task_id || null,
+        quantity: Number(m.quantity || 0),
+        rate: Number(m.rate || 0),
+      })),
+    ];
+    setInvoiceForm(prev => ({ ...prev, invoice_type: 'combined' }));
+    updateInvoiceItems(newItems);
+  };
+
+  const handlePopulateLabourOnly = () => {
+    if (!projectCosts) return;
+    const newItems: InvoiceItem[] = projectCosts.labour_items.map((l: any) => ({
+      discipline_id: l.wbs_id || null,
+      description: `Labour: ${l.labour_name} (${l.labour_type === 'direct_labour' ? 'Direct' : 'Contractor'}) - ${l.work_description || l.task_name} [${l.work_date}]`,
+      amount: Number(l.amount || 0),
+      is_extra_work: false,
+      item_type: 'labour' as const,
+      project_wbs_id: l.wbs_id || null,
+      task_id: l.task_id || null,
+      quantity: Number(l.total_working_hours || 0),
+      rate: Number(l.rate || 0),
+    }));
+    setInvoiceForm(prev => ({ ...prev, invoice_type: 'labour' }));
+    updateInvoiceItems(newItems);
+  };
+
+  const handlePopulateMaterialsOnly = () => {
+    if (!projectCosts) return;
+    const cur = currencies.find(c => String(c.currency_id) === invoiceForm.currency_id) || currencies[0];
+    const sym = cur?.symbol || '₹';
+    const newItems: InvoiceItem[] = projectCosts.material_items.map((m: any) => ({
+      discipline_id: m.wbs_id || null,
+      description: `Material: ${m.material_name} (${Number(m.quantity)} ${m.unit} @ ${sym}${Number(m.rate).toFixed(2)}) - ${m.task_name}`,
+      amount: Number(m.amount || 0),
+      is_extra_work: false,
+      item_type: 'material' as const,
+      project_wbs_id: m.wbs_id || null,
+      task_id: m.task_id || null,
+      quantity: Number(m.quantity || 0),
+      rate: Number(m.rate || 0),
+    }));
+    setInvoiceForm(prev => ({ ...prev, invoice_type: 'material' }));
+    updateInvoiceItems(newItems);
+  };
+
+  const handlePopulateLabourAndMaterials = handlePopulateCombined;
+
+  const handlePopulateScheduledAmount = () => {
+    const amt = Number(selectedCompletedWork ? selectedCompletedWork.approved_amount : (selectedSchedule?.expected_amount || 0));
+    const newItems: InvoiceItem[] = [
+      {
+        description: `Monthly Billing Schedule #${invoiceForm.schedule_id || selectedSchedule?.schedule_id || ''} - Milestone Work`,
+        amount: amt,
+        is_extra_work: false,
+      }
+    ];
+    setInvoiceForm(prev => ({ ...prev, invoice_type: 'combined' }));
+    updateInvoiceItems(newItems);
   };
 
   const handleRecalculateInvoiceTax = (taxIdStr: string, currentItems: InvoiceItem[]) => {
@@ -353,6 +536,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
       tax_amount: invoiceForm.tax_amount || 0,
       invoice_date: invoiceForm.invoice_date,
       due_date: invoiceForm.due_date,
+      invoice_type: invoiceForm.invoice_type || 'combined',
       items: invoiceForm.items,
     };
 
@@ -367,6 +551,78 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
       fetchInvoices();
     } else {
       showError(res.message || 'Failed to generate invoice.');
+    }
+  };
+
+  const handleRegenerateInvoice = async (id: number) => {
+    try {
+      const res = await apiRequest(`/invoices/${id}/regenerate`, { method: 'POST' });
+      if (res.success) {
+        showSuccess('Draft invoice regenerated successfully from source changes');
+        fetchInvoices();
+      } else {
+        showError(res.message || 'Failed to regenerate invoice');
+      }
+    } catch (e: any) {
+      showError(e.message || 'Failed to regenerate invoice');
+    }
+  };
+
+  const handleCreateCreditNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!creditNoteInvoice) return;
+    if (!creditNoteReason || creditNoteReason.trim().length < 5) {
+      showError('A mandatory reason (minimum 5 characters) is required');
+      return;
+    }
+    setIsSubmittingCreditNote(true);
+    try {
+      const res = await apiRequest(`/invoices/${creditNoteInvoice.invoice_id}/credit-note`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: creditNoteReason }),
+      });
+      if (res.success) {
+        showSuccess(`Credit Note issued successfully (${(res.data as any)?.invoice_number || 'Issued'})`);
+        setIsCreditNoteModalOpen(false);
+        setCreditNoteInvoice(null);
+        setCreditNoteReason('');
+        fetchInvoices();
+      } else {
+        showError(res.message || 'Failed to issue credit note');
+      }
+    } catch (e: any) {
+      showError(e.message || 'Failed to issue credit note');
+    } finally {
+      setIsSubmittingCreditNote(false);
+    }
+  };
+
+  const handleCreateRevision = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviseInvoice) return;
+    if (!reviseReason || reviseReason.trim().length < 5) {
+      showError('A mandatory reason (minimum 5 characters) is required');
+      return;
+    }
+    setIsSubmittingRevise(true);
+    try {
+      const res = await apiRequest(`/invoices/${reviseInvoice.invoice_id}/revise`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reviseReason }),
+      });
+      if (res.success) {
+        showSuccess(`Invoice revised successfully as #${(res.data as any)?.invoice_number || 'Revised'}`);
+        setIsReviseModalOpen(false);
+        setReviseInvoice(null);
+        setReviseReason('');
+        fetchInvoices();
+      } else {
+        showError(res.message || 'Failed to revise invoice');
+      }
+    } catch (e: any) {
+      showError(e.message || 'Failed to revise invoice');
+    } finally {
+      setIsSubmittingRevise(false);
     }
   };
 
@@ -418,9 +674,78 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
     }
   };
 
-  const handleDownloadPdf = (invoiceId: number, invoiceNum: string) => {
-    const url = `/api/v1/invoices/${invoiceId}/pdf`;
-    window.open(url, '_blank');
+  const handleDownloadPdf = async (invoiceId: number, invoiceNum: string) => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+      const targetUrl = `${apiBase}/invoices/${invoiceId}/pdf?token=${encodeURIComponent(token)}`;
+
+      const res = await fetch(targetUrl, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.includes('application/pdf')) {
+        let errMsg = `Download failed with HTTP ${res.status}`;
+        try {
+          const errJson = await res.json();
+          errMsg = errJson.message || errMsg;
+        } catch {
+          const text = await res.text();
+          if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+            errMsg = 'Server returned HTML instead of a valid PDF document. Please check API URL.';
+          }
+        }
+        throw new Error(errMsg);
+      }
+
+      const blob = await res.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error('Downloaded PDF file is empty.');
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Invoice-${invoiceNum}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Delay revoking the blob URL to prevent browser download abortion / corrupt file
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 15000);
+
+      showSuccess(`Invoice ${invoiceNum} PDF downloaded successfully!`);
+    } catch (err: any) {
+      showError(err.message || 'Failed to download PDF.');
+    }
+  };
+
+  const handleViewInvoiceDetails = async (invoiceId: number) => {
+    setIsLoadingDetails(true);
+    setIsViewDetailsOpen(true);
+    try {
+      const [invRes, pmtRes] = await Promise.all([
+        apiRequest<Invoice>(`/invoices/${invoiceId}`),
+        apiRequest<InvoicePayment[]>(`/invoices/${invoiceId}/payments`).catch(() => ({ success: false, data: [] }))
+      ]);
+      if (invRes.success && invRes.data) {
+        setViewingInvoice(invRes.data);
+      }
+      if (pmtRes.success && pmtRes.data) {
+        setInvoicePaymentsList(pmtRes.data);
+      } else {
+        setInvoicePaymentsList([]);
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to load invoice details');
+    } finally {
+      setIsLoadingDetails(false);
+    }
   };
 
   const handleCreateCurrency = async (e: React.FormEvent) => {
@@ -520,6 +845,14 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const invoiceColumns: Column<Invoice>[] = [
     { header: 'Invoice #', accessor: 'invoice_number', sortKey: 'invoice_number' },
     {
+      header: 'Type',
+      accessor: (r) => {
+        const type = (r as any).invoice_type || 'combined';
+        const variant = type === 'labour' ? 'info' : (type === 'material' ? 'warning' : 'primary');
+        return <Badge variant={variant as any}>{type.toUpperCase()}</Badge>;
+      },
+    },
+    {
       header: 'Customer / Project',
       accessor: (r) => (
         <div>
@@ -603,7 +936,11 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
     { header: 'Customer', accessor: (r) => r.customer_name || 'N/A' },
     {
       header: 'Expected Amount',
-      accessor: (r) => <strong style={{ color: '#38bdf8' }}>AED {Number(r.expected_amount).toLocaleString()}</strong>,
+      accessor: (r) => (
+        <strong style={{ color: '#38bdf8' }}>
+          {r.currency_symbol || '₹'} {Number(r.expected_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </strong>
+      ),
       sortKey: 'expected_amount',
     },
     {
@@ -616,7 +953,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
                 {r.completion_percentage}% Done ({r.work_status})
               </Badge>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.1rem' }}>
-                Approved: AED {Number(r.approved_amount || 0).toLocaleString()}
+                Approved: {r.currency_symbol || '₹'} {Number(r.approved_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
           ) : (
@@ -649,7 +986,11 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
     },
     {
       header: 'Approved Billing Amount',
-      accessor: (r) => <strong style={{ color: '#4ade80' }}>AED {Number(r.approved_amount).toLocaleString()}</strong>,
+      accessor: (r) => (
+        <strong style={{ color: '#4ade80' }}>
+          {r.currency_symbol || '₹'} {Number(r.approved_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </strong>
+      ),
     },
     {
       header: 'Status',
@@ -659,12 +1000,14 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Project Monthly Invoices & Billing Workflow</h1>
-          <p className="page-subtitle">Manage project billing schedules, monthly completion, tax calculations, & payments</p>
+      {!hideHeader && (
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Project Monthly Invoices & Billing Workflow</h1>
+            <p className="page-subtitle">Manage project billing schedules, monthly completion, tax calculations, & payments</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Filter / Action Bar */}
       <div className="glass-card" style={{ padding: '1rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -684,7 +1027,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
         </div>
 
         {/* Project Selector Filter */}
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ width: '250px' }}>
             <SearchableSelect
               label=""
@@ -697,6 +1040,15 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
               placeholder="Search project..."
             />
           </div>
+          {isAdminOrManager && (
+            <Button
+              variant="primary"
+              onClick={() => openGenerateInvoiceModal()}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.8rem', fontSize: '0.85rem' }}
+            >
+              <Plus size={15} /> Generate Invoice
+            </Button>
+          )}
           {activeTab === 'schedules' && isAdminOrManager && (
             <Button variant="secondary" onClick={handleAutoGenerateSchedules} style={{ border: '1px solid #6366f1', color: '#6366f1' }}>
               <RefreshCw size={14} /> Auto-Generate Schedule
@@ -716,15 +1068,33 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             isLoading={isLoading}
             actions={(row) => (
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <Button variant="secondary" onClick={() => handleViewInvoiceDetails(row.invoice_id)} style={{ padding: '0.35rem 0.55rem', fontSize: '0.78rem', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)' }} title="View Invoice Details">
+                  <Eye size={13} /> View
+                </Button>
                 <Button variant="secondary" onClick={() => handleDownloadPdf(row.invoice_id, row.invoice_number)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}>
                   <Download size={13} /> PDF
                 </Button>
-                {isAdminOrManager && row.status === 'pending_approval' && (
+                {isAdminOrManager && row.status === 'draft' && (
+                  <Button variant="secondary" onClick={() => handleRegenerateInvoice(row.invoice_id)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#0ea5e9', border: '1px solid rgba(14,165,233,0.3)' }} title="Regenerate Draft from Source Changes">
+                    <RefreshCw size={13} /> Regenerate
+                  </Button>
+                )}
+                {isAdminOrManager && (row.status === 'draft' || row.status === 'pending_approval') && (
                   <Button variant="primary" onClick={() => handleApproveInvoice(row.invoice_id)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}>
                     <CheckCircle size={13} /> Approve
                   </Button>
                 )}
-                {isAdminOrManager && row.status !== 'paid' && row.status !== 'cancelled' && (
+                {isAdminOrManager && (row.status === 'approved' || row.status === 'partially_paid' || row.status === 'paid') && !row.is_credit_note && (
+                  <Button variant="secondary" onClick={() => { setCreditNoteInvoice(row); setIsCreditNoteModalOpen(true); }} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }} title="Issue Credit Note">
+                    <FileText size={13} /> Credit Note
+                  </Button>
+                )}
+                {isAdminOrManager && row.status === 'approved' && !row.is_credit_note && (
+                  <Button variant="secondary" onClick={() => { setReviseInvoice(row); setIsReviseModalOpen(true); }} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }} title="Revise Invoice">
+                    <RotateCcw size={13} /> Revise
+                  </Button>
+                )}
+                {isAdminOrManager && row.status !== 'paid' && row.status !== 'cancelled' && !row.is_credit_note && (
                   <Button variant="secondary" onClick={() => openPaymentModal(row)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>
                     <CreditCard size={13} /> Pay
                   </Button>
@@ -744,11 +1114,16 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             exportFilename="billing_schedules"
             isLoading={isLoading}
             actions={(row) => (
-              <div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
                 {row.status === 'pending' && isAdminOrManager && (
-                  <Button variant="primary" onClick={() => openLogCompletedWorkModal(row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
-                    <CheckCircle size={13} /> Log Monthly Work
-                  </Button>
+                  <>
+                    <Button variant="primary" onClick={() => openGenerateInvoiceModal(undefined, row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
+                      <FileText size={13} /> Generate Invoice
+                    </Button>
+                    <Button variant="secondary" onClick={() => openLogCompletedWorkModal(row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
+                      <CheckCircle size={13} /> Log Work
+                    </Button>
+                  </>
                 )}
               </div>
             )}
@@ -891,7 +1266,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
               required
             />
             <FormInput
-              label="Claimed Billing Amount (AED)"
+              label={`Claimed Billing Amount (${selectedSchedule?.currency_symbol || '₹'})`}
               type="number"
               value={String(completedWorkForm.approved_amount)}
               onChange={(e) => setCompletedWorkForm({ ...completedWorkForm, approved_amount: Number(e.target.value) })}
@@ -909,6 +1284,35 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
       <Modal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} title="Generate Monthly Invoice">
         <form onSubmit={handleSubmitInvoice}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <SearchableSelect
+              label="Select Project *"
+              value={invoiceForm.project_id}
+              onChange={(val) => {
+                const pid = Number(val);
+                setInvoiceForm(prev => ({ ...prev, project_id: val, schedule_id: '' }));
+                if (pid) {
+                  openGenerateInvoiceModal(undefined, undefined);
+                }
+              }}
+              options={projects.map((p) => ({ value: String(p.project_id), label: `${p.project_code} - ${p.project_name}` }))}
+              required
+            />
+            <SearchableSelect
+              label="Target Billing Schedule *"
+              value={invoiceForm.schedule_id}
+              onChange={(val) => {
+                const sch = schedules.find(s => String(s.schedule_id) === val);
+                if (sch) setSelectedSchedule(sch);
+                setInvoiceForm(prev => ({ ...prev, schedule_id: val }));
+              }}
+              options={schedules
+                .filter(s => String(s.project_id) === String(invoiceForm.project_id) && s.status !== 'invoiced' && s.status !== 'paid')
+                .map((s) => ({
+                  value: String(s.schedule_id),
+                  label: `Schedule #${s.schedule_id} - ${s.billing_month ? s.billing_month.split('T')[0] : ''} (Expected: ${s.currency_symbol || '₹'}${Number(s.expected_amount).toLocaleString()})`
+                }))}
+              required
+            />
             <SearchableSelect
               label="Select Currency"
               value={invoiceForm.currency_id}
@@ -966,8 +1370,97 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
           </div>
 
           <div style={{ marginTop: '1.5rem' }}>
+            {/* Quick Populate & Invoice Type Selection Buttons */}
+            <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Invoice Type:</span>
+              {projectCosts && (
+                <>
+                  {isMaterialEnabled && isLabourEnabled && (
+                  <button
+                    type="button"
+                    onClick={handlePopulateCombined}
+                    className="btn"
+                    style={{
+                      background: invoiceForm.invoice_type === 'combined' ? '#2563eb' : 'rgba(37, 99, 235, 0.1)',
+                      color: invoiceForm.invoice_type === 'combined' ? '#ffffff' : '#2563eb',
+                      border: '1px solid #2563eb',
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    title="Generate combined invoice containing both labour and materials"
+                  >
+                    ⚡ Combined ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_cost || 0).toLocaleString()})
+                  </button>
+                  )}
+
+                  {isLabourEnabled && (
+                  <button
+                    type="button"
+                    onClick={handlePopulateLabourOnly}
+                    className="btn"
+                    style={{
+                      background: invoiceForm.invoice_type === 'labour' ? '#059669' : 'rgba(16, 185, 129, 0.1)',
+                      color: invoiceForm.invoice_type === 'labour' ? '#ffffff' : '#059669',
+                      border: '1px solid #059669',
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    title="Generate separate Labour Only invoice"
+                  >
+                    👷 Labour Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_labour_amount || 0).toLocaleString()})
+                  </button>
+                  )}
+
+                  {isMaterialEnabled && (
+                  <button
+                    type="button"
+                    onClick={handlePopulateMaterialsOnly}
+                    className="btn"
+                    style={{
+                      background: invoiceForm.invoice_type === 'material' ? '#d97706' : 'rgba(217, 119, 6, 0.1)',
+                      color: invoiceForm.invoice_type === 'material' ? '#ffffff' : '#d97706',
+                      border: '1px solid #d97706',
+                      padding: '0.4rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    title="Generate separate Material Only invoice"
+                  >
+                    🧱 Materials Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_material_amount || 0).toLocaleString()})
+                  </button>
+                  )}
+                </>
+              )}
+              <button
+                type="button"
+                onClick={handlePopulateScheduledAmount}
+                className="btn"
+                style={{
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#4f46e5',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                title="Reset line items to milestone scheduled amount"
+              >
+                📋 Milestone Schedule ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(selectedCompletedWork ? selectedCompletedWork.approved_amount : (selectedSchedule?.expected_amount || 0)).toLocaleString()})
+              </button>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Invoice Line Items</h4>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Invoice Line Items ({invoiceForm.items.length})</h4>
               <Button type="button" variant="secondary" onClick={() => {
                 const newItems = [...invoiceForm.items, { discipline_id: null, description: '', amount: 0, is_extra_work: true }];
                 updateInvoiceItems(newItems);
@@ -1065,38 +1558,63 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             </div>
           </div>
 
-          <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <span>Subtotal Amount:</span>
-              <strong>{invoiceForm.subtotal_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-            </div>
-            {invoiceForm.cgst_amount > 0 || invoiceForm.sgst_amount > 0 ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
-                  <span>CGST Amount:</span>
-                  <strong>+ {invoiceForm.cgst_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          {(() => {
+            const cur = currencies.find(c => String(c.currency_id) === invoiceForm.currency_id) || currencies[0];
+            const sym = cur?.symbol || '₹';
+            const labourSum = invoiceForm.items
+              .filter(it => (it as any).item_type === 'labour' || it.description.startsWith('Labour:'))
+              .reduce((s, it) => s + Number(it.amount || 0), 0);
+            const materialSum = invoiceForm.items
+              .filter(it => (it as any).item_type === 'material' || it.description.startsWith('Material:'))
+              .reduce((s, it) => s + Number(it.amount || 0), 0);
+
+            return (
+              <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                {labourSum > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', color: '#059669', fontSize: '0.85rem' }}>
+                    <span>👷 Labour Subtotal:</span>
+                    <strong>{sym} {labourSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                )}
+                {materialSum > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', color: '#d97706', fontSize: '0.85rem' }}>
+                    <span>🧱 Material Subtotal:</span>
+                    <strong>{sym} {materialSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', borderTop: (labourSum > 0 || materialSum > 0) ? '1px dashed var(--input-border)' : 'none', paddingTop: (labourSum > 0 || materialSum > 0) ? '0.35rem' : '0' }}>
+                  <span>Gross Subtotal:</span>
+                  <strong>{sym} {invoiceForm.subtotal_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
-                  <span>SGST Amount:</span>
-                  <strong>+ {invoiceForm.sgst_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                {invoiceForm.cgst_amount > 0 || invoiceForm.sgst_amount > 0 ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                      <span>CGST Amount:</span>
+                      <strong>+ {sym} {invoiceForm.cgst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                      <span>SGST Amount:</span>
+                      <strong>+ {sym} {invoiceForm.sgst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </div>
+                  </>
+                ) : invoiceForm.igst_amount > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                    <span>IGST Amount:</span>
+                    <strong>+ {sym} {invoiceForm.igst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#a855f7' }}>
+                    <span>Tax Amount ({taxes.find(t => String(t.tax_id) === invoiceForm.tax_id)?.tax_name || 'Tax'}):</span>
+                    <strong>+ {sym} {invoiceForm.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', color: '#4ade80', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontWeight: 700 }}>
+                  <span>Grand Total ({cur?.currency_code || 'INR'}):</span>
+                  <strong>{sym} {invoiceForm.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
-              </>
-            ) : invoiceForm.igst_amount > 0 ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
-                <span>IGST Amount:</span>
-                <strong>+ {invoiceForm.igst_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
               </div>
-            ) : (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#a855f7' }}>
-                <span>Tax Amount ({taxes.find(t => String(t.tax_id) === invoiceForm.tax_id)?.tax_name || 'Tax'}):</span>
-                <strong>+ {invoiceForm.tax_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', color: '#4ade80', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontWeight: 700 }}>
-              <span>Grand Total:</span>
-              <strong>{invoiceForm.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-            </div>
-          </div>
+            );
+          })()}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsInvoiceModalOpen(false)}>Cancel</Button>
@@ -1235,6 +1753,322 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             <Button type="submit" variant="primary">Save Tax Rule</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* View Invoice Details Modal */}
+      <Modal
+        isOpen={isViewDetailsOpen}
+        onClose={() => {
+          setIsViewDetailsOpen(false);
+          setViewingInvoice(null);
+          setInvoicePaymentsList([]);
+        }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span>Invoice Details: {viewingInvoice?.invoice_number || 'Loading...'}</span>
+            {viewingInvoice && (
+              <>
+                <Badge variant={
+                  viewingInvoice.status === 'paid' ? 'success' :
+                  viewingInvoice.status === 'approved' ? 'info' :
+                  viewingInvoice.status === 'pending_approval' ? 'warning' : 'secondary'
+                }>
+                  {viewingInvoice.status.replace('_', ' ').toUpperCase()}
+                </Badge>
+                {viewingInvoice.invoice_type && (
+                  <span style={{
+                    fontSize: '0.72rem',
+                    textTransform: 'uppercase',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: 700,
+                    background: viewingInvoice.invoice_type === 'labour' ? '#ecfdf5' : (viewingInvoice.invoice_type === 'material' ? '#fffbeb' : '#eff6ff'),
+                    color: viewingInvoice.invoice_type === 'labour' ? '#047857' : (viewingInvoice.invoice_type === 'material' ? '#b45309' : '#1d4ed8'),
+                    border: '1px solid currentColor'
+                  }}>
+                    {viewingInvoice.invoice_type}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        }
+        size="2xl"
+      >
+        {isLoadingDetails ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Loading invoice details...
+          </div>
+        ) : !viewingInvoice ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>
+            Invoice not found or could not be loaded.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Quick Actions Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Billing Month: <strong>{viewingInvoice.billing_month ? new Date(viewingInvoice.billing_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Button variant="secondary" onClick={() => handleDownloadPdf(viewingInvoice.invoice_id, viewingInvoice.invoice_number)} style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}>
+                  <Download size={14} /> Download PDF
+                </Button>
+                {isAdminOrManager && viewingInvoice.status === 'pending_approval' && (
+                  <Button variant="primary" onClick={() => { handleApproveInvoice(viewingInvoice.invoice_id); setIsViewDetailsOpen(false); }} style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', background: '#16a34a' }}>
+                    <CheckCircle size={14} /> Approve Invoice
+                  </Button>
+                )}
+                {isAdminOrManager && viewingInvoice.status !== 'paid' && viewingInvoice.status !== 'cancelled' && (
+                  <Button variant="secondary" onClick={() => { setIsViewDetailsOpen(false); openPaymentModal(viewingInvoice); }} style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>
+                    <CreditCard size={14} /> Record Payment
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Information Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+              {/* Customer Box */}
+              <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--card-bg, #f8fafc)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  Customer Details
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{viewingInvoice.customer_name || 'N/A'}</div>
+                {viewingInvoice.customer_email && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>✉️ {viewingInvoice.customer_email}</div>}
+                {viewingInvoice.customer_phone && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>📞 {viewingInvoice.customer_phone}</div>}
+                {viewingInvoice.customer_address && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>📍 {viewingInvoice.customer_address}</div>}
+              </div>
+
+              {/* Project Box */}
+              <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--card-bg, #f8fafc)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  Project Info
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{viewingInvoice.project_name || 'N/A'}</div>
+                <div style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600 }}>Code: {viewingInvoice.project_code || 'PRJ-' + viewingInvoice.project_id}</div>
+                {viewingInvoice.quotation_code && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Quotation: {viewingInvoice.quotation_code}</div>}
+                {viewingInvoice.survey_code && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Survey: {viewingInvoice.survey_code}</div>}
+              </div>
+
+              {/* Invoice Dates Box */}
+              <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--card-bg, #f8fafc)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  Invoice Dates
+                </div>
+                <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Invoice Date: </span>
+                  <strong>{viewingInvoice.invoice_date ? new Date(viewingInvoice.invoice_date).toLocaleDateString() : 'N/A'}</strong>
+                </div>
+                <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Due Date: </span>
+                  <strong style={{ color: '#ef4444' }}>{viewingInvoice.due_date ? new Date(viewingInvoice.due_date).toLocaleDateString() : 'N/A'}</strong>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Schedule #{viewingInvoice.schedule_id}
+                </div>
+              </div>
+
+              {/* Currency & Tax Meta */}
+              <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--card-bg, #f8fafc)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  Currency & Tax
+                </div>
+                <div style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Currency: </span>
+                  <strong>{viewingInvoice.currency_code || 'INR'} ({viewingInvoice.currency_symbol || '₹'})</strong>
+                </div>
+                <div style={{ fontSize: '0.85rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Tax Rule: </span>
+                  <strong>{viewingInvoice.tax_name || 'General Tax'} ({Number(viewingInvoice.tax_percentage || 0)}%)</strong>
+                </div>
+                {viewingInvoice.tax_type && (
+                  <div style={{ fontSize: '0.75rem', color: '#6366f1', marginTop: '0.2rem' }}>
+                    Type: {viewingInvoice.tax_type}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Line Items Table */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.92rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                  Invoice Line Items ({viewingInvoice.items?.length || 0})
+                </h4>
+              </div>
+
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: '650px', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                  <thead style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                    <tr>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', width: '40px' }}>#</th>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', width: '22%' }}>Discipline / WBS</th>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left' }}>Description / Work Details</th>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '90px' }}>Type</th>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '120px' }}>Qty & Rate</th>
+                      <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '120px' }}>Amount ({viewingInvoice.currency_symbol || '₹'})</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(!viewingInvoice.items || viewingInvoice.items.length === 0) ? (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          No line items found for this invoice.
+                        </td>
+                      </tr>
+                    ) : (
+                      viewingInvoice.items.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                          <td style={{ padding: '0.65rem 0.75rem', fontWeight: 600 }}>
+                            {item.discipline_name || item.wbs_name || 'General Work'}
+                          </td>
+                          <td style={{ padding: '0.65rem 0.75rem' }}>
+                            <div style={{ color: 'var(--text-primary)' }}>{item.description}</div>
+                            {item.task_name && <div style={{ fontSize: '0.74rem', color: '#6366f1' }}>Task: {item.task_name}</div>}
+                          </td>
+                          <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              padding: '0.2rem 0.45rem',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              background: item.item_type === 'labour' ? '#ecfdf5' : (item.item_type === 'material' ? '#fffbeb' : '#f1f5f9'),
+                              color: item.item_type === 'labour' ? '#065f46' : (item.item_type === 'material' ? '#92400e' : '#475569'),
+                            }}>
+                              {(item.item_type || 'Work').toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                            {item.quantity ? `${item.quantity} × ${Number(item.rate || 0).toFixed(2)}` : '-'}
+                          </td>
+                          <td style={{ padding: '0.65rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {viewingInvoice.currency_symbol || '₹'}{Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Summary Breakdown */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              {/* Payments History Box */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <h5 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Payment History ({invoicePaymentsList.length})
+                  </h5>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a' }}>
+                    Paid: {viewingInvoice.currency_symbol || '₹'}{Number(viewingInvoice.paid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {invoicePaymentsList.length === 0 ? (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                    No payments recorded yet for this invoice.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '160px', overflowY: 'auto' }}>
+                    {invoicePaymentsList.map((p, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.6rem', background: 'var(--card-bg, #ffffff)', borderRadius: '4px', fontSize: '0.78rem', border: '1px solid var(--border-color)' }}>
+                        <div>
+                          <strong>{new Date(p.payment_date).toLocaleDateString()}</strong> - {p.payment_method}
+                          {p.reference_number && <span style={{ color: 'var(--text-muted)' }}> (#{p.reference_number})</span>}
+                        </div>
+                        <strong style={{ color: '#16a34a' }}>
+                          + {viewingInvoice.currency_symbol || '₹'}{Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Tax & Grand Total Box */}
+              <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                {(() => {
+                  const sym = viewingInvoice.currency_symbol || '₹';
+                  const labourSum = viewingInvoice.items
+                    ?.filter(it => it.item_type === 'labour' || it.description.startsWith('Labour:'))
+                    .reduce((s, it) => s + Number(it.amount || 0), 0) || 0;
+                  const materialSum = viewingInvoice.items
+                    ?.filter(it => it.item_type === 'material' || it.description.startsWith('Material:'))
+                    .reduce((s, it) => s + Number(it.amount || 0), 0) || 0;
+                  const balanceDue = Number(viewingInvoice.total_amount) - Number(viewingInvoice.paid_amount || 0);
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {labourSum > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
+                          <span>👷 Labour Subtotal:</span>
+                          <strong>{sym} {labourSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </div>
+                      )}
+                      {materialSum > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#d97706' }}>
+                          <span>🧱 Material Subtotal:</span>
+                          <strong>{sym} {materialSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: (labourSum > 0 || materialSum > 0) ? '1px dashed var(--border-color)' : 'none', paddingTop: (labourSum > 0 || materialSum > 0) ? '0.35rem' : '0' }}>
+                        <span>Gross Subtotal:</span>
+                        <strong>{sym} {Number(viewingInvoice.subtotal_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </div>
+
+                      {Number(viewingInvoice.cgst_amount || 0) > 0 || Number(viewingInvoice.sgst_amount || 0) > 0 ? (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0284c7' }}>
+                            <span>CGST Amount:</span>
+                            <strong>+ {sym} {Number(viewingInvoice.cgst_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0284c7' }}>
+                            <span>SGST Amount:</span>
+                            <strong>+ {sym} {Number(viewingInvoice.sgst_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                          </div>
+                        </>
+                      ) : Number(viewingInvoice.igst_amount || 0) > 0 ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0284c7' }}>
+                          <span>IGST Amount:</span>
+                          <strong>+ {sym} {Number(viewingInvoice.igst_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7c3aed' }}>
+                          <span>Tax ({viewingInvoice.tax_name || 'Applied Tax'}):</span>
+                          <strong>+ {sym} {Number(viewingInvoice.tax_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', color: '#16a34a', paddingTop: '0.45rem', borderTop: '1px solid var(--border-color)', fontWeight: 750 }}>
+                        <span>Grand Total ({viewingInvoice.currency_code || 'INR'}):</span>
+                        <strong>{sym} {Number(viewingInvoice.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', paddingTop: '0.2rem' }}>
+                        <span>Paid Amount:</span>
+                        <strong>- {sym} {Number(viewingInvoice.paid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', color: balanceDue > 0 ? '#dc2626' : '#16a34a', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-color)', fontWeight: 700 }}>
+                        <span>Balance Due:</span>
+                        <strong>{sym} {balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <Button type="button" variant="secondary" onClick={() => setIsViewDetailsOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -1275,18 +1275,18 @@ export class PlanningRepository {
         if (existingProjMat.length > 0) {
           await connection.query(
             `UPDATE project_materials SET 
-               unit = ?, planned_quantity = ?, unit_rate = ?, planned_cost = ?
+               material_id = COALESCE(?, material_id), unit = ?, planned_quantity = ?, unit_rate = ?, planned_cost = ?
              WHERE id = ?`,
-            [pmat.unit || 'Nos', qty, rate, amount, existingProjMat[0].id]
+            [pmat.material_id || null, pmat.unit || 'Nos', qty, rate, amount, existingProjMat[0].id]
           );
         } else {
           await connection.query(
             `INSERT INTO project_materials (
-               project_id, wbs_id, material_name, unit, planned_quantity, unit_rate,
+               project_id, wbs_id, material_id, material_name, unit, planned_quantity, unit_rate,
                received_quantity, used_quantity, remaining_quantity, extra_quantity,
                planned_cost, actual_cost, remaining_cost, notes
-             ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?, 0, ?, 'Initialized from Planning')`,
-            [projectId, targetProjWbsId, pmat.material_name, pmat.unit || 'Nos', qty, rate, qty, amount, amount]
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0, ?, 0, ?, 'Initialized from Planning')`,
+            [projectId, targetProjWbsId, pmat.material_id || null, pmat.material_name, pmat.unit || 'Nos', qty, rate, qty, amount, amount]
           );
         }
       }

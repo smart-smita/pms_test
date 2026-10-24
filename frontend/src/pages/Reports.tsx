@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../context/WorkCategoryContext';
 import React, { useEffect, useState, useMemo } from 'react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Button } from '../components/common/Button';
@@ -23,6 +24,7 @@ export interface ReportsProps {
 
 export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) => {
   const { user } = useAuth();
+  const { isLabourEnabled, isMaterialEnabled } = useWorkCategory();
   const isAdmin = user?.role_name === 'Admin' || user?.role_name === 'Super Admin';
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'employee');
@@ -2245,6 +2247,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
         >
           <Users size={18} /> Employee Reports
         </button>
+        {isLabourEnabled && (
         <button 
           style={{
             padding: '0.6rem 1.25rem',
@@ -2263,6 +2266,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
         >
           <HardHat size={18} /> Labour / Contractor Reports
         </button>
+        )}
       </div>
 
       {/* Report Cards Grid */}

@@ -897,6 +897,16 @@ export class QuotationRepository {
       // Trigger standard approval workflow which syncs WBS, taxes, and documents idempotently
       await this.updateStatus(quotationId, 'approved', userId, ipAddress);
 
+      // Auto-sync planning to project WBS & project_materials
+      const [planRows]: any = await dbPool.query(
+        `SELECT id, status FROM planning WHERE quotation_id = ? ORDER BY id DESC LIMIT 1`,
+        [quotationId]
+      );
+      if (planRows.length > 0 && planRows[0].status !== 'approved') {
+        const { PlanningRepository } = await import('./planning.repository');
+        await PlanningRepository.approvePlanning(planRows[0].id, userId, ipAddress);
+      }
+
       return { project_id: projectId };
     } catch (err) {
       await connection.rollback();

@@ -72,7 +72,16 @@ export class LabourWorkLogService {
       amount,
     });
 
-    return (await this.repo.findById(id))!;
+    const created = (await this.repo.findById(id))!;
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      await invSvc.syncDraftInvoicesForProject(data.project_id, data.task_id);
+    } catch (e) {
+      console.error('Invoice auto-sync on labour create error:', e);
+    }
+
+    return created;
   }
 
   async updateWorkLog(id: number, data: Partial<LabourWorkLogRow>, userId?: number): Promise<LabourWorkLogRow> {
@@ -128,12 +137,29 @@ export class LabourWorkLogService {
       amount,
     }, userId);
 
-    return (await this.repo.findById(id))!;
+    const updated = (await this.repo.findById(id))!;
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      await invSvc.syncDraftInvoicesForProject(updatedProjectId, updatedTaskId, userId);
+    } catch (e) {
+      console.error('Invoice auto-sync on labour update error:', e);
+    }
+
+    return updated;
   }
 
   async deleteWorkLog(id: number): Promise<boolean> {
     const existing = await this.repo.findById(id);
     if (!existing) throw new Error('Work log not found');
-    return await this.repo.softDelete(id);
+    const res = await this.repo.softDelete(id);
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      await invSvc.syncDraftInvoicesForProject(existing.project_id, existing.task_id);
+    } catch (e) {
+      console.error('Invoice auto-sync on labour delete error:', e);
+    }
+    return res;
   }
 }

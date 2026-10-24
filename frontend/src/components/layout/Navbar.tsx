@@ -35,6 +35,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
     { title: 'Quotations', page: 'quotations' },
     { title: 'Planning Workspace', page: 'planning/workspace' },
     { title: 'Project Workspace', page: 'project/workspace' },
+    { title: 'Project: Monthly Invoice', page: 'project/monthly-invoice' },
+    { title: 'Monthly Invoice', page: 'project/monthly-invoice' },
     { title: 'Master Management', page: 'masters' },
     { title: 'Master: Project Types', page: 'masters?tab=project-types' },
     { title: 'Master: WBS Templates', page: 'masters?tab=wbs-templates' },
@@ -65,7 +67,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
     p.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  const pageTitle = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
+  const getPageTitle = (page: string) => {
+    if (page === 'project/monthly-invoice' || page === 'project/invoices' || page === 'invoices') return 'Monthly Invoice';
+    if (page.startsWith('project/workspace')) return 'Project Workspace';
+    if (page.startsWith('planning/workspace')) return 'Planning Workspace';
+    if (page.startsWith('reports/')) return 'Reports';
+    if (page.startsWith('masters')) return 'Master Management';
+    return page.charAt(0).toUpperCase() + page.slice(1);
+  };
+  const pageTitle = getPageTitle(currentPage);
 
   const fetchNotifications = async () => {
     const res = await apiRequest<any[]>('/notifications');

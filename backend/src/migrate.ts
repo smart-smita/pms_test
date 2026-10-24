@@ -1652,8 +1652,224 @@ export async function migrate() {
       console.warn('Planning migration warning:', e.message);
     }
 
-    // Demo seed disabled on automatic startup to preserve user created records.
-    // Run `npm run seed:demo` explicitly when demo dataset reset is desired.
+    // ─── PHASE 8: Procurement Schema Sync ──────────────────────────────────────
+    // Goal: bring the live DB in line with migrate.ts definitions.
+    // The gaptm.sql dump pre-dates phases 6-7 so several tables are missing or
+    // have an older schema. Every statement is idempotent (IF NOT EXISTS / catch).
+    console.log('Running Phase 8: Procurement schema sync...');
+
+    // 8-A. Convert materials table to InnoDB (was MyISAM in older dump)
+    await dbPool.query(`ALTER TABLE materials ENGINE=InnoDB`)
+      .catch((e: any) => console.warn('Phase 8-A materials InnoDB:', e.message));
+
+    // 8-B. Add description column to materials (present in migrate.ts schema, absent in dump)
+    await dbPool.query(`ALTER TABLE materials ADD COLUMN description TEXT DEFAULT NULL AFTER material_name`)
+      .catch(() => {}); // already exists → ignore
+
+    // 8-C. Add purchase_rate and billing_rate to materials
+    //   purchase_rate  = what you pay the vendor (replaces the single `rate` column for procurement)
+    //   billing_rate   = what you bill the client  (defaults to the existing `rate` value)
+    await dbPool.query(`ALTER TABLE materials ADD COLUMN purchase_rate DECIMAL(15,2) DEFAULT 0.00 COMMENT 'Vendor purchase cost per unit'`)
+      .catch(() => {});
+    await dbPool.query(`ALTER TABLE materials ADD COLUMN billing_rate DECIMAL(15,2) DEFAULT 0.00 COMMENT 'Client billing rate per unit'`)
+      .catch(() => {});
+    // Backfill: seed both new columns from the existing single `rate` column (best-effort)
+    await dbPool.query(`
+      UPDATE materials
+      SET purchase_rate = COALESCE(purchase_rate, rate, 0),
+          billing_rate  = COALESCE(billing_rate,  rate, 0)
+      WHERE purchase_rate = 0 OR billing_rate = 0
+    `).catch((e: any) => console.warn('Phase 8-C backfill:', e.message));
+    console.log('Phase 8-A/B/C: materials table updated (InnoDB + description + purchase_rate + billing_rate).');
+
+    // 8-D. Add missing columns to goods_receipt_notes
+    //   The dump schema is minimal; the correct schema adds status, a posting flag,
+    //   and makes po_id nullable (so a GRN can be raised without a PO).
+    const grnAlters = [
+      `ALTER TABLE goods_receipt_notes ADD COLUMN status ENUM('draft','posted','cancelled') NOT NULL DEFAULT 'draft' COMMENT 'draft=pending QC, posted=stock updated, cancelled'`,
+      `ALTER TABLE goods_receipt_notes ADD COLUMN is_posted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = stock has been updated from this GRN'`,
+      `ALTER TABLE goods_receipt_notes ADD COLUMN posted_at DATETIME DEFAULT NULL`,
+      `ALTER TABLE goods_receipt_notes ADD COLUMN vendor_id INT DEFAULT NULL`,
+      // Make po_id nullable so stock-only or direct receipts are allowed
+      `ALTER TABLE goods_receipt_notes MODIFY COLUMN po_id INT DEFAULT NULL`,
+    ];
+    for (const q of grnAlters) {
+      await dbPool.query(q).catch(() => {}); // column/constraint already exists → ignore
+    }
+    // Re-add the FK after changing po_id to nullable
+    await dbPool.query(`
+      ALTER TABLE goods_receipt_notes
+        ADD CONSTRAINT fk_grn_po
+        FOREIGN KEY (po_id) REFERENCES purchase_orders(po_id) ON DELETE SET NULL
+    `).catch(() => {}); // already exists → ignore
+    console.log('Phase 8-D: goods_receipt_notes updated (status, is_posted, nullable po_id).');
+
+    // 8-E. Create purchase_order_items (missing from live DB)
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS purchase_order_items (
+        po_item_id      INT AUTO_INCREMENT PRIMARY KEY,
+        po_id           INT          NOT NULL,
+        material_id     INT          NOT NULL,
+        material_name   VARCHAR(200) NOT NULL COMMENT 'Snapshot of name at PO time',
+        unit            VARCHAR(50)  NOT NULL DEFAULT 'Nos',
+        quantity        DECIMAL(12,2) NOT NULL,
+        unit_rate       DECIMAL(15,2) NOT NULL,
+        discount_amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        tax_percentage  DECIMAL(5,2)  NOT NULL DEFAULT 0.00,
+        tax_amount      DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        total_amount    DECIMAL(15,2) NOT NULL,
+        received_qty    DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Cumulative GRN receipts',
+        pending_qty     DECIMAL(12,2) AS (quantity - received_qty) STORED COMMENT 'Auto-computed',
+        remarks         TEXT DEFAULT NULL,
+        FOREIGN KEY (po_id)        REFERENCES purchase_orders(po_id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id)  REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch((e: any) => console.warn('Phase 8-E purchase_order_items:', e.message));
+    console.log('Phase 8-E: purchase_order_items created.');
+
+    // 8-F. Create grn_items (missing from live DB)
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS grn_items (
+        grn_item_id       INT AUTO_INCREMENT PRIMARY KEY,
+        grn_id            INT          NOT NULL,
+        po_item_id        INT          DEFAULT NULL COMMENT 'Links back to the PO line; NULL for direct receipts',
+        material_id       INT          NOT NULL,
+        material_name     VARCHAR(200) NOT NULL COMMENT 'Snapshot of name at GRN time',
+        unit              VARCHAR(50)  NOT NULL DEFAULT 'Nos',
+        ordered_quantity  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        received_quantity DECIMAL(12,2) NOT NULL,
+        accepted_quantity DECIMAL(12,2) NOT NULL,
+        rejected_quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        damaged_quantity  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        unit_rate         DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Rate at time of receipt',
+        total_value       DECIMAL(15,2) AS (accepted_quantity * unit_rate) STORED,
+        remarks           TEXT DEFAULT NULL,
+        FOREIGN KEY (grn_id)      REFERENCES goods_receipt_notes(grn_id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch((e: any) => console.warn('Phase 8-F grn_items:', e.message));
+    console.log('Phase 8-F: grn_items created.');
+
+    // 8-G. Create material_indent_items (missing from live DB)
+    // The parent table material_indents already exists in the live DB (from dump).
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS material_indent_items (
+        item_id           INT AUTO_INCREMENT PRIMARY KEY,
+        indent_id         INT          NOT NULL,
+        material_id       INT          NOT NULL,
+        material_name     VARCHAR(200) NOT NULL COMMENT 'Snapshot of name at indent time',
+        unit              VARCHAR(50)  NOT NULL DEFAULT 'Nos',
+        required_quantity DECIMAL(12,2) NOT NULL,
+        estimated_rate    DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        estimated_amount  DECIMAL(15,2) AS (required_quantity * estimated_rate) STORED,
+        ordered_quantity  DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Qty covered by a PO',
+        remarks           TEXT DEFAULT NULL,
+        FOREIGN KEY (indent_id)   REFERENCES material_indents(indent_id) ON DELETE CASCADE,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch((e: any) => console.warn('Phase 8-G material_indent_items:', e.message));
+    console.log('Phase 8-G: material_indent_items created.');
+
+    // 8-H. Create material_issues (missing from live DB)
+    // This is the authoritative "material consumed" ledger — replacing the scattered
+    // usage tracking in project_material_logs and task_used_materials.
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS material_issues (
+        issue_id        INT AUTO_INCREMENT PRIMARY KEY,
+        issue_code      VARCHAR(50)   NOT NULL UNIQUE,
+        project_id      INT           NOT NULL,
+        wbs_id          INT           NOT NULL,
+        task_id         INT           DEFAULT NULL,
+        grn_item_id     INT           DEFAULT NULL COMMENT 'Source GRN line item (stock deduction)',
+        material_id     INT           NOT NULL,
+        material_name   VARCHAR(200)  NOT NULL COMMENT 'Snapshot of name at issue time',
+        unit            VARCHAR(50)   NOT NULL DEFAULT 'Nos',
+        issue_date      DATE          NOT NULL,
+        quantity        DECIMAL(12,2) NOT NULL,
+        unit_rate       DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        total_cost      DECIMAL(15,2) AS (quantity * unit_rate) STORED,
+        issued_to_id    INT           DEFAULT NULL COMMENT 'Employee or labour who received',
+        site_location   VARCHAR(200)  DEFAULT NULL,
+        billed_quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Qty already included in a client invoice',
+        billed_invoice_id INT         DEFAULT NULL COMMENT 'Last invoice that billed this issue',
+        remarks         TEXT          DEFAULT NULL,
+        created_by      INT           DEFAULT NULL,
+        created_at      TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id)  REFERENCES projects(project_id)  ON DELETE CASCADE,
+        FOREIGN KEY (wbs_id)      REFERENCES project_wbs(id)        ON DELETE CASCADE,
+        FOREIGN KEY (task_id)     REFERENCES tasks(task_id)          ON DELETE SET NULL,
+        FOREIGN KEY (material_id) REFERENCES materials(material_id)  ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `).catch((e: any) => console.warn('Phase 8-H material_issues:', e.message));
+    console.log('Phase 8-H: material_issues created.');
+
+    // 8-I. Safely drop orphaned legacy tables
+    // These three tables exist in the old dump but have ZERO backend code reading or
+    // writing to them. They overlap with project_material_logs / planning_wbs_material
+    // / material_indents. We only drop them if they contain no rows.
+    const legacyTables = ['material_logs', 'material_planning', 'material_requirements'];
+    for (const tbl of legacyTables) {
+      try {
+        const [countRows]: any = await dbPool.query(`SELECT COUNT(*) AS cnt FROM ${tbl}`);
+        const cnt = Number(countRows[0]?.cnt ?? 0);
+        if (cnt === 0) {
+          await dbPool.query(`DROP TABLE IF EXISTS ${tbl}`);
+          console.log(`Phase 8-I: Dropped empty legacy table '${tbl}'.`);
+        } else {
+          console.warn(`Phase 8-I: Legacy table '${tbl}' has ${cnt} rows — skipping drop. Migrate data manually then drop.`);
+        }
+      } catch (e: any) {
+        console.warn(`Phase 8-I: Could not process '${tbl}':`, e.message);
+      }
+    }
+
+    // 8-J. Add procurement permissions
+    const procPermissions: [string, string, string][] = [
+      ['procurement', 'view',    'procurement_view'],
+      ['procurement', 'create',  'procurement_create'],
+      ['procurement', 'update',  'procurement_update'],
+      ['procurement', 'delete',  'procurement_delete'],
+      ['procurement', 'approve', 'procurement_approve'],   // PO approval
+      ['procurement', 'post_grn','procurement_post_grn'],  // GRN posting (stock update)
+      ['procurement', 'adjust',  'procurement_adjust'],    // stock adjustment
+      ['procurement', 'issue',   'procurement_issue'],     // issue material to site
+      ['procurement', 'return',  'procurement_return'],    // return material from site
+    ];
+    for (const [mod, act, code] of procPermissions) {
+      await dbPool.query(
+        `INSERT IGNORE INTO permissions (module, action, permission_code) VALUES (?, ?, ?)`,
+        [mod, act, code]
+      );
+    }
+    // Grant all procurement permissions to Super Admin and Admin; view+create+post_grn+issue to Manager
+    const [allPerms8]: any = await dbPool.query(`SELECT id, permission_code FROM permissions`);
+    const permMap8: Record<string, number> = {};
+    for (const p of allPerms8) { permMap8[p.permission_code] = p.id; }
+    const [rRows8]: any = await dbPool.query(`SELECT role_id AS id, role_name FROM roles`);
+    const rMap8: Record<string, number> = {};
+    for (const r of rRows8) { rMap8[r.role_name] = r.id; }
+    const grantP8 = async (roleId: number | undefined, codes: string[]) => {
+      if (!roleId) return;
+      for (const code of codes) {
+        const pId = permMap8[code];
+        if (pId) await dbPool.query(`INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)`, [roleId, pId]);
+      }
+    };
+    const allProcCodes = procPermissions.map(p => p[2]);
+    await grantP8(rMap8['Super Admin'], allProcCodes);
+    await grantP8(rMap8['Admin'],       allProcCodes);
+    await grantP8(rMap8['Manager'], ['procurement_view', 'procurement_create', 'procurement_update', 'procurement_post_grn', 'procurement_issue']);
+    console.log('Phase 8-J: Procurement permissions seeded.');
+
+    console.log('Phase 8: Procurement schema sync complete.');
+
+    // ─── Versioned SQL Migrations (Authoritative Source) ──────────────────────
+    try {
+      const { runSqlMigrations } = await import('./utils/sqlMigrationRunner');
+      await runSqlMigrations();
+    } catch (e: any) {
+      console.warn('SQL Migration runner notice:', e.message);
+    }
 
   } catch (error) {
     console.error('Migration failed:', error);

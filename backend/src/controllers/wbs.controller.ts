@@ -28,16 +28,17 @@ export class WbsController {
 
   addProjectWbs = async (req: Request, res: Response) => {
     try {
+      const rawProjectId = req.body.project_id || req.params.projectId;
       const {
-        project_id, wbs_id, wbs_type, unit, planned_quantity, rate,
+        wbs_id, wbs_type, unit, planned_quantity, rate,
         start_date, end_date, total_hours, actual_start_date, actual_end_date, actual_hours,
         budget_amount, planned_labour_cost, planned_material_cost, note
       } = req.body;
-      if (!project_id || !wbs_id) {
+      if (!rawProjectId || !wbs_id) {
         return sendError(res, 'project_id and wbs_id are required', [], 400);
       }
       const newAllocation = await this.wbsService.addProjectWbsAllocation({
-        project_id: Number(project_id),
+        project_id: Number(rawProjectId),
         wbs_id: Number(wbs_id),
         wbs_type,
         unit,

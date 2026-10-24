@@ -7,7 +7,7 @@ export interface SearchableOption {
 }
 
 interface SearchableSelectProps {
-  label: string;
+  label?: string;
   options: SearchableOption[];
   value?: string | number | (string | number)[];
   onChange: (value: any) => void;
@@ -32,6 +32,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -44,15 +45,21 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
   const filteredOptions = options.filter(opt => 
-    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+    String(opt.label).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const isSelected = (optValue: string | number) => {
     if (multiple && Array.isArray(value)) {
       return value.includes(optValue);
     }
-    return value === optValue;
+    return String(value) === String(optValue);
   };
 
   const handleSelect = (optValue: string | number) => {
@@ -82,90 +89,208 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const renderValue = () => {
     if (multiple && Array.isArray(value) && value.length > 0) {
       return (
-        <div className="flex flex-wrap gap-1">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
           {value.map(val => {
-            const opt = options.find(o => o.value === val);
+            const opt = options.find(o => String(o.value) === String(val));
             return (
-              <span key={val} className="flex items-center bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">
+              <span
+                key={String(val)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  color: '#818cf8',
+                  fontSize: '0.75rem',
+                  padding: '0.15rem 0.45rem',
+                  borderRadius: '4px',
+                  fontWeight: 500
+                }}
+              >
                 {opt ? opt.label : val}
-                <X className="w-3 h-3 ml-1 cursor-pointer hover:text-indigo-900" onClick={(e) => handleRemoveItem(e, val)} />
+                <X
+                  size={12}
+                  style={{ marginLeft: '4px', cursor: 'pointer' }}
+                  onClick={(e) => handleRemoveItem(e, val)}
+                />
               </span>
             );
           })}
         </div>
       );
     } else if (!multiple && value !== undefined && value !== '') {
-      const opt = options.find(o => o.value === value);
-      return <span className="block truncate">{opt ? opt.label : value}</span>;
+      const opt = options.find(o => String(o.value) === String(value));
+      return (
+        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: 'var(--text-primary)' }}>
+          {opt ? opt.label : value}
+        </span>
+      );
     }
-    return <span className="text-gray-400">{placeholder}</span>;
+    return <span style={{ color: 'var(--text-muted)' }}>{placeholder}</span>;
   };
 
   const cleanLabel = label ? label.replace(/\s*\*+\s*$/, '') : '';
 
   return (
-    <div className={`form-group relative ${className}`} ref={wrapperRef}>
+    <div
+      className={`form-group ${className}`}
+      ref={wrapperRef}
+      style={{ position: 'relative', marginBottom: label ? '1rem' : '0', width: '100%' }}
+    >
       {label && (
-        <label className="form-label block text-sm font-medium text-gray-700 mb-1">
-          {cleanLabel} {required && <span className="text-red-500">*</span>}
+        <label
+          className="form-label"
+          style={{
+            display: 'block',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            marginBottom: '0.35rem',
+            color: 'var(--text-secondary)'
+          }}
+        >
+          {cleanLabel} {required && <span style={{ color: '#ef4444' }}>*</span>}
         </label>
       )}
-      
-      <div 
-        className={`form-select relative w-full bg-white border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm min-h-[38px] flex items-center`}
+
+      {/* Select Box Trigger */}
+      <div
         onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          minHeight: '38px',
+          padding: '0.45rem 0.75rem',
+          background: 'var(--input-bg)',
+          color: 'var(--input-text)',
+          border: error ? '1px solid #ef4444' : '1px solid var(--input-border)',
+          borderRadius: 'var(--radius-sm, 6px)',
+          cursor: 'pointer',
+          userSelect: 'none',
+          boxShadow: 'var(--shadow-sm)',
+          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+          outline: isOpen ? '2px solid rgba(99, 102, 241, 0.4)' : 'none'
+        }}
       >
-        <div className="flex-1 pr-4">
+        <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
           {renderValue()}
         </div>
-        <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-          <ChevronDown className="h-4 w-4 text-gray-400" aria-hidden="true" />
-        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            color: 'var(--text-muted)',
+            transition: 'transform 0.2s ease',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0
+          }}
+        />
       </div>
 
+      {/* Dropdown Floating Panel */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-          <div className="sticky top-0 bg-white px-2 py-2 border-b border-gray-100 z-10">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            backgroundColor: 'var(--bg-card, #1e293b)',
+            color: 'var(--text-primary, #f8fafc)',
+            border: '1px solid var(--border-color, #334155)',
+            borderRadius: 'var(--radius-sm, 8px)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 8px 10px -6px rgba(0, 0, 0, 0.25)',
+            overflow: 'hidden',
+            maxHeight: '300px',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          {/* Search Box Header */}
+          <div
+            style={{
+              padding: '0.5rem',
+              borderBottom: '1px solid var(--border-color, #334155)',
+              backgroundColor: 'var(--bg-secondary, #0f172a)'
+            }}
+          >
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: '0.65rem',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none'
+                }}
+              />
               <input
+                ref={inputRef}
                 type="text"
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                autoFocus
+                placeholder="Search..."
+                style={{
+                  width: '100%',
+                  padding: '0.4rem 0.65rem 0.4rem 2rem',
+                  fontSize: '0.85rem',
+                  backgroundColor: 'var(--input-bg, #1e293b)',
+                  color: 'var(--input-text, #f8fafc)',
+                  border: '1px solid var(--border-color, #334155)',
+                  borderRadius: '4px',
+                  outline: 'none'
+                }}
               />
             </div>
           </div>
-          
-          {filteredOptions.length === 0 ? (
-            <div className="px-4 py-2 text-gray-500">No options found.</div>
-          ) : (
-            <ul className="max-h-48 overflow-y-auto">
-              {filteredOptions.map((opt) => (
-                <li
-                  key={opt.value}
-                  className={`cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-indigo-50 ${isSelected(opt.value) ? 'bg-indigo-100 text-indigo-900' : 'text-gray-900'}`}
-                  onClick={() => handleSelect(opt.value)}
-                >
-                  <span className={`block truncate ${isSelected(opt.value) ? 'font-semibold' : 'font-normal'}`}>
-                    {opt.label}
-                  </span>
-                  {isSelected(opt.value) ? (
-                    <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-indigo-600">
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
+
+          {/* Options List */}
+          <div style={{ overflowY: 'auto', maxHeight: '240px', padding: '0.25rem 0' }}>
+            {filteredOptions.length === 0 ? (
+              <div style={{ padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                No matching options found.
+              </div>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {filteredOptions.map((opt) => {
+                  const selected = isSelected(opt.value);
+                  return (
+                    <li
+                      key={String(opt.value)}
+                      onClick={() => handleSelect(opt.value)}
+                      style={{
+                        padding: '0.55rem 0.85rem',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: selected ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                        color: selected ? '#818cf8' : 'var(--text-primary)',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!selected) e.currentTarget.style.backgroundColor = 'var(--select-option-hover, rgba(255,255,255,0.06))';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!selected) e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <span style={{ fontWeight: selected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {opt.label}
+                      </span>
+                      {selected && <Check size={14} style={{ color: '#818cf8', flexShrink: 0, marginLeft: '0.5rem' }} />}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
       )}
-      
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+
+      {error && <p style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#ef4444' }}>{error}</p>}
     </div>
   );
 };

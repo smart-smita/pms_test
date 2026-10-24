@@ -75,6 +75,8 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
   const [currencies, setCurrencies] = useState<any[]>([]);
   const [wbsTemplates, setWbsTemplates] = useState<any[]>([]);
   const [selectedWbsTemplateIds, setSelectedWbsTemplateIds] = useState<number[]>([]);
+  const [taxesList, setTaxesList] = useState<any[]>([]);
+  const [selectedTaxIds, setSelectedTaxIds] = useState<number[]>([]);
 
   // WBS Allocations State
   const [wbsAllocations, setWbsAllocations] = useState<ProjectWbsAllocation[]>([]);
@@ -110,6 +112,48 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
     };
   }, [currencies, currencyId]);
 
+  // Selected Taxes
+  const selectedTaxes = useMemo(() => {
+    return taxesList.filter((t) => selectedTaxIds.includes(t.tax_id));
+  }, [taxesList, selectedTaxIds]);
+
+  // Overall Financial Breakdown matching Quotation
+  const financialSummary = useMemo(() => {
+    let totalLabourHours = 0;
+    let totalLabourCost = 0;
+    let totalMaterialCost = 0;
+
+    wbsAllocations.forEach((w) => {
+      totalLabourHours += Number(w.total_hours || 0);
+      totalLabourCost += Number(w.planned_labour_cost || 0);
+      totalMaterialCost += Number(w.planned_material_cost || 0);
+    });
+
+    const subtotalDirectBudget = totalLabourCost + totalMaterialCost;
+    let totalTaxAmount = 0;
+    const taxesCalculated = selectedTaxes.map((tax) => {
+      const taxPct = Number(tax.tax_percentage || 0);
+      const taxAmt = (subtotalDirectBudget * taxPct) / 100;
+      totalTaxAmount += taxAmt;
+      return {
+        ...tax,
+        calculated_amount: taxAmt,
+      };
+    });
+
+    const grandTotalBudget = subtotalDirectBudget + totalTaxAmount;
+
+    return {
+      totalLabourHours,
+      totalLabourCost,
+      totalMaterialCost,
+      subtotalDirectBudget,
+      totalTaxAmount,
+      taxesCalculated,
+      grandTotalBudget,
+    };
+  }, [wbsAllocations, selectedTaxes]);
+
   // Available WBS Templates for selected Project Type
   const availableWbsTemplates = useMemo(() => {
     if (!projectTypeId) return wbsTemplates;
@@ -130,12 +174,14 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
       apiRequest<ProjectType[]>('/masters/project-types'),
       apiRequest<any[]>('/masters/currencies?all=true'),
       apiRequest<any[]>('/wbs-templates'),
-    ]).then(([cRes, qRes, ptRes, curRes, wtRes]) => {
+      apiRequest<any[]>('/masters/taxes'),
+    ]).then(([cRes, qRes, ptRes, curRes, wtRes, taxRes]) => {
       if (cRes.success && cRes.data) setCustomers(cRes.data);
       if (qRes.success && qRes.data) setQuotations(qRes.data);
       if (ptRes.success && ptRes.data) setProjectTypes(ptRes.data);
       if (curRes.success && curRes.data) setCurrencies(curRes.data);
       if (wtRes.success && wtRes.data) setWbsTemplates(wtRes.data);
+      if (taxRes.success && taxRes.data) setTaxesList(taxRes.data);
     });
 
     if (projectId) {
@@ -158,6 +204,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
           if (p.end_date) setEndDate(p.end_date.split('T')[0]);
           setProjectAddress(p.project_address || '');
           setNote(p.note || '');
+          if (p.taxes && Array.isArray(p.taxes)) {
+            setSelectedTaxIds(p.taxes.map((t: any) => t.tax_id));
+          }
         }
       });
 
@@ -174,7 +223,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
               unit: w.unit || 'hours',
               planned_quantity: Number(w.planned_quantity || 1),
               rate: Number(w.rate || 0),
-              budget_amount: Number(w.budget_amount || 0),
+              budget_amount: Number(w.budget_amount || ((Number(w.planned_labour_cost || 0) + Number(w.planned_material_cost || 0)))),
               total_hours: Number(w.total_hours || 0),
               planned_labour_cost: Number(w.planned_labour_cost || 0),
               planned_material_cost: Number(w.planned_material_cost || 0),
@@ -217,6 +266,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
         if (q.quotation_code) setQuotationReference(q.quotation_code);
         if (q.start_date) setStartDate(q.start_date.split('T')[0]);
         if (q.end_date) setEndDate(q.end_date.split('T')[0]);
+        if (q.taxes && Array.isArray(q.taxes)) {
+          setSelectedTaxIds(q.taxes.map((t: any) => t.tax_id));
+        }
 
         // Automatically import quotation WBS allocations
         if (q.disciplines && q.disciplines.length > 0) {
@@ -370,11 +422,20 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
         if (w.id !== id) return w;
         const updated = { ...w, ...updates };
 
-        // Auto-calculate budget amount
+        const lab = Number(updated.planned_labour_cost !== undefined ? updated.planned_labour_cost : 0);
+        const mat = Number(updated.planned_material_cost !== undefined ? updated.planned_material_cost : 0);
+
+        // Auto-calculate budget amount from labour + material costs
         if (updates.planned_labour_cost !== undefined || updates.planned_material_cost !== undefined) {
-          updated.budget_amount = (updated.planned_labour_cost || 0) + (updated.planned_material_cost || 0);
+          updated.budget_amount = lab + mat;
         } else if (updates.planned_quantity !== undefined || updates.rate !== undefined) {
-          updated.budget_amount = (updated.planned_quantity || 0) * (updated.rate || 0);
+          const qty = Number(updated.planned_quantity || 0);
+          const r = Number(updated.rate || 0);
+          if (qty > 0 && r > 0 && lab === 0 && mat === 0) {
+            updated.budget_amount = qty * r;
+          } else {
+            updated.budget_amount = lab + mat;
+          }
         }
 
         return updated;
@@ -446,8 +507,39 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
       showError('Customer is required');
       return;
     }
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      showError('Project End Date must be on or after Start Date');
+      return;
+    }
+
+    // WBS Validations
+    for (let i = 0; i < wbsAllocations.length; i++) {
+      const w = wbsAllocations[i];
+      if (!w.wbs_name || !w.wbs_name.trim()) {
+        showError(`Please enter a valid name for WBS item #${i + 1}`);
+        setActiveTab('wbs');
+        return;
+      }
+      if (w.start_date && w.end_date && new Date(w.start_date) > new Date(w.end_date)) {
+        showError(`WBS #${i + 1} (${w.wbs_name}): End date must be on or after start date`);
+        setActiveTab('wbs');
+        return;
+      }
+      if (
+        Number(w.total_hours) < 0 ||
+        Number(w.planned_labour_cost) < 0 ||
+        Number(w.planned_material_cost) < 0 ||
+        Number(w.budget_amount) < 0
+      ) {
+        showError(`WBS #${i + 1} (${w.wbs_name}): Hours, costs, and amounts cannot be negative`);
+        setActiveTab('wbs');
+        return;
+      }
+    }
 
     setIsSubmitting(true);
+    const finalBudget = financialSummary.grandTotalBudget > 0 ? financialSummary.grandTotalBudget : (parseFloat(budgetAmount) || 0);
+
     const payload = {
       project_code: projectCode,
       project_name: projectName.trim(),
@@ -456,29 +548,46 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
       quotation_reference: quotationReference || null,
       project_type_id: projectTypeId ? Number(projectTypeId) : null,
       currency_id: Number(currencyId || 1),
-      budget_amount: parseFloat(budgetAmount) || 0,
+      budget_amount: finalBudget,
       status,
       start_date: startDate || null,
       end_date: endDate || null,
       project_address: projectAddress || null,
       note: note || null,
-      wbs_allocations: wbsAllocations.map((w) => ({
-        id: typeof w.id === 'number' ? w.id : undefined,
-        wbs_id: w.wbs_id || null,
-        wbs_code: w.wbs_code || null,
-        wbs_name: w.wbs_name,
-        wbs_type: w.wbs_type,
-        unit: w.unit,
-        planned_quantity: w.planned_quantity,
-        rate: w.rate,
-        budget_amount: w.budget_amount,
-        total_hours: w.total_hours,
-        planned_labour_cost: w.planned_labour_cost,
-        planned_material_cost: w.planned_material_cost,
-        start_date: w.start_date || null,
-        end_date: w.end_date || null,
-        is_custom: w.is_custom ? 1 : 0,
+      taxes: financialSummary.taxesCalculated.map((t) => ({
+        tax_id: t.tax_id,
+        tax_name: t.tax_name,
+        tax_code: t.tax_code,
+        tax_type: t.tax_type,
+        tax_percentage: Number(t.tax_percentage || 0),
+        taxable_amount: financialSummary.subtotalDirectBudget,
+        tax_amount: t.calculated_amount,
       })),
+      wbs_allocations: wbsAllocations.map((w) => {
+        const numId = Number(w.id);
+        const validId = (!isNaN(numId) && numId > 0 && numId < 1000000000000) ? numId : undefined;
+        const labCost = Number(w.planned_labour_cost || 0);
+        const matCost = Number(w.planned_material_cost || 0);
+        const taskBudget = Number(w.budget_amount) > 0 ? Number(w.budget_amount) : (labCost + matCost);
+
+        return {
+          id: validId,
+          wbs_id: w.wbs_id ? Number(w.wbs_id) : null,
+          wbs_code: w.wbs_code || null,
+          wbs_name: w.wbs_name.trim(),
+          wbs_type: w.wbs_type || (labCost > 0 && matCost > 0 ? 'both' : (matCost > 0 ? 'material' : 'labour')),
+          unit: w.unit || 'hours',
+          planned_quantity: Number(w.planned_quantity || 1),
+          rate: Number(w.rate || 0),
+          budget_amount: taskBudget,
+          total_hours: Number(w.total_hours || 0),
+          planned_labour_cost: labCost,
+          planned_material_cost: matCost,
+          start_date: w.start_date || null,
+          end_date: w.end_date || null,
+          is_custom: w.is_custom ? 1 : 0,
+        };
+      }),
     };
 
     try {
@@ -767,6 +876,107 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
               </div>
             </div>
 
+            {/* Financial Summary & Tax Calculation Box */}
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1.25rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <DollarSign size={18} color="#10b981" />
+                  <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                    Project Budget & Tax Calculation ({selectedCurrency.currency_code} - {selectedCurrency.symbol})
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Total {wbsAllocations.length} WBS items
+                </div>
+              </div>
+
+              {/* 4 Stat Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.85rem', marginBottom: '1.1rem' }}>
+                <div style={{ background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Planned Labour Hours</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#3b82f6', marginTop: '0.2rem' }}>
+                    {financialSummary.totalLabourHours.toFixed(1)} hrs
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Planned Labour Cost</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#6366f1', marginTop: '0.2rem' }}>
+                    {selectedCurrency.symbol} {financialSummary.totalLabourCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Planned Material Cost</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f59e0b', marginTop: '0.2rem' }}>
+                    {selectedCurrency.symbol} {financialSummary.totalMaterialCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Direct Budget Subtotal</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                    {selectedCurrency.symbol} {financialSummary.subtotalDirectBudget.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tax Selection & Grand Total */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, minWidth: '260px' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Applicable Taxes (Master):
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {taxesList.map((tax) => {
+                      const isTaxSelected = selectedTaxIds.includes(tax.tax_id);
+                      return (
+                        <button
+                          key={tax.tax_id}
+                          type="button"
+                          onClick={() => {
+                            if (isTaxSelected) {
+                              setSelectedTaxIds(selectedTaxIds.filter((id) => id !== tax.tax_id));
+                            } else {
+                              setSelectedTaxIds([...selectedTaxIds, tax.tax_id]);
+                            }
+                          }}
+                          style={{
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '16px',
+                            border: isTaxSelected ? '1px solid #10b981' : '1px solid var(--border-color)',
+                            background: isTaxSelected ? 'rgba(16,185,129,0.15)' : 'var(--bg-card)',
+                            color: isTaxSelected ? '#10b981' : 'var(--text-secondary)',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                          }}
+                        >
+                          {isTaxSelected && <Check size={12} />}
+                          {tax.tax_name} ({tax.tax_percentage}%)
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {financialSummary.taxesCalculated.length > 0 && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Tax Amount: {financialSummary.taxesCalculated.map(t => `${t.tax_name}: ${selectedCurrency.symbol}${t.calculated_amount.toFixed(2)}`).join(' + ')} = {selectedCurrency.symbol}{financialSummary.totalTaxAmount.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ textAlign: 'right', minWidth: '180px' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Grand Total Project Budget</div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#10b981' }}>
+                    {selectedCurrency.symbol} {financialSummary.grandTotalBudget.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Available WBS Templates */}
             {availableWbsTemplates.length > 0 && (
               <div style={{ background: 'var(--border-color)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
@@ -806,121 +1016,161 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
 
             {/* WBS Allocations List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {wbsAllocations.map((wbs, idx) => (
-                <div
-                  key={wbs.id}
-                  style={{
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    background: 'var(--border-color)',
-                    border: wbs.is_custom ? '1px solid rgba(168,85,247,0.4)' : '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#a855f7' }}>#{idx + 1}</span>
-                      <input
-                        type="text"
-                        value={wbs.wbs_name}
-                        onChange={(e) => handleUpdateWbs(wbs.id, { wbs_name: e.target.value })}
-                        placeholder="WBS Task Name"
-                        style={{
-                          flex: 1,
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-color)',
-                          background: 'var(--bg-input)',
-                          color: 'var(--text-primary)',
-                          fontWeight: 600,
-                          fontSize: '0.9rem',
-                        }}
-                        required
-                      />
-                      {wbs.is_custom && <Badge variant="warning">✨ Extra Project WBS</Badge>}
-                    </div>
+              {wbsAllocations.map((wbs, idx) => {
+                const isDateInvalid = wbs.start_date && wbs.end_date && new Date(wbs.start_date) > new Date(wbs.end_date);
+                const isNameInvalid = !wbs.wbs_name || !wbs.wbs_name.trim();
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <input
-                        type="date"
-                        value={wbs.start_date}
-                        onChange={(e) => handleUpdateWbs(wbs.id, { start_date: e.target.value })}
-                        title="Start Date"
-                        style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
-                      />
-                      <span style={{ color: 'var(--text-secondary)' }}>to</span>
-                      <input
-                        type="date"
-                        value={wbs.end_date}
-                        onChange={(e) => handleUpdateWbs(wbs.id, { end_date: e.target.value })}
-                        title="End Date"
-                        style={{ padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
-                      />
-
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => handleRemoveWbs(wbs.id)}
-                        style={{ padding: '0.3rem 0.5rem', color: '#ef4444' }}
-                        title="Remove Task"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Planned Quantities & Costs Row */}
+                return (
                   <div
+                    key={wbs.id}
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                      gap: '0.75rem',
-                      background: 'rgba(0,0,0,0.15)',
-                      padding: '0.65rem',
-                      borderRadius: '6px',
+                      padding: '1.1rem',
+                      borderRadius: '8px',
+                      background: 'var(--border-color)',
+                      border: isDateInvalid || isNameInvalid
+                        ? '1px solid #ef4444'
+                        : (wbs.is_custom ? '1px solid rgba(168,85,247,0.5)' : '1px solid var(--border-color)'),
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.85rem',
                     }}
                   >
-                    <div>
-                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Hours</label>
-                      <input
-                        type="number"
-                        value={wbs.total_hours || ''}
-                        onChange={(e) => handleUpdateWbs(wbs.id, { total_hours: parseFloat(e.target.value) || 0 })}
-                        style={{ width: '100%', padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
-                      />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '260px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#a855f7' }}>#{idx + 1}</span>
+                        <input
+                          type="text"
+                          value={wbs.wbs_name}
+                          onChange={(e) => handleUpdateWbs(wbs.id, { wbs_name: e.target.value })}
+                          placeholder="WBS Task Name *"
+                          style={{
+                            flex: 1,
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '6px',
+                            border: isNameInvalid ? '1px solid #ef4444' : '1px solid var(--border-color)',
+                            background: 'var(--bg-input)',
+                            color: 'var(--text-primary)',
+                            fontWeight: 600,
+                            fontSize: '0.9rem',
+                          }}
+                          required
+                        />
+                        {wbs.is_custom && <Badge variant="warning">✨ Extra Project WBS</Badge>}
+                      </div>
+
+                      {/* WBS Type Selection */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <select
+                          className="form-select"
+                          value={wbs.wbs_type || 'both'}
+                          onChange={(e) => handleUpdateWbs(wbs.id, { wbs_type: e.target.value as any })}
+                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem', borderRadius: '4px' }}
+                        >
+                          <option value="both">Labour & Material (Both)</option>
+                          <option value="labour">Labour Only</option>
+                          <option value="material">Material Only</option>
+                        </select>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <input
+                            type="date"
+                            value={wbs.start_date}
+                            onChange={(e) => handleUpdateWbs(wbs.id, { start_date: e.target.value })}
+                            title="Start Date"
+                            style={{ padding: '0.35rem', borderRadius: '4px', border: isDateInvalid ? '1px solid #ef4444' : '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                          />
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>to</span>
+                          <input
+                            type="date"
+                            value={wbs.end_date}
+                            onChange={(e) => handleUpdateWbs(wbs.id, { end_date: e.target.value })}
+                            title="End Date"
+                            style={{ padding: '0.35rem', borderRadius: '4px', border: isDateInvalid ? '1px solid #ef4444' : '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => handleRemoveWbs(wbs.id)}
+                          style={{ padding: '0.3rem 0.5rem', color: '#ef4444' }}
+                          title="Remove Task"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
                     </div>
 
-                    <div>
-                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Labour Cost ({selectedCurrency.symbol})</label>
-                      <input
-                        type="number"
-                        value={wbs.planned_labour_cost || ''}
-                        onChange={(e) => handleUpdateWbs(wbs.id, { planned_labour_cost: parseFloat(e.target.value) || 0 })}
-                        style={{ width: '100%', padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
-                      />
-                    </div>
+                    {isDateInvalid && (
+                      <div style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '-0.3rem' }}>
+                        * End Date must be greater than or equal to Start Date.
+                      </div>
+                    )}
 
-                    <div>
-                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Material Cost ({selectedCurrency.symbol})</label>
-                      <input
-                        type="number"
-                        value={wbs.planned_material_cost || ''}
-                        onChange={(e) => handleUpdateWbs(wbs.id, { planned_material_cost: parseFloat(e.target.value) || 0 })}
-                        style={{ width: '100%', padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
-                      />
-                    </div>
+                    {/* Planned Quantities & Costs Row */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                        gap: '0.75rem',
+                        background: 'rgba(0,0,0,0.15)',
+                        padding: '0.75rem',
+                        borderRadius: '6px',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {wbs.wbs_type !== 'material' && (
+                        <div>
+                          <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Hours</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={wbs.total_hours ?? ''}
+                            onChange={(e) => handleUpdateWbs(wbs.id, { total_hours: Math.max(0, parseFloat(e.target.value) || 0) })}
+                            style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                          />
+                        </div>
+                      )}
 
-                    <div>
-                      <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Total Task Budget</label>
-                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#10b981', paddingTop: '0.3rem' }}>
-                        {selectedCurrency.symbol} {wbs.budget_amount.toFixed(2)}
+                      {wbs.wbs_type !== 'material' && (
+                        <div>
+                          <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Labour Cost ({selectedCurrency.symbol})</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={wbs.planned_labour_cost ?? ''}
+                            onChange={(e) => handleUpdateWbs(wbs.id, { planned_labour_cost: Math.max(0, parseFloat(e.target.value) || 0) })}
+                            style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                          />
+                        </div>
+                      )}
+
+                      {wbs.wbs_type !== 'labour' && (
+                        <div>
+                          <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Planned Material Cost ({selectedCurrency.symbol})</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={wbs.planned_material_cost ?? ''}
+                            onChange={(e) => handleUpdateWbs(wbs.id, { planned_material_cost: Math.max(0, parseFloat(e.target.value) || 0) })}
+                            style={{ width: '100%', padding: '0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)' }}>Total Task Budget</label>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#10b981', paddingTop: '0.2rem' }}>
+                          {selectedCurrency.symbol} {Number(wbs.budget_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {wbsAllocations.length === 0 && (
                 <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'var(--border-color)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>

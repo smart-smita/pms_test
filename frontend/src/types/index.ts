@@ -518,6 +518,8 @@ export interface BillingSchedule {
   approved_amount?: number | null;
   completion_percentage?: number | null;
   work_status?: 'draft' | 'submitted' | 'approved' | 'rejected' | null;
+  currency_code?: string;
+  currency_symbol?: string;
   created_at?: string;
 }
 
@@ -529,6 +531,8 @@ export interface MonthlyCompletedWork {
   customer_name?: string;
   billing_month?: string;
   expected_amount?: number;
+  currency_code?: string;
+  currency_symbol?: string;
   completion_percentage: number;
   approved_amount: number;
   status: 'draft' | 'submitted' | 'approved' | 'rejected';
@@ -545,6 +549,13 @@ export interface InvoiceItem {
   description: string;
   amount: number;
   is_extra_work: boolean | number;
+  item_type?: 'labour' | 'material' | 'other';
+  project_wbs_id?: number | null;
+  task_id?: number | null;
+  quantity?: number | null;
+  rate?: number | null;
+  wbs_name?: string;
+  task_name?: string;
 }
 
 export interface Invoice {
@@ -553,9 +564,13 @@ export interface Invoice {
   customer_id: number;
   customer_name?: string;
   customer_code?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  customer_address?: string;
   project_id: number;
   project_name?: string;
   project_code?: string;
+  project_address?: string;
   quotation_id: number;
   quotation_code?: string;
   schedule_id: number;
@@ -578,6 +593,11 @@ export interface Invoice {
   subtotal_amount: number;
   tax_amount: number;
   total_amount: number;
+  invoice_type?: 'combined' | 'labour' | 'material' | 'credit_note';
+  original_invoice_id?: number | null;
+  is_credit_note?: boolean | number;
+  revision_number?: number;
+  credit_note_reason?: string | null;
   paid_amount?: number;
   status: 'draft' | 'pending_approval' | 'approved' | 'sent' | 'partially_paid' | 'paid' | 'cancelled';
   items?: InvoiceItem[];

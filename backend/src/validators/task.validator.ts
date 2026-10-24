@@ -15,8 +15,12 @@ export const createTaskSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'in-progress', 'completed', 'delayed']).optional().default('pending'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().default('medium'),
   progress_percentage: z.number().min(0).max(100).optional().default(0),
-  assigned_employee_ids: z.array(z.number().int().positive()).optional(),
+  assigned_employee_ids: z.array(z.union([z.number(), z.string()])).optional().transform(arr => arr ? arr.map(Number).filter(n => !isNaN(n) && n > 0) : []),
   assigned_labour_ids: z.array(z.number().int().positive()).optional(),
+  task_address: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  used_materials: z.array(z.any()).optional(),
   allocations: z.array(z.object({
     work_log_id: z.number().int().positive().optional(),
     labour_id: z.number().int().positive(),
@@ -33,6 +37,7 @@ export const createTaskSchema = z.object({
 });
 
 export const updateTaskSchema = z.object({
+  project_id: z.number().int().positive().optional(),
   wbs_id: z.number().int().positive().optional(),
   task_code: z.string().optional(),
   task_name: z.string().min(2).optional(),
@@ -46,8 +51,12 @@ export const updateTaskSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'in-progress', 'completed', 'delayed']).optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
   progress_percentage: z.number().min(0).max(100).optional(),
-  assigned_employee_ids: z.array(z.number().int().positive()).optional(),
+  assigned_employee_ids: z.array(z.union([z.number(), z.string()])).optional().transform(arr => arr ? arr.map(Number).filter(n => !isNaN(n) && n > 0) : []),
   assigned_labour_ids: z.array(z.number().int().positive()).optional(),
+  task_address: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  used_materials: z.array(z.any()).optional(),
   allocations: z.array(z.object({
     work_log_id: z.number().int().positive().optional(),
     labour_id: z.number().int().positive(),

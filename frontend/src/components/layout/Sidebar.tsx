@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../../context/WorkCategoryContext';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -37,6 +38,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onClose, isCollapsed = false }) => {
   const { user, hasPermission } = useAuth();
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const isEmployee = user?.role_name === 'Employee';
   const isAdminOrManager =
     user?.role_name === 'Admin' ||
@@ -52,7 +54,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
 
   const isMasterSubActive = (page: string) => page === 'masters' || page.startsWith('masters');
   const isReportsSubActive = (page: string) => page.startsWith('reports');
-  const isProjectSubActive = (page: string) => page.startsWith('project') || page === 'projects' || page.startsWith('projects/');
+  const isProjectSubActive = (page: string) =>
+    page.startsWith('project') ||
+    page === 'projects' ||
+    page.startsWith('projects/') ||
+    page === 'invoices';
 
   const getActiveMasterTabSlug = (page: string): string => {
     if (!page.startsWith('masters')) return '';
@@ -69,18 +75,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
 
   const currentMasterTabSlug = getActiveMasterTabSlug(currentPage);
 
-  const [isProjectExpanded, setIsProjectExpanded] = useState(() => isProjectSubActive(currentPage));
   const [isReportsExpanded, setIsReportsExpanded] = useState(() => isReportsSubActive(currentPage));
   const [isMasterExpanded, setIsMasterExpanded] = useState(() => isMasterSubActive(currentPage));
 
   useEffect(() => {
-    if (isProjectSubActive(currentPage)) setIsProjectExpanded(true);
     if (isReportsSubActive(currentPage)) setIsReportsExpanded(true);
     if (isMasterSubActive(currentPage)) setIsMasterExpanded(true);
   }, [currentPage]);
 
   // Master Submenu Items
-  const masterSubmenu = [
+  const rawMasterSubmenu = [
     {
       id: 'masters',
       tabSlug: '',
@@ -155,16 +159,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     },
   ];
 
-  // Project Submenu Items (The ONLY child is Project Workspace)
-  const projectSubmenu = [
-    {
-      id: 'project/workspace',
-      label: 'Project Workspace',
-      icon: FolderKanban,
-      isAllowed: !isEmployee && (hasPermission('projects', 'view') || isAdminOrManager),
-      isActive: isProjectSubActive(currentPage),
-    },
-  ];
+
+
+  const masterSubmenu = rawMasterSubmenu.filter(item => {
+    if (item.tabSlug === "materials") return isMaterialEnabled;
+    if (item.tabSlug === "labour") return isLabourEnabled;
+    return true;
+  });
 
   // Reports Submenu Items (Complete Reports List)
   const reportsSubmenu = [
@@ -200,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       id: 'reports/attendance',
       label: 'Attendance Report',
       icon: CalendarCheck,
-      isAllowed: hasPermission('reports', 'view') || isAdminOrManager || isEmployee,
+      isAllowed: isLabourEnabled && (hasPermission('reports', 'view') || isAdminOrManager || isEmployee),
       isActive: currentPage === 'reports/attendance',
     },
     {
@@ -211,10 +212,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       isActive: currentPage === 'reports/cost',
     },
     {
+      id: 'reports/procurement',
+      label: 'Material & Stock Reports',
+      icon: Package,
+      isAllowed: isMaterialEnabled && (hasPermission('stock', 'view') || hasPermission('reports', 'view') || isAdminOrManager),
+      isActive: currentPage === 'reports/procurement' || currentPage === 'procurement/reports',
+    },
+    {
       id: 'reports/labour-employee',
       label: 'Labour & Employee Work',
       icon: Users,
-      isAllowed: !isEmployee && (hasPermission('reports', 'view') || isAdminOrManager),
+      isAllowed: isLabourEnabled && (!isEmployee && (hasPermission('reports', 'view') || isAdminOrManager)),
       isActive: currentPage === 'reports/labour-employee',
     },
     {
@@ -241,7 +249,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     },
   ];
 
-  const filteredProjectSubmenu = projectSubmenu.filter(i => i.isAllowed);
   const filteredReportsSubmenu = reportsSubmenu.filter(i => i.isAllowed);
 
   const renderButton = (
@@ -366,88 +373,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           {renderButton('quotations', 'Quotation', FileText, currentPage === 'quotations' || currentPage.startsWith('quotations/'), !isEmployee && (hasPermission('quotations', 'view') || isAdminOrManager))}
           {renderButton('planning/workspace', 'Planning', CalendarCheck, currentPage.startsWith('planning'), !isEmployee && (hasPermission('projects', 'view') || isAdminOrManager))}
           
-          {/* Project Menu (Accordion) */}
-          {!isEmployee && (hasPermission('projects', 'view') || isAdminOrManager) && (
-            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: isCollapsed ? 'center' : 'stretch' }}>
-              <button
-                onClick={() => {
-                  if (isCollapsed) handleNav('project/workspace');
-                  else setIsProjectExpanded(!isProjectExpanded);
-                }}
-                style={{
-                  width: isCollapsed ? 'auto' : '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: isCollapsed ? 'center' : 'space-between',
-                  padding: isCollapsed ? '0.65rem 1rem' : '0.65rem 0.85rem',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: isProjectSubActive(currentPage) ? 'rgba(79, 70, 229, 0.12)' : 'transparent',
-                  color: isProjectSubActive(currentPage) ? '#818cf8' : 'var(--text-secondary)',
-                  fontWeight: isProjectSubActive(currentPage) ? 600 : 500,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  minWidth: 0,
-                  transition: 'all 0.15s ease',
-                }}
-                title={isCollapsed ? 'Project' : undefined}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: isCollapsed ? '0' : '0.85rem', minWidth: 0, flex: 1, textAlign: 'left' }}>
-                  <FolderKanban size={19} color={isProjectSubActive(currentPage) ? '#818cf8' : 'currentColor'} style={{ flexShrink: 0 }} />
-                  {!isCollapsed && (
-                    <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                      Project
-                    </span>
-                  )}
-                </div>
-                {!isCollapsed && (isProjectExpanded ? <ChevronUp size={16} style={{ flexShrink: 0 }} /> : <ChevronDown size={16} style={{ flexShrink: 0 }} />)}
-              </button>
+          {/* Project Workspace */}
+          {renderButton('project/workspace', 'Project Workspace', FolderKanban, isProjectSubActive(currentPage), !isEmployee && (hasPermission('projects', 'view') || isAdminOrManager))}
 
-              {!isCollapsed && isProjectExpanded && (
-                <div style={{ padding: '0.2rem 0 0.35rem 0.5rem', margin: '0.15rem 0 0.35rem 0.75rem', borderLeft: '1.5px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                  {filteredProjectSubmenu.map((subItem) => (
-                    <button
-                      key={subItem.id}
-                      onClick={() => handleNav(subItem.id)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.65rem',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: subItem.isActive ? '#4f46e5' : 'transparent',
-                        color: subItem.isActive ? '#ffffff' : 'var(--text-secondary)',
-                        fontWeight: subItem.isActive ? 600 : 500,
-                        fontSize: '0.84rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        minWidth: 0,
-                        boxShadow: subItem.isActive ? '0 2px 8px rgba(79, 70, 229, 0.35)' : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={subItem.label}
-                    >
-                      <subItem.icon size={15} color={subItem.isActive ? '#ffffff' : 'currentColor'} style={{ flexShrink: 0 }} />
-                      <span
-                        style={{
-                          flex: 1,
-                          textAlign: 'left',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {subItem.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Procurement & Stock Hub (Strictly gated by permissions) */}
+          {renderButton(
+            'procurement',
+            'Procurement & Stock',
+            Package,
+            currentPage === 'procurement',
+            isMaterialEnabled && (
+              hasPermission('stock', 'view') ||
+              hasPermission('grn', 'view') ||
+              hasPermission('purchase_orders', 'view') ||
+              hasPermission('material_issue', 'view')
+            )
           )}
 
           {/* Master Menu (Accordion) */}

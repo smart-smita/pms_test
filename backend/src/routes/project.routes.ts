@@ -19,5 +19,7 @@ router.delete('/:id', requirePermission('projects', 'delete'), controller.delete
 
 const wbsController = new WbsController();
 router.get('/:projectId/wbs', requirePermission('projects', 'view'), wbsController.getProjectWbs);
+router.post('/wbs', requirePermission('projects', 'create'), wbsController.addProjectWbs);
+router.post('/:projectId/wbs', requirePermission('projects', 'create'), wbsController.addProjectWbs);
 
 export default router;
