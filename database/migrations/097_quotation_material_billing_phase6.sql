@@ -19,6 +19,19 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 
 -- 2. Add tracking & procurement cost separation columns to invoice_items
+SET @exist_item_type := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS 
+  WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'invoice_items' 
+    AND COLUMN_NAME = 'item_type'
+);
+
+SET @sql := IF(@exist_item_type = 0,
+  'ALTER TABLE invoice_items ADD COLUMN item_type ENUM(\'labour\', \'material\', \'other\') NOT NULL DEFAULT \'other\' AFTER is_extra_work',
+  'SELECT "Column item_type already exists on invoice_items"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 SET @exist_qwm_id := (
   SELECT COUNT(*) FROM information_schema.COLUMNS 
   WHERE TABLE_SCHEMA = DATABASE() 
