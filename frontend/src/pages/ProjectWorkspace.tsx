@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../context/WorkCategoryContext';
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../services/api';
 import { Project, Project360Data, Customer } from '../types';
@@ -31,6 +32,16 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({
 }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(propProjectId || null);
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'list');
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
+
+  useEffect(() => {
+    if (!isMaterialEnabled && activeTab === 'materials') {
+      setActiveTab('manage-work');
+    }
+    if (!isLabourEnabled && (activeTab === 'timesheets' || activeTab === 'attendance' || activeTab === 'labour-work')) {
+      setActiveTab('manage-work');
+    }
+  }, [isMaterialEnabled, isLabourEnabled, activeTab]);
   const [projectData, setProjectData] = useState<Project360Data | null>(null);
   const [isLoadingHeader, setIsLoadingHeader] = useState(false);
 

@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../../context/WorkCategoryContext';
 import React, { useRef, useEffect, useState } from 'react';
 import { 
   Home, Layers, CheckSquare, Package, MapPin, Clock, 
@@ -38,6 +39,7 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -132,7 +134,11 @@ export const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
           minWidth: 0,
         }}
       >
-        {ALL_WORKSPACE_TABS.map((tab) => {
+        {ALL_WORKSPACE_TABS.filter((tab) => {
+          if (tab.id === "materials") return isMaterialEnabled;
+          if (tab.id === "timesheets" || tab.id === "attendance" || tab.id === "labour-work") return isLabourEnabled;
+          return true;
+        }).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 

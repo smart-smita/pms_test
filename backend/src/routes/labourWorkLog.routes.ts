@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { LabourWorkLogController } from '../controllers/labourWorkLog.controller';
 import { authenticateJwt } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission.middleware';
+import { requireWorkCategory } from '../middleware/workCategory.middleware';
 
 const router = Router();
 const controller = new LabourWorkLogController();
 
 router.use(authenticateJwt);
+router.use(requireWorkCategory('labour'));
 
 router.get('/', requirePermission('labour_work_logs', 'view'), controller.getAll);
 router.get('/:id', requirePermission('labour_work_logs', 'view'), controller.getById);

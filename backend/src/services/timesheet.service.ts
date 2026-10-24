@@ -270,19 +270,21 @@ export class TimesheetService {
       if (pmId) {
         const qty = data.material_qty || 1;
         const rate = data.material_rate || 0;
-        const cost = qty * rate;
         
-        const query = `
-          INSERT INTO project_material_logs (project_material_id, project_id, wbs_id, material_id, action_type, quantity, unit_rate, cost, log_date, notes)
-          VALUES (?, ?, ?, ?, 'used', ?, ?, ?, ?, ?)
-        `;
-        const [res] = await dbPool.execute(query, [
-          pmId, projectId, wbsId || null, data.material_id, qty, rate, cost, data.log_date, data.comment || ''
-        ]);
-        materialLogId = (res as any).insertId;
-        
-        // Also update project_materials used_quantity and actual_cost
-        await dbPool.execute(`UPDATE project_materials SET used_quantity = used_quantity + ?, actual_cost = actual_cost + ?, remaining_quantity = GREATEST(0, (CASE WHEN received_quantity > 0 THEN received_quantity ELSE planned_quantity END) - (used_quantity + ?)), remaining_cost = remaining_quantity * unit_rate WHERE id = ?`, [qty, cost, qty, pmId]);
+        // Centralized single service consumption: routes strictly via ProcurementService.recordConsumption()
+        const { ProcurementService } = await import('./procurement.service');
+        const procSvc = new ProcurementService();
+        const postRes = await procSvc.recordConsumption({
+          project_id: projectId,
+          wbs_id: wbsId || 0,
+          task_id: finalTaskId || null,
+          material_id: Number(data.material_id),
+          quantity: Number(qty),
+          notes: data.comment || `Timesheet consumption by employee #${data.employee_id || 'N/A'}`,
+          used_date: data.log_date,
+          user_id: data.employee_id || 1,
+        });
+        materialLogId = postRes.ledger_id;
       }
     }
 

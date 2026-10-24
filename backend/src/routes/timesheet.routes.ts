@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { TimesheetController } from '../controllers/timesheet.controller';
 import { authenticateJwt } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission.middleware';
+import { requireWorkCategory } from '../middleware/workCategory.middleware';
 
 const router = Router();
 const controller = new TimesheetController();
 
 router.use(authenticateJwt);
+router.use(requireWorkCategory('labour'));
 
 router.get('/', requirePermission('timesheets', 'view'), controller.getAll);
 router.get('/task/:taskId/history', requirePermission('timesheets', 'view'), controller.getTaskHistory);

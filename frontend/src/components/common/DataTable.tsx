@@ -21,6 +21,8 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   exportFilename?: string;
   actions?: (row: T) => React.ReactNode;
+  toolbarActions?: React.ReactNode;
+  hideExport?: boolean;
   isLoading?: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -57,11 +59,13 @@ export function DataTable<T extends Record<string, any>>({
   searchPlaceholder = 'Search records...',
   exportFilename = 'report_export.csv',
   actions,
+  toolbarActions,
+  hideExport = false,
   isLoading = false,
   error = null,
   onRetry,
   defaultPageSize = 15,
-  pageSizeOptions = [10, 15, 25, 50, 100],
+  pageSizeOptions = [15, 30, 50, 100, -1],
   keyField,
   keyExtractor,
   emptyMessage,
@@ -132,13 +136,15 @@ export function DataTable<T extends Record<string, any>>({
 
   // Pagination bounds
   const totalRecords = sortedData.length;
-  const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+  const isAll = pageSize === -1;
+  const totalPages = isAll ? 1 : Math.ceil(totalRecords / pageSize) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
 
   const paginatedData = useMemo(() => {
+    if (isAll) return sortedData;
     const startIdx = (safeCurrentPage - 1) * pageSize;
     return sortedData.slice(startIdx, startIdx + pageSize);
-  }, [sortedData, safeCurrentPage, pageSize]);
+  }, [sortedData, safeCurrentPage, pageSize, isAll]);
 
   const handleSort = (idx: number) => {
     const col = columns[idx];
@@ -237,52 +243,59 @@ export function DataTable<T extends Record<string, any>>({
     });
   };
 
-  const fromRecord = totalRecords === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
-  const toRecord = Math.min(safeCurrentPage * pageSize, totalRecords);
+  const fromRecord = totalRecords === 0 ? 0 : isAll ? 1 : (safeCurrentPage - 1) * pageSize + 1;
+  const toRecord = isAll ? totalRecords : Math.min(safeCurrentPage * pageSize, totalRecords);
 
   return (
     <div className="datatable-wrapper">
       {/* Header Toolbar */}
       <div className="datatable-toolbar">
-        {/* Search */}
-        <div className="datatable-search-box">
-          <Search size={16} className="datatable-search-icon" />
-          <input
-            type="text"
-            className="form-input datatable-search-input"
-            placeholder={searchPlaceholder}
-            value={searchTerm}
+        {/* Page Size Selector on left */}
+        <div className="datatable-page-size">
+          <span className="datatable-show-label">Show</span>
+          <select
+            className="form-select datatable-page-select"
+            value={pageSize}
             onChange={(e) => {
-              setSearchTerm(e.target.value);
+              setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-          />
+          >
+            {pageSizeOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt === -1 ? 'All' : opt}
+              </option>
+            ))}
+          </select>
+          <span className="datatable-entries-label">entries</span>
         </div>
 
-        {/* Page Size Selector & Export */}
+        {/* Toolbar Right: Custom Actions, Search & Export */}
         <div className="datatable-toolbar-right">
-          <div className="datatable-page-size">
-            <span className="datatable-show-label">Show:</span>
-            <select
-              className="form-select datatable-page-select"
-              value={pageSize}
+          {toolbarActions}
+          <div className="datatable-search-box">
+            <Search size={16} className="datatable-search-icon" />
+            <input
+              type="text"
+              className="form-input datatable-search-input"
+              placeholder={searchPlaceholder}
+              value={searchTerm}
               onChange={(e) => {
-                setPageSize(Number(e.target.value));
+                setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-            <span className="datatable-entries-label">entries</span>
+            />
           </div>
 
-          <Button variant="secondary" onClick={handleExportCSV} style={{ height: '36px', padding: '0 0.85rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            <Download size={15} /> <span className="datatable-export-label">Export CSV</span>
-          </Button>
+          {!hideExport && (
+            <Button
+              variant="secondary"
+              onClick={handleExportCSV}
+              style={{ height: '36px', padding: '0 0.85rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              <Download size={15} /> <span className="datatable-export-label">Export CSV</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -393,9 +406,19 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Footer: Records Count + Pagination */}
       <div className="datatable-footer">
-        {/* Records count — always visible */}
+        {/* Records count — accurate count with filtered total if active */}
         <div className="datatable-info">
-          Showing <strong>{fromRecord}</strong> to <strong>{toRecord}</strong> of <strong>{totalRecords}</strong> records
+          {searchTerm.trim() ? (
+            <span>
+              Showing <strong>{fromRecord}</strong> to <strong>{toRecord}</strong> of{' '}
+              <strong>{totalRecords}</strong> filtered entries (from <strong>{data.length}</strong> total entries)
+            </span>
+          ) : (
+            <span>
+              Showing <strong>{fromRecord}</strong> to <strong>{toRecord}</strong> of{' '}
+              <strong>{totalRecords}</strong> entries
+            </span>
+          )}
         </div>
 
         {/* Pagination controls */}

@@ -436,16 +436,17 @@ export class MaterialRepository {
     const existing = await this.getProjectMaterialById(id);
     if (!existing) return false;
 
+    // RULE: Editable stock fields (received_quantity, used_quantity, remaining_quantity, extra_quantity)
+    // are REMOVED from manual PUT edits. They are strictly derived values refreshed by StockService.
     const plannedQty = data.planned_quantity !== undefined ? Number(data.planned_quantity) : Number(existing.planned_quantity);
-    const receivedQty = data.received_quantity !== undefined ? Number(data.received_quantity) : Number(existing.received_quantity);
-    const usedQty = data.used_quantity !== undefined ? Number(data.used_quantity) : Number(existing.used_quantity);
     const rate = data.unit_rate !== undefined ? Number(data.unit_rate) : Number(existing.unit_rate);
+    const receivedQty = Number(existing.received_quantity || 0);
+    const usedQty = Number(existing.used_quantity || 0);
 
     const plannedCost = plannedQty * rate;
     const actualCost = usedQty * rate;
     const extraQty = Math.max(0, usedQty - plannedQty);
-    const baseQty = receivedQty > 0 ? receivedQty : plannedQty;
-    const remainingQty = Math.max(0, baseQty - usedQty);
+    const remainingQty = Math.max(0, receivedQty - usedQty);
     const remainingCost = remainingQty * rate;
 
     const [res] = await dbPool.query<ResultSetHeader>(
@@ -454,8 +455,6 @@ export class MaterialRepository {
          unit = COALESCE(?, unit),
          unit_rate = ?,
          planned_quantity = ?,
-         received_quantity = ?,
-         used_quantity = ?,
          remaining_quantity = ?,
          extra_quantity = ?,
          planned_cost = ?,
@@ -468,8 +467,6 @@ export class MaterialRepository {
         data.unit !== undefined ? data.unit : existing.unit,
         rate,
         plannedQty,
-        receivedQty,
-        usedQty,
         remainingQty,
         extraQty,
         plannedCost,
@@ -483,6 +480,22 @@ export class MaterialRepository {
   }
 
   async deleteProjectMaterial(id: number): Promise<boolean> {
+    const existing = await this.getProjectMaterialById(id);
+    if (!existing) return false;
+
+    // RULE: Never hard-delete a record that has ledger rows or invoice links
+    if (existing.material_id) {
+      const [ledgerRows]: any = await dbPool.query(
+        `SELECT ledger_id FROM stock_ledger 
+         WHERE project_id = ? AND wbs_id = ? AND material_id = ? 
+         LIMIT 1`,
+        [existing.project_id, existing.wbs_id, existing.material_id]
+      );
+      if (ledgerRows.length > 0) {
+        throw new Error(`Cannot delete project material: active stock ledger transactions exist for this item.`);
+      }
+    }
+
     const [res] = await dbPool.query<ResultSetHeader>(`DELETE FROM project_materials WHERE id = ?`, [id]);
     return res.affectedRows > 0;
   }
@@ -501,9 +514,45 @@ export class MaterialRepository {
     if (qty <= 0) throw new Error('Quantity must be greater than zero');
 
     const rate = data.unit_rate !== undefined ? Number(data.unit_rate) : Number(existing.unit_rate);
-    const cost = qty * rate;
     const logDate = data.log_date || new Date().toISOString().split('T')[0];
 
+    // ROUTE TO STOCKSERVICE: Enforce single stock mechanism
+    if (existing.material_id) {
+      const { StockService } = await import('../services/stock.service');
+      const stockSvc = new StockService();
+
+      if (data.action_type === 'received') {
+        await stockSvc.post({
+          material_id: existing.material_id,
+          store_id: 1, // default store
+          txn_type: 'grn_receipt',
+          qty_in: qty,
+          qty_out: 0,
+          rate: rate,
+          txn_date: logDate,
+          project_id: existing.project_id,
+          wbs_id: existing.wbs_id,
+          remarks: data.notes || `Direct receipt logged for project #${existing.project_id}`,
+        });
+      } else {
+        // Enforces non-negative stock check with HTTP 409
+        await stockSvc.post({
+          material_id: existing.material_id,
+          store_id: 1,
+          txn_type: 'issue',
+          qty_in: 0,
+          qty_out: qty,
+          rate: rate,
+          txn_date: logDate,
+          project_id: existing.project_id,
+          wbs_id: existing.wbs_id,
+          remarks: data.notes || `Direct usage logged for project #${existing.project_id}`,
+        });
+      }
+      return true;
+    }
+
+    // Fallback if material_id was null (unlinked material)
     let receivedQty = Number(existing.received_quantity);
     let usedQty = Number(existing.used_quantity);
     const plannedQty = Number(existing.planned_quantity);
@@ -520,42 +569,20 @@ export class MaterialRepository {
     const actualCost = usedQty * rate;
     const remainingCost = remainingQty * rate;
 
-    const conn = await dbPool.getConnection();
-    try {
-      await conn.beginTransaction();
+    await dbPool.query(
+      `UPDATE project_materials SET
+         unit_rate = ?,
+         received_quantity = ?,
+         used_quantity = ?,
+         remaining_quantity = ?,
+         extra_quantity = ?,
+         actual_cost = ?,
+         remaining_cost = ?
+       WHERE id = ?`,
+      [rate, receivedQty, usedQty, remainingQty, extraQty, actualCost, remainingCost, id]
+    );
 
-      await conn.query(
-        `UPDATE project_materials SET
-           unit_rate = ?,
-           received_quantity = ?,
-           used_quantity = ?,
-           remaining_quantity = ?,
-           extra_quantity = ?,
-           actual_cost = ?,
-           remaining_cost = ?
-         WHERE id = ?`,
-        [rate, receivedQty, usedQty, remainingQty, extraQty, actualCost, remainingCost, id]
-      );
-
-      await conn.query(
-        `INSERT INTO project_material_logs (
-           project_material_id, project_id, wbs_id, material_id,
-           action_type, quantity, unit_rate, cost, log_date, notes
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id, existing.project_id, existing.wbs_id, existing.material_id || null,
-          data.action_type, qty, rate, cost, logDate, data.notes || null
-        ]
-      );
-
-      await conn.commit();
-      return true;
-    } catch (e) {
-      await conn.rollback();
-      throw e;
-    } finally {
-      conn.release();
-    }
+    return true;
   }
 
   async getProjectMaterialLogs(projectMaterialId: number): Promise<any[]> {

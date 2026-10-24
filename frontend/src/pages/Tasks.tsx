@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../context/WorkCategoryContext';
 import React, { useEffect, useState } from 'react';
 import { DataTable, Column } from '../components/common/DataTable';
 import { Modal } from '../components/common/Modal';
@@ -10,11 +11,12 @@ import { apiRequest, parseApiErrors, apiService } from '../services/api';
 import { Task, Project, Employee } from '../types';
 import { showSuccess, showError, showWarning } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw, Package, AlertTriangle } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { LogHistoryModal } from '../components/common/LogHistoryModal';
 import { LabourCombobox } from '../components/common/LabourCombobox';
+import { EmployeeMultiSelect } from '../components/common/EmployeeMultiSelect';
 
 const getTodayStr = () => {
   const now = new Date();
@@ -35,6 +37,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [labours, setLabours] = useState<any[]>([]);
   const [materialsMaster, setMaterialsMaster] = useState<any[]>([]);
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const [isLoading, setIsLoading] = useState(true);
 
   // Cascading Filter State
@@ -73,6 +76,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   const [longitude, setLongitude] = useState('');
   const [dependencies, setDependencies] = useState<{predecessor_task_id: number, dependency_type: string, lag_days?: number}[]>([]);
   const [usedMaterials, setUsedMaterials] = useState<any[]>([]);
+  const [editingMaterialIndex, setEditingMaterialIndex] = useState<number | null>(null);
   const [materialForm, setMaterialForm] = useState({
     material_id: '',
     material_name: '',
@@ -82,6 +86,19 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     used_date: new Date().toISOString().split('T')[0],
     notes: '',
   });
+
+  const resetMaterialForm = () => {
+    setMaterialForm({
+      material_id: '',
+      material_name: '',
+      quantity: '',
+      unit: 'Nos',
+      rate: '',
+      used_date: startDate || new Date().toISOString().split('T')[0],
+      notes: '',
+    });
+    setEditingMaterialIndex(null);
+  };
 
   // Auto-calculate Worker Count based on allocated labour workers count
   useEffect(() => {
@@ -151,6 +168,27 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Selected project & currency
+  const selectedProject = projects.find(p => Number(p.project_id) === Number(projectId));
+  const currencySymbol = (selectedProject as any)?.currency_symbol || (selectedProject as any)?.symbol || '₹';
+
+  // WBS dependency validation checks
+  const selectedWbs = projectWbs.find(w => Number(w.id) === Number(wbsId) || Number(w.wbs_id) === Number(wbsId));
+  const wbsTotalHours = Number(selectedWbs?.total_hours || selectedWbs?.planned_hours || 0);
+  const wbsBudgetAmount = Number(selectedWbs?.budget_amount || selectedWbs?.planned_cost || 0);
+  const wbsPlannedQty = Number(selectedWbs?.planned_quantity || 0);
+
+  const parsedWorkingHours = Number(workingHours) || 0;
+  const isHoursExceeded = wbsTotalHours > 0 && parsedWorkingHours > wbsTotalHours;
+
+  const totalLabourCost = allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  const totalMaterialCost = usedMaterials.reduce((sum, m) => sum + Number(m.amount || 0), 0);
+  const totalTaskCost = totalLabourCost + totalMaterialCost;
+  const isCostExceeded = wbsBudgetAmount > 0 && totalTaskCost > wbsBudgetAmount;
+
+  const totalMaterialQty = usedMaterials.reduce((sum, m) => sum + Number(m.quantity || 0), 0);
+  const isQtyExceeded = wbsPlannedQty > 0 && totalMaterialQty > wbsPlannedQty;
+
   const fetchData = async () => {
     setIsLoading(true);
     const promises: Promise<any>[] = [
@@ -175,6 +213,16 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Sync propProjectId if provided from tab or routing
+  useEffect(() => {
+    if (propProjectId !== undefined) {
+      setFilterProjectId(propProjectId);
+      if (propProjectId) {
+        setProjectId(propProjectId);
+      }
+    }
+  }, [propProjectId]);
 
   // Cascading Disciplines fetch for top filter
   useEffect(() => {
@@ -212,12 +260,13 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
 
   const openCreateModal = () => {
     setEditingTask(null);
-    setProjectId(projects[0]?.project_id || 0);
+    setProjectId(propProjectId || projects[0]?.project_id || 0);
     setWbsId(0);
     setTaskCode(`TSK-${String(Date.now()).slice(-4)}`);
     setAssignedEmployeeIds(user?.employee_id ? [String(user.employee_id)] : []);
     setAllocations([]);
     setUsedMaterials([]);
+    resetMaterialForm();
     setTaskName('');
     setDescription('');
     setWorkerCount(1);
@@ -243,7 +292,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setProjectId(t.project_id);
     setWbsId(t.wbs_id || 0);
     
-    // Support multiple employees
+    // Support multiple employees (initial fast populate from row)
     if ((t as any).assigned_employees && Array.isArray((t as any).assigned_employees)) {
       setAssignedEmployeeIds((t as any).assigned_employees.map((e: any) => String(e.employee_id)));
     } else if (t.assigned_employee_id) {
@@ -254,6 +303,31 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     
     setAllocations([]);
     setUsedMaterials((t as any).used_materials || []);
+    resetMaterialForm();
+
+    // Fetch fresh complete task details from backend to ensure all assignments and materials are up to date
+    apiRequest<any>(`/tasks/${t.task_id}`).then(res => {
+      if (res.success && res.data) {
+        const fresh = res.data;
+        if (fresh.assigned_employees && Array.isArray(fresh.assigned_employees)) {
+          setAssignedEmployeeIds(fresh.assigned_employees.map((e: any) => String(e.employee_id)));
+        }
+        if (fresh.used_materials && Array.isArray(fresh.used_materials)) {
+          setUsedMaterials(fresh.used_materials);
+        }
+        if (fresh.allocations && Array.isArray(fresh.allocations) && fresh.allocations.length > 0) {
+          setAllocations(fresh.allocations.map((a: any) => ({
+            work_log_id: a.work_log_id,
+            labour_id: a.labour_id || '',
+            work_date: a.work_date ? a.work_date.split('T')[0] : '',
+            amount: a.amount || '',
+            work_description: a.work_description || '',
+            payment_status: a.payment_status?.toLowerCase() || 'pending',
+          })));
+        }
+      }
+    }).catch(console.error);
+
     apiService.get<any[]>(`/tasks/${t.task_id}/allocations`).then(res => {
       if (res.success && res.data) {
         const task = t;
@@ -417,6 +491,53 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     }
   };
 
+  const handleAddMaterial = () => {
+    if (!materialForm.material_name.trim()) {
+      showError('Please select or enter a material name.');
+      return;
+    }
+    const qty = Number(materialForm.quantity || 0);
+    if (qty <= 0) {
+      showError('Please enter a valid material quantity greater than 0.');
+      return;
+    }
+
+    // Material used date validation against task start & target dates
+    if (startDate && materialForm.used_date && materialForm.used_date < startDate) {
+      showError(`Material used date (${materialForm.used_date}) cannot be earlier than task start date (${startDate}).`);
+      return;
+    }
+    if (targetDate && materialForm.used_date && materialForm.used_date > targetDate) {
+      showError(`Material used date (${materialForm.used_date}) cannot be later than task end date (${targetDate}).`);
+      return;
+    }
+
+    const rt = Number(materialForm.rate || 0);
+    const amt = qty * rt;
+    const materialEntry = {
+      material_id: materialForm.material_id ? Number(materialForm.material_id) : undefined,
+      material_name: materialForm.material_name.trim(),
+      used_date: materialForm.used_date,
+      quantity: qty,
+      unit: materialForm.unit || 'Nos',
+      rate: rt,
+      amount: amt,
+      notes: materialForm.notes || '',
+    };
+
+    if (editingMaterialIndex !== null) {
+      const next = [...usedMaterials];
+      next[editingMaterialIndex] = materialEntry;
+      setUsedMaterials(next);
+      showSuccess('Material updated successfully.');
+    } else {
+      setUsedMaterials([...usedMaterials, materialEntry]);
+      showSuccess('Material added.');
+    }
+
+    resetMaterialForm();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors({});
@@ -449,19 +570,26 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       return;
     }
 
-    if (assignedEmployeeIds.length === 0 && allocations.length === 0) {
+    const sanitizedEmployeeIds = assignedEmployeeIds
+      .map(id => parseInt(id, 10))
+      .filter(id => !isNaN(id) && id > 0);
+
+    if (sanitizedEmployeeIds.length === 0 && allocations.length === 0) {
       setFormErrors({ assigned_employee_ids: 'Please select an employee or add a labour allocation.' });
       return;
     }
 
     setIsSubmitting(true);
+    const parsedWorkerCount = typeof workerCount === 'string' ? parseInt(workerCount, 10) || 1 : workerCount;
+    const finalWorkerCount = Math.max(parsedWorkerCount, sanitizedEmployeeIds.length, 1);
+
     const payload: any = {
       project_id: projectId,
       wbs_id: wbsId,
       task_code: taskCode,
       task_name: taskName,
       description,
-      required_worker_count: typeof workerCount === 'string' ? parseInt(workerCount, 10) || 1 : workerCount,
+      required_worker_count: finalWorkerCount,
       estimated_hours: typeof workingHours === 'string' ? parseFloat(workingHours) || 0 : workingHours,
       start_date: startDate || undefined,
       start_time: startTime || undefined,
@@ -470,7 +598,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       status,
       priority,
       progress_percentage: progressPercentage,
-      assigned_employee_ids: assignedEmployeeIds.map(Number),
+      assigned_employee_ids: sanitizedEmployeeIds,
       allocations: allocations.map(a => ({
         ...a,
         labour_id: typeof a.labour_id === 'string' ? parseInt(a.labour_id, 10) || 0 : a.labour_id,
@@ -570,7 +698,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     { header: 'Project', accessor: (r) => r.project_name || '-', sortKey: 'project_name' },
     { header: 'WBS / Discipline', accessor: (r) => r.wbs_name || '-', sortKey: 'wbs_name' },
     { header: 'Task Name', accessor: 'task_name', sortKey: 'task_name' },
-    ...(isAdmin
+    ...((isAdmin || canManage)
       ? [
           {
             header: 'Employee Name',
@@ -588,7 +716,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
           },
         ]
       : []),
-    ...(isAdmin
+    ...((isAdmin || canManage)
       ? [
           {
             header: 'Assigned Labours',
@@ -672,38 +800,18 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">{!isAdmin ? 'My Tasks' : 'Task Management'}</h1>
+          <h1 className="page-title">{!(isAdmin || canManage) ? 'My Tasks' : 'Task Management'}</h1>
           <p className="page-subtitle">
-            {!isAdmin
+            {!(isAdmin || canManage)
               ? 'View your assigned tasks and working schedules'
               : 'Manage tasks, assign responsible employees, and track complete timesheet log history'}
           </p>
         </div>
-        {isAdmin && (
+        {(isAdmin || canManage) && (
           <div className="page-actions">
             <button
               className="btn btn-primary"
-              onClick={() => {
-                setEditingTask(null);
-                setTaskCode('');
-                setTaskName('');
-                setDescription('');
-                setWorkerCount(1);
-                setWorkingHours(8);
-                setStartDate('');
-                setStartTime('');
-                setTargetDate('');
-                setTargetTime('');
-                setTaskAddress('');
-                setLatitude('');
-                setLongitude('');
-                setPriority('medium');
-                setStatus('pending');
-                setProgressPercentage(0);
-                setAllocations([]);
-                setDependencies([]);
-                setIsModalOpen(true);
-              }}
+              onClick={openCreateModal}
             >
               <Plus size={18} /> Create Task
             </button>
@@ -760,7 +868,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
             <Button
               variant="secondary"
               onClick={() => {
-                setFilterProjectId(0);
+                setFilterProjectId(propProjectId || 0);
                 setFilterWbsId(0);
               }}
               style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
@@ -806,7 +914,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 </Button>
               )}
 
-              {isAdmin && row.status !== 'completed' && row.status !== 'cancelled' && (
+              {(isAdmin || canManage) && row.status !== 'completed' && row.status !== 'cancelled' && (
                 <Button variant="secondary" onClick={() => openEditModal(row)} style={{ padding: '0.35rem 0.6rem' }}>
                   <Edit size={14} /> Edit
                 </Button>
@@ -818,7 +926,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 </Button>
               )}
 
-              {isAdmin && row.status !== 'completed' && row.status !== 'cancelled' && (
+              {(isAdmin || canManage) && row.status !== 'completed' && row.status !== 'cancelled' && (
                 <Button
                   variant="secondary"
                   onClick={() => handleDelete(row.task_id, row.task_name)}
@@ -1082,53 +1190,57 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Assignment</h3>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                Assign Employee(s) (Task Manager / Lead)
-              </label>
-              <select
-                multiple
-                value={assignedEmployeeIds}
-                onChange={(e) => {
-                  setAssignedEmployeeIds(Array.from(e.target.selectedOptions, option => option.value));
-                  setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
-                }}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '6px',
-                  border: `1px solid ${formErrors.assigned_employee_ids ? 'var(--error-color)' : 'var(--border-color)'}`,
-                  background: 'var(--input-bg)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.9rem',
-                  minHeight: '120px'
-                }}
-              >
-                {employees.map((emp) => (
-                  <option key={emp.employee_id} value={String(emp.employee_id)}>
-                    {emp.name} ({emp.role_name || emp.employee_code || 'Employee'})
-                  </option>
-                ))}
-              </select>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Hold Cmd/Ctrl to select multiple.</span>
-              {formErrors.assigned_employee_ids && <div style={{ color: 'var(--error-color)', fontSize: '0.8rem', marginTop: '0.25rem' }}>{formErrors.assigned_employee_ids}</div>}
-            </div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Assignment</h3>
+            <EmployeeMultiSelect
+              employees={employees}
+              selectedIds={assignedEmployeeIds}
+              onChange={(ids) => {
+                setAssignedEmployeeIds(ids);
+                setFormErrors((prev) => ({ ...prev, assigned_employee_ids: '' }));
+              }}
+              error={formErrors.assigned_employee_ids}
+            />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-            <FormInput
-              label="Planned Hours"
-              type="number"
-              step="any"
-              min="0"
-              value={workingHours}
-              onChange={(e) => {
-                setWorkingHours(e.target.value === '' ? '' : parseFloat(e.target.value));
-                setFormErrors((prev) => ({ ...prev, estimated_hours: '' }));
-              }}
-              error={formErrors.estimated_hours}
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div>
+              <FormInput
+                label="Planned Hours"
+                type="number"
+                step="any"
+                min="0"
+                value={workingHours}
+                onChange={(e) => {
+                  setWorkingHours(e.target.value === '' ? '' : parseFloat(e.target.value));
+                  setFormErrors((prev) => ({ ...prev, estimated_hours: '' }));
+                }}
+                error={formErrors.estimated_hours}
+              />
+              {isHoursExceeded && (
+                <div style={{
+                  marginTop: '0.35rem',
+                  padding: '0.4rem 0.6rem',
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: '6px',
+                  color: '#b45309',
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                  <span>
+                    <strong>Notice:</strong> Task hours ({parsedWorkingHours} hrs) exceed parent WBS allocated hours ({wbsTotalHours} hrs).
+                  </span>
+                </div>
+              )}
+              {wbsTotalHours > 0 && !isHoursExceeded && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Parent WBS allocation: {wbsTotalHours} hrs
+                </div>
+              )}
+            </div>
             <FormInput
               label="Actual Hours"
               type="number"
@@ -1144,6 +1256,27 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
               disabled
             />
           </div>
+
+          {/* WBS Budget / Cost Warning */}
+          {isCostExceeded && (
+            <div style={{
+              marginBottom: '1.25rem',
+              padding: '0.55rem 0.85rem',
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '6px',
+              color: '#b45309',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem'
+            }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              <span>
+                <strong>Cost Exceeded:</strong> Total task cost ({currencySymbol}{totalTaskCost.toFixed(2)}) exceeds parent WBS budget ({currencySymbol}{wbsBudgetAmount.toFixed(2)}).
+              </span>
+            </div>
+          )}
 
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
             <label className="form-label">Description</label>
@@ -1231,10 +1364,10 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 </div>
               )}
 
-              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
-                <div className="grid-3-col" style={{ gap: '1rem' }}>
+              <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Work Date <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Work Date <span style={{ color: '#ef4444' }}>*</span></label>
                     <input
                       type="date"
                       className="form-input"
@@ -1243,11 +1376,11 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       max={targetDate}
                       disabled={!startDate || !targetDate}
                       onChange={(e) => setAllocationForm({ ...allocationForm, work_date: e.target.value })}
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     />
                   </div>
-                  <div style={{ flex: 1.5, minWidth: '220px', position: 'relative' }}>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Select Labour / Contractor <span style={{ color: '#ef4444' }}>*</span></label>
+                  <div style={{ minWidth: '200px' }}>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Select Labour / Contractor <span style={{ color: '#ef4444' }}>*</span></label>
                     <LabourCombobox
                       selectedLabourId={allocationForm.labour_id}
                       labours={labours}
@@ -1257,7 +1390,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                     />
                   </div>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Amount (₹) <span style={{ color: '#ef4444' }}>*</span></label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Amount ({currencySymbol}) <span style={{ color: '#ef4444' }}>*</span></label>
                     <input
                       type="number"
                       step="any"
@@ -1267,57 +1400,65 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       disabled={!startDate || !targetDate}
                       onChange={(e) => setAllocationForm({ ...allocationForm, amount: e.target.value })}
                       placeholder="Enter amount..."
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     />
                   </div>
-                </div>
-
-                <div className="grid-2-col" style={{ gap: '1rem', marginTop: '1rem' }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Payment Status</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Payment Status</label>
                     <select
                       className="form-input"
                       value={allocationForm.payment_status}
                       disabled={!startDate || !targetDate}
                       onChange={(e) => setAllocationForm({ ...allocationForm, payment_status: e.target.value })}
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     >
                       <option value="paid">Paid</option>
                       <option value="pending">Pending</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Remarks / Notes</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={allocationForm.work_description}
-                        disabled={!startDate || !targetDate}
-                        onChange={(e) => setAllocationForm({ ...allocationForm, work_description: e.target.value })}
-                        placeholder="Optional work notes / remarks"
-                        style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', flex: 1 }}
-                      />
-                      <Button
-                        type="button"
-                        variant="primary"
-                        disabled={!startDate || !targetDate || !allocationForm.work_date || !allocationForm.labour_id || !allocationForm.amount}
-                        onClick={() => {
-                          if (editingAllocIndex !== null) {
-                            const newAlloc = [...allocations];
-                            newAlloc[editingAllocIndex] = { ...allocations[editingAllocIndex], ...allocationForm };
-                            setAllocations(newAlloc);
-                          } else {
-                            setAllocations([...allocations, { ...allocationForm }]);
-                          }
-                          resetAllocationForm();
-                        }}
-                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', height: '36px', background: editingAllocIndex !== null ? '#f59e0b' : '#a855f7', borderColor: editingAllocIndex !== null ? '#f59e0b' : '#a855f7' }}
-                      >
-                        {editingAllocIndex !== null ? <><Edit size={14} /> Update</> : <><Plus size={14} /> Add Allocation</>}
-                      </Button>
-                    </div>
+                  <div style={{ minWidth: '200px' }}>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Remarks / Notes</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={allocationForm.work_description}
+                      disabled={!startDate || !targetDate}
+                      onChange={(e) => setAllocationForm({ ...allocationForm, work_description: e.target.value })}
+                      placeholder="Optional notes / remarks"
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
+                    />
                   </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px dashed #cbd5e1' }}>
+                  {editingAllocIndex !== null && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={resetAllocationForm}
+                      style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={!startDate || !targetDate || !allocationForm.work_date || !allocationForm.labour_id || !allocationForm.amount}
+                    onClick={() => {
+                      if (editingAllocIndex !== null) {
+                        const newAlloc = [...allocations];
+                        newAlloc[editingAllocIndex] = { ...allocations[editingAllocIndex], ...allocationForm };
+                        setAllocations(newAlloc);
+                      } else {
+                        setAllocations([...allocations, { ...allocationForm }]);
+                      }
+                      resetAllocationForm();
+                    }}
+                    style={{ padding: '0.45rem 1.25rem', fontSize: '0.85rem', background: editingAllocIndex !== null ? '#f59e0b' : '#6366f1', borderColor: editingAllocIndex !== null ? '#f59e0b' : '#6366f1' }}
+                  >
+                    {editingAllocIndex !== null ? <><Edit size={14} /> Update Allocation</> : <><Plus size={14} /> Add Allocation</>}
+                  </Button>
                 </div>
               </div>
 
@@ -1328,7 +1469,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Date</th>
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Labour / Contractor</th>
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Type</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Amount (₹)</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Amount ({currencySymbol})</th>
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Payment Status</th>
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>Remarks</th>
                       <th style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', width: '70px', textAlign: 'center' }}>Action</th>
@@ -1361,7 +1502,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                               )}
                             </td>
                             <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', fontWeight: 500, color: 'var(--text-primary)' }}>
-                              ₹{Number(alloc.amount).toFixed(2)}
+                              {currencySymbol}{Number(alloc.amount).toFixed(2)}
                             </td>
                             <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
                               {alloc.payment_status?.toLowerCase() === 'paid' ? (
@@ -1418,7 +1559,7 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                           Total Summary:
                         </td>
                         <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
-                          ₹{allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0).toFixed(2)}
+                          {currencySymbol}{allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0).toFixed(2)}
                         </td>
                         <td colSpan={3} style={{ padding: '0.75rem' }}>
                           <span style={{ background: '#4f46e5', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem' }}>
@@ -1439,23 +1580,44 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
               <Package size={16} /> Used Materials Allocation (Quantities & Costs to match Quotation)
             </div>
             <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', padding: '1.5rem', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
                 Add used material records for this task with quantity and rate to match against planned quotation materials.
               </p>
 
-              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
-                <div className="grid-3-col" style={{ gap: '1rem', marginBottom: '1rem' }}>
+              {/* WBS Quantity Exceeded Warning */}
+              {isQtyExceeded && (
+                <div style={{
+                  marginBottom: '1rem',
+                  padding: '0.55rem 0.85rem',
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: '6px',
+                  color: '#b45309',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}>
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  <span>
+                    <strong>Quantity Exceeded:</strong> Total material quantity ({totalMaterialQty}) exceeds parent WBS planned quantity ({wbsPlannedQty}).
+                  </span>
+                </div>
+              )}
+
+              <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Material Name / Master</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Material Name / Master <span style={{ color: '#ef4444' }}>*</span></label>
                     <div style={{ position: "relative" }}>
                       <input 
                         type="text" 
                         list="materialsMasterOptions"
                         className="form-input" 
-                        placeholder="Search material or type to add new..." 
+                        placeholder="Search material or type new..." 
                         value={materialForm.material_name} 
                         onChange={(e) => setMaterialForm({ ...materialForm, material_name: e.target.value })} 
-                        style={{ width: "100%", paddingRight: "2rem", padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                        style={{ width: "100%", paddingRight: "2rem", padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                       />
                       <div style={{ position: "absolute", right: "0.5rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -1467,18 +1629,27 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       ))}
                     </datalist>
                   </div>
+
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Used Date</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Used Date</label>
                     <input
                       type="date"
                       className="form-input"
                       value={materialForm.used_date}
+                      min={startDate || undefined}
+                      max={targetDate || undefined}
                       onChange={(e) => setMaterialForm({ ...materialForm, used_date: e.target.value })}
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     />
+                    {startDate && targetDate && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.2rem' }}>
+                        Schedule: {startDate} to {targetDate}
+                      </span>
+                    )}
                   </div>
+
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Quantity</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Quantity <span style={{ color: '#ef4444' }}>*</span></label>
                     <input
                       type="number"
                       step="any"
@@ -1486,26 +1657,25 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       className="form-input"
                       value={materialForm.quantity}
                       onChange={(e) => setMaterialForm({ ...materialForm, quantity: e.target.value })}
-                      placeholder="Qty..."
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      placeholder="e.g. 10"
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     />
                   </div>
-                </div>
 
-                <div className="grid-3-col" style={{ gap: '1rem' }}>
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Unit</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Unit</label>
                     <input
                       type="text"
                       className="form-input"
                       value={materialForm.unit}
                       onChange={(e) => setMaterialForm({ ...materialForm, unit: e.target.value })}
                       placeholder="e.g. Nos, Kg, Bags, Mtr"
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     />
                   </div>
+
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Cost / Rate per Unit (₹)</label>
+                    <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600 }}>Cost / Rate per Unit ({currencySymbol})</label>
                     <input
                       type="number"
                       step="any"
@@ -1513,55 +1683,73 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       className="form-input"
                       value={materialForm.rate}
                       onChange={(e) => setMaterialForm({ ...materialForm, rate: e.target.value })}
-                      placeholder="Rate..."
-                      style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                      placeholder="e.g. 150.00"
+                      style={{ padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                     />
                   </div>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.8rem' }}>Total Amount (₹)</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <input
-                        type="number"
-                        className="form-input"
-                        readOnly
-                        disabled
-                        value={(Number(materialForm.quantity || 0) * Number(materialForm.rate || 0)).toFixed(2)}
-                        style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', flex: 1, background: '#e2e8f0' }}
-                      />
+                </div>
+
+                {/* Calculation Card & Action Row */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  paddingTop: '0.85rem',
+                  borderTop: '1px dashed #cbd5e1'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    background: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px'
+                  }}>
+                    <span style={{ fontSize: '0.85rem', color: '#065f46', fontWeight: 500 }}>
+                      Calculated Total Amount:
+                    </span>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 750, color: '#047857' }}>
+                      {currencySymbol}{(Number(materialForm.quantity || 0) * Number(materialForm.rate || 0)).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    {editingMaterialIndex !== null && (
                       <Button
                         type="button"
-                        variant="primary"
-                        disabled={!materialForm.material_name || !materialForm.quantity}
-                        onClick={() => {
-                          const qty = Number(materialForm.quantity || 0);
-                          const rt = Number(materialForm.rate || 0);
-                          const amt = qty * rt;
-                          setUsedMaterials([
-                            ...usedMaterials,
-                            {
-                              material_name: materialForm.material_name,
-                              used_date: materialForm.used_date,
-                              quantity: qty,
-                              unit: materialForm.unit,
-                              rate: rt,
-                              amount: amt,
-                            }
-                          ]);
-                          setMaterialForm({
-                            material_id: '',
-                            material_name: '',
-                            quantity: '',
-                            unit: 'Nos',
-                            rate: '',
-                            used_date: new Date().toISOString().split('T')[0],
-                            notes: '',
-                          });
-                        }}
-                        style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', height: '36px', background: '#10b981', borderColor: '#10b981' }}
+                        variant="secondary"
+                        onClick={resetMaterialForm}
+                        style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
                       >
-                        <Plus size={14} /> Add Material
+                        Cancel Edit
                       </Button>
-                    </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={handleAddMaterial}
+                      disabled={!materialForm.material_name || !materialForm.quantity}
+                      style={{
+                        padding: '0.55rem 1.25rem',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        background: editingMaterialIndex !== null ? '#2563eb' : '#10b981',
+                        borderColor: editingMaterialIndex !== null ? '#2563eb' : '#10b981',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      {editingMaterialIndex !== null ? (
+                        <><Edit size={16} /> Update Material</>
+                      ) : (
+                        <><Plus size={16} /> Add Material</>
+                      )}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1574,9 +1762,9 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Date</th>
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Material Name</th>
                       <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Quantity & Unit</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Rate (₹)</th>
-                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Total Amount (₹)</th>
-                      <th style={{ padding: '0.75rem', width: '50px', textAlign: 'center' }}>Action</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Rate ({currencySymbol})</th>
+                      <th style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>Total Amount ({currencySymbol})</th>
+                      <th style={{ padding: '0.75rem', width: '85px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1599,23 +1787,48 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                             {m.quantity} {m.unit || 'Nos'}
                           </td>
                           <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
-                            ₹{Number(m.rate || 0).toFixed(2)}
+                            {currencySymbol}{Number(m.rate || 0).toFixed(2)}
                           </td>
                           <td style={{ padding: '0.75rem', borderRight: '1px solid var(--border-color)', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            ₹{Number(m.amount || 0).toFixed(2)}
+                            {currencySymbol}{Number(m.amount || 0).toFixed(2)}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const next = [...usedMaterials];
-                                next.splice(idx, 1);
-                                setUsedMaterials(next);
-                              }}
-                              style={{ background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', padding: '0.3rem', borderRadius: '4px' }}
-                            >
-                              <Trash2 size={12} />
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                title="Edit Material"
+                                onClick={() => {
+                                  setEditingMaterialIndex(idx);
+                                  setMaterialForm({
+                                    material_id: m.material_id ? String(m.material_id) : '',
+                                    material_name: m.material_name || '',
+                                    quantity: String(m.quantity || ''),
+                                    unit: m.unit || 'Nos',
+                                    rate: String(m.rate || ''),
+                                    used_date: m.used_date ? m.used_date.split('T')[0] : (startDate || new Date().toISOString().split('T')[0]),
+                                    notes: m.notes || '',
+                                  });
+                                }}
+                                style={{ background: '#3b82f6', border: 'none', color: 'white', cursor: 'pointer', padding: '0.3rem 0.45rem', borderRadius: '4px', display: 'inline-flex', alignItems: 'center' }}
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete Material"
+                                onClick={() => {
+                                  if (editingMaterialIndex === idx) {
+                                    resetMaterialForm();
+                                  }
+                                  const next = [...usedMaterials];
+                                  next.splice(idx, 1);
+                                  setUsedMaterials(next);
+                                }}
+                                style={{ background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', padding: '0.3rem 0.45rem', borderRadius: '4px', display: 'inline-flex', alignItems: 'center' }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1624,9 +1837,12 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                   {usedMaterials.length > 0 && (
                     <tfoot style={{ background: 'var(--bg-secondary)', fontWeight: 600 }}>
                       <tr>
-                        <td colSpan={4} style={{ padding: '0.75rem', textAlign: 'right' }}>Total Material Cost:</td>
-                        <td style={{ padding: '0.75rem', color: '#10b981' }}>
-                          ₹{usedMaterials.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2)}
+                        <td colSpan={3} style={{ padding: '0.75rem', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                          Total Materials Summary ({usedMaterials.length} items):
+                        </td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right' }}>Total Material Cost:</td>
+                        <td style={{ padding: '0.75rem', color: '#10b981', fontWeight: 700 }}>
+                          {currencySymbol}{usedMaterials.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2)}
                         </td>
                         <td></td>
                       </tr>

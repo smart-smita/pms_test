@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../context/WorkCategoryContext';
 import React, { useEffect, useState } from 'react';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
@@ -18,6 +19,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const { user } = useAuth();
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const isEmployee = user?.role_name === 'Employee';
 
   const [metrics, setMetrics] = useState<any | null>(null);
@@ -412,6 +414,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
 
         {/* Live GPS Attendance */}
+        {isLabourEnabled && (
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>Live GPS Attendance</h3>
@@ -449,6 +452,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Bottom Row Content */}
@@ -589,12 +593,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </div>
               Add Task
             </div>
+            {isLabourEnabled && (
             <div className="quick-action-btn" onClick={() => onNavigate?.('attendance')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '0.75rem', borderRadius: '12px' }}>
                 <MapPin size={20} />
               </div>
               GPS Check-In
             </div>
+            )}
             <div className="quick-action-btn" onClick={() => onNavigate?.('reports')} style={{ cursor: 'pointer' }}>
               <div style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '0.75rem', borderRadius: '12px' }}>
                 <Receipt size={20} />

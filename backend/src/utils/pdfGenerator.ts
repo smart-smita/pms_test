@@ -12,31 +12,61 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
   res.setHeader('Content-Disposition', `attachment; filename="Invoice-${invoice.invoice_number}.pdf"`);
   doc.pipe(res);
 
+  const rawSymbol = (invoice as any).currency_symbol || (invoice as any).symbol || (invoice as any).currency_code || 'INR';
+  // Built-in PDFKit fonts (Helvetica) use WinAnsiEncoding which does not contain '₹' (U+20B9)
+  const currencySymbol = rawSymbol === '₹' ? 'Rs.' : rawSymbol;
+  const invoiceTypeTitle = invoice.invoice_type === 'labour'
+    ? 'LABOUR INVOICE'
+    : (invoice.invoice_type === 'material' ? 'MATERIAL INVOICE' : 'MONTHLY INVOICE');
+
   // ── Header ───────────────────────────────────────────────────────────────
   doc
-    .fontSize(20)
+    .fontSize(18)
     .font('Helvetica-Bold')
-    .text('INVOICE', { align: 'right' })
-    .moveDown();
+    .fillColor('#2563eb')
+    .text(invoiceTypeTitle, { align: 'right' })
+    .moveDown(0.2);
 
-  // Company Information (Placeholder)
   doc
-    .fontSize(10)
+    .fontSize(9)
     .font('Helvetica')
-    .text('PMS Company Ltd.', 50, 50)
-    .text('123 Business Avenue, Suite 100', 50, 65)
-    .text('Dubai, UAE', 50, 80)
-    .text('TRN: 123456789012345', 50, 95)
-    .moveDown();
+    .fillColor('#64748b')
+    .text(`Tax Invoice #${invoice.invoice_number}`, { align: 'right' })
+    .moveDown(0.5);
 
-  // ── Invoice Details ──────────────────────────────────────────────────────
-  const detailsTop = 150;
-  doc.font('Helvetica-Bold').text('Invoice Details', 50, detailsTop);
-  doc.font('Helvetica')
-    .text(`Invoice Number: ${invoice.invoice_number}`, 50, detailsTop + 15)
-    .text(`Invoice Date: ${new Date(invoice.invoice_date).toLocaleDateString()}`, 50, detailsTop + 30)
-    .text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, 50, detailsTop + 45)
-    .text(`Status: ${invoice.status.toUpperCase()}`, 50, detailsTop + 60);
+  // Company Information
+  doc
+    .fillColor('#0f172a')
+    .fontSize(12)
+    .font('Helvetica-Bold')
+    .text('PMS ERP & Construction Ltd.', 50, 50)
+    .fontSize(8.5)
+    .font('Helvetica')
+    .fillColor('#475569')
+    .text('Workforce & Project Management System', 50, 66)
+    .text('Engineering, Infrastructure & Contracting Division', 50, 78)
+    .text('GSTIN / TRN: 27AABCP1234F1Z9', 50, 90);
+
+  doc.moveTo(50, 110).lineTo(550, 110).strokeColor('#e2e8f0').stroke();
+
+  // ── Invoice Details & Bill To ──────────────────────────────────────────────
+  const detailsTop = 122;
+
+  // Left Column: Invoice Meta
+  doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e293b').text('Invoice Metadata', 50, detailsTop);
+  doc.font('Helvetica').fontSize(8.5).fillColor('#334155')
+    .text(`Invoice No: `, 50, detailsTop + 14, { continued: true })
+    .font('Helvetica-Bold').text(invoice.invoice_number)
+    .font('Helvetica')
+    .text(`Date: ${new Date(invoice.invoice_date).toLocaleDateString()}`, 50, detailsTop + 27)
+    .text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, 50, detailsTop + 40)
+    .text(`Billing Period: ${(invoice as any).billing_month || 'Current Schedule'}`, 50, detailsTop + 53)
+    .text(`Invoice Type: `, 50, detailsTop + 66, { continued: true })
+    .font('Helvetica-Bold').text((invoice.invoice_type || 'Combined').toUpperCase())
+    .font('Helvetica')
+    .text(`Status: `, 50, detailsTop + 79, { continued: true })
+    .font('Helvetica-Bold').fillColor(invoice.status === 'paid' ? '#16a34a' : (invoice.status === 'approved' ? '#2563eb' : '#d97706'))
+    .text(invoice.status.toUpperCase());
 
   // ── Bill To ─────────────────────────────────────────────────────────────
   doc.font('Helvetica-Bold').text('Bill To', 300, detailsTop);
@@ -45,55 +75,117 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
     .text(`Project: ${invoice.project_name || `Project #${invoice.project_id}`}`, 300, detailsTop + 30, { width: 220 });
 
   // ── Table Header ────────────────────────────────────────────────────────
-  let tableTop = 270;
+  let tableTop = 230;
   doc
-    .rect(50, tableTop, 500, 20)
-    .fill('#f0f0f0')
+    .rect(50, tableTop, 500, 22)
+    .fill('#f1f5f9')
+    .strokeColor('#cbd5e1')
     .stroke();
-  
+
   doc
-    .fillColor('#000')
+    .fillColor('#1e293b')
     .font('Helvetica-Bold')
-    .text('Description', 60, tableTop + 5)
-    .text('Discipline', 260, tableTop + 5, { width: 100 })
-    .text('Extra Work?', 360, tableTop + 5, { width: 80 })
-    .text('Amount', 450, tableTop + 5, { width: 90, align: 'right' });
+    .fontSize(8.5)
+    .text('#', 55, tableTop + 6, { width: 20 })
+    .text('Description / Task & WBS', 80, tableTop + 6, { width: 220 })
+    .text('Type', 305, tableTop + 6, { width: 55 })
+    .text('Qty / Hrs', 365, tableTop + 6, { width: 45, align: 'right' })
+    .text('Rate', 415, tableTop + 6, { width: 55, align: 'right' })
+    .text('Amount', 475, tableTop + 6, { width: 70, align: 'right' });
 
   // ── Table Content ───────────────────────────────────────────────────────
   doc.font('Helvetica');
   let itemTop = tableTop + 30;
-  const currencySymbol = (invoice as any).currency_symbol || (invoice as any).symbol || '$';
 
   const items: InvoiceItemRow[] = invoice.items || [];
+  let labourSubtotal = 0;
+  let materialSubtotal = 0;
+
   if (items.length === 0) {
     doc.text(`Monthly Billing Schedule #${invoice.schedule_id}`, 60, itemTop);
     const subtotalText = `${currencySymbol} ${Number(invoice.subtotal_amount).toFixed(2)}`;
-    doc.text(subtotalText, 450, itemTop, { width: 90, align: 'right' });
-    itemTop += 20;
+    doc.fillColor('#0f172a').text(subtotalText, 475, itemTop, { width: 70, align: 'right' });
+    itemTop += 22;
   } else {
-    for (const item of items) {
-      // Basic wrapping
-      doc.text(item.description || '', 60, itemTop, { width: 190 });
-      doc.text(item.discipline_name || 'General', 260, itemTop, { width: 100 });
-      doc.text(item.is_extra_work ? 'Yes' : 'No', 360, itemTop, { width: 80 });
-      doc.text(`${currencySymbol} ${Number(item.amount).toFixed(2)}`, 450, itemTop, { width: 90, align: 'right' });
-      itemTop += 25; // Space for potentially wrapped description
-    }
+    items.forEach((item, index) => {
+      if (itemTop > 690) {
+        doc.addPage();
+        tableTop = 40;
+        doc
+          .rect(50, tableTop, 500, 22)
+          .fill('#f1f5f9')
+          .strokeColor('#cbd5e1')
+          .stroke();
+        doc
+          .fillColor('#1e293b')
+          .font('Helvetica-Bold')
+          .fontSize(8.5)
+          .text('#', 55, tableTop + 6, { width: 20 })
+          .text('Description / Task & WBS', 80, tableTop + 6, { width: 220 })
+          .text('Type', 305, tableTop + 6, { width: 55 })
+          .text('Qty / Hrs', 365, tableTop + 6, { width: 45, align: 'right' })
+          .text('Rate', 415, tableTop + 6, { width: 55, align: 'right' })
+          .text('Amount', 475, tableTop + 6, { width: 70, align: 'right' });
+        itemTop = tableTop + 28;
+        doc.font('Helvetica').fontSize(8);
+      }
+
+      const isLabour = (item as any).item_type === 'labour' || item.description.startsWith('Labour:');
+      const isMaterial = (item as any).item_type === 'material' || item.description.startsWith('Material:');
+      const itemAmt = Number(item.amount || 0);
+      if (isLabour) labourSubtotal += itemAmt;
+      if (isMaterial) materialSubtotal += itemAmt;
+
+      const typeLabel = isLabour ? 'LABOUR' : (isMaterial ? 'MATERIAL' : 'GENERAL');
+      const qtyStr = (item as any).quantity ? String(Number((item as any).quantity)) : '-';
+      const rateStr = (item as any).rate ? `${currencySymbol} ${Number((item as any).rate).toFixed(2)}` : '-';
+
+      doc.fillColor('#64748b').text(String(index + 1), 55, itemTop, { width: 20 });
+      doc.fillColor('#0f172a').text(item.description || '', 80, itemTop, { width: 220 });
+      doc.fillColor('#475569').text(typeLabel, 305, itemTop, { width: 55 });
+      doc.text(qtyStr, 365, itemTop, { width: 45, align: 'right' });
+      doc.text(rateStr, 415, itemTop, { width: 55, align: 'right' });
+      doc.fillColor('#0f172a').font('Helvetica-Bold')
+        .text(`${currencySymbol} ${itemAmt.toFixed(2)}`, 475, itemTop, { width: 70, align: 'right' });
+      doc.font('Helvetica');
+
+      // Thin separator line
+      doc.moveTo(50, itemTop + 18).lineTo(550, itemTop + 18).strokeColor('#f1f5f9').stroke();
+      itemTop += 22;
+    });
   }
 
   // ── Totals ──────────────────────────────────────────────────────────────
   let totalTop = itemTop + 30;
-  
+
   doc.moveTo(350, totalTop - 10).lineTo(550, totalTop - 10).stroke();
 
-  const subtotalText = `${currencySymbol} ${Number(invoice.subtotal_amount).toFixed(2)}`;
-  doc.font('Helvetica-Bold').text('Subtotal:', 350, totalTop);
-  doc.font('Helvetica').text(subtotalText, 450, totalTop, { width: 90, align: 'right' });
+  // Category Subtotals if both or either exists
+  if (labourSubtotal > 0 && materialSubtotal > 0) {
+    doc.fontSize(8.5).font('Helvetica').fillColor('#64748b')
+      .text('Labour Subtotal:', 300, totalTop)
+      .text(`${currencySymbol} ${labourSubtotal.toFixed(2)}`, 450, totalTop, { width: 95, align: 'right' });
+    totalTop += 15;
 
+    doc.text('Material Subtotal:', 300, totalTop)
+      .text(`${currencySymbol} ${materialSubtotal.toFixed(2)}`, 450, totalTop, { width: 95, align: 'right' });
+    totalTop += 15;
+  }
+
+  // Gross Subtotal
+  doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e293b')
+    .text('Subtotal:', 300, totalTop)
+    .text(`${currencySymbol} ${Number(invoice.subtotal_amount).toFixed(2)}`, 450, totalTop, { width: 95, align: 'right' });
+  totalTop += 16;
+
+  // Tax breakdown
+  const cgst = Number(invoice.cgst_amount || 0);
+  const sgst = Number(invoice.sgst_amount || 0);
+  const igst = Number(invoice.igst_amount || 0);
   const taxPct = (invoice as any).tax_percentage || 0;
   const taxLabel = (invoice as any).tax_name ? `Tax (${(invoice as any).tax_name}):` : `Tax (${taxPct}%):`;
   const taxText = `${currencySymbol} ${Number(invoice.tax_amount).toFixed(2)}`;
-  
+
   doc.font('Helvetica-Bold').text(taxLabel, 350, totalTop + 20);
   doc.font('Helvetica').text(taxText, 450, totalTop + 20, { width: 90, align: 'right' });
 
@@ -115,13 +207,23 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
     doc.font('Helvetica-Bold').text(balanceText, 450, totalTop + 90, { width: 90, align: 'right' });
   }
 
-  // ── Footer ──────────────────────────────────────────────────────────────
-  doc.fontSize(10)
+  // ── Footer & Bank Details ────────────────────────────────────────────────
+  const footerTop = 720;
+  doc.moveTo(50, footerTop).lineTo(550, footerTop).strokeColor('#e2e8f0').stroke();
+
+  doc.fontSize(8)
     .font('Helvetica')
+    .fillColor('#94a3b8')
     .text(
-      'Thank you for your business. Please remit payment by the due date.',
+      'Payment terms: 30 days net. Please quote the invoice number when making payment.',
       50,
-      700,
+      footerTop + 8,
+      { align: 'center', width: 500 }
+    )
+    .text(
+      'PMS ERP Systems • Generated on ' + new Date().toLocaleString(),
+      50,
+      footerTop + 20,
       { align: 'center', width: 500 }
     );
 
@@ -184,9 +286,10 @@ export const generateQuotationPDF = (quotation: any, res: Response) => {
     .text('Rate', 380, tableTop + 5, { width: 70, align: 'right' })
     .text('Amount', 460, tableTop + 5, { width: 80, align: 'right' });
 
-  const curSym = quotation.currency_symbol || quotation.currency_code || '₹';
+  const rawCurSym = quotation.currency_symbol || quotation.currency_code || 'INR';
+  const curSym = rawCurSym === '₹' ? 'Rs.' : rawCurSym;
   const disciplines = quotation.disciplines || [];
-  
+
   let labourSub = 0;
   let materialSub = 0;
   for (const d of disciplines) {

@@ -11,8 +11,10 @@ export class ProjectService {
   }
 
   async getProjectById(id: number, managerId?: number, employeeId?: number) {
-    const project = await this.projectRepo.findById(id, managerId, employeeId);
+    const project: any = await this.projectRepo.findById(id, managerId, employeeId);
     if (!project) throw new Error('Project not found');
+    const [taxes]: any = await dbPool.execute(`SELECT * FROM project_taxes WHERE project_id = ?`, [id]);
+    project.taxes = taxes || [];
     return project;
   }
 
@@ -98,9 +100,9 @@ export class ProjectService {
       const createdWbsNames = new Set<string>();
 
       for (const wbs of allocations) {
-        const wbsType = (wbs.wbs_type === 'both' || wbs.wbs_type === 'material') ? wbs.wbs_type : 'labour';
-        const isMat = wbsType === 'material';
-        const isBoth = wbsType === 'both';
+        const isMat = wbs.wbs_type === 'material';
+        const isLab = wbs.wbs_type === 'labour';
+        const isBoth = wbs.wbs_type === 'both' || (!isMat && !isLab);
         const normName = (wbs.wbs_name || '').trim().toLowerCase();
         if (normName && createdWbsNames.has(normName)) continue; // prevent duplicate WBS
 
@@ -126,10 +128,10 @@ export class ProjectService {
           if (existMaster.length > 0) {
             wbsId = existMaster[0].id;
           } else {
-            const prefix = isMat ? 'MAT-WBS' : 'LAB-WBS';
+            const prefix = isMat ? 'MAT-WBS' : (isBoth ? 'WBS' : 'LAB-WBS');
             const [masterRes]: any = await connection.execute(
               `INSERT INTO work_breakdown_structures (wbs_code, wbs_name, wbs_type) VALUES (?, ?, ?)`,
-              [`${prefix}-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`, wbs.wbs_name, wbsType]
+              [`${prefix}-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`, wbs.wbs_name, isBoth ? 'both' : (isMat ? 'material' : 'labour')]
             );
             wbsId = masterRes.insertId;
           }
@@ -137,17 +139,21 @@ export class ProjectService {
 
         if (wbsId) {
           if (normName) createdWbsNames.add(normName);
-          const plannedQty = Number(wbs.planned_quantity !== undefined ? wbs.planned_quantity : (isMat ? 0 : wbs.total_hours || 0));
+          const plannedLabCost = isMat ? 0 : Number(wbs.planned_labour_cost !== undefined ? wbs.planned_labour_cost : (isBoth ? (wbs.labour_cost || 0) : (wbs.budget_amount || 0)));
+          const plannedMatCost = isLab ? 0 : Number(wbs.planned_material_cost !== undefined ? wbs.planned_material_cost : (isBoth ? (wbs.material_cost || 0) : (wbs.budget_amount || 0)));
+          const calculatedBudget = plannedLabCost + plannedMatCost;
+          const plannedQty = Number(wbs.planned_quantity !== undefined ? wbs.planned_quantity : (isMat ? 1 : (wbs.total_hours || 1)));
           const rate = Number(wbs.rate || 0);
-          const budget = Number(wbs.budget_amount !== undefined ? wbs.budget_amount : (plannedQty * rate) || 0);
-          const totalHours = (isMat && !isBoth) ? 0 : Number(wbs.total_hours !== undefined ? wbs.total_hours : plannedQty);
-          const plannedLabCost = isMat ? 0 : Number(wbs.planned_labour_cost !== undefined ? wbs.planned_labour_cost : (isBoth ? wbs.labour_cost || 0 : budget));
-          const plannedMatCost = (isMat || isBoth) ? Number(wbs.planned_material_cost !== undefined ? wbs.planned_material_cost : (isBoth ? wbs.material_cost || 0 : budget)) : 0;
+          const budget = Number(wbs.budget_amount !== undefined && wbs.budget_amount > 0 ? wbs.budget_amount : (calculatedBudget > 0 ? calculatedBudget : plannedQty * rate));
+          const totalHours = isMat ? 0 : Number(wbs.total_hours !== undefined ? wbs.total_hours : (isBoth ? (wbs.labour_hours || plannedQty) : plannedQty));
+          const finalWbsType: 'labour' | 'material' | 'both' = (plannedLabCost > 0 && plannedMatCost > 0) ? 'both' : (plannedMatCost > 0 && plannedLabCost === 0 ? 'material' : (wbs.wbs_type || 'both'));
 
           await this.wbsRepo.createProjectWbs(connection, {
             project_id: projectId,
             wbs_id: wbsId,
-            wbs_type: wbsType as 'labour' | 'material',
+            wbs_code: wbs.wbs_code || undefined,
+            wbs_name: wbs.wbs_name || undefined,
+            wbs_type: finalWbsType,
             unit: wbs.unit || (isMat ? 'Nos' : 'hours'),
             planned_quantity: plannedQty,
             rate: rate,
@@ -160,6 +166,26 @@ export class ProjectService {
             end_date: wbs.end_date || undefined,
             note: wbs.note || undefined,
           });
+        }
+      }
+
+      if (data.taxes && Array.isArray(data.taxes)) {
+        for (const tax of data.taxes) {
+          if (!tax.tax_id) continue;
+          await connection.execute(
+            `INSERT INTO project_taxes (project_id, tax_id, tax_name, tax_code, tax_type, tax_percentage, taxable_amount, tax_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              projectId,
+              tax.tax_id,
+              tax.tax_name || 'Tax',
+              tax.tax_code || null,
+              tax.tax_type || 'percentage',
+              Number(tax.tax_percentage || 0),
+              Number(tax.taxable_amount || 0),
+              Number(tax.tax_amount || 0),
+            ]
+          );
         }
       }
 
@@ -186,10 +212,15 @@ export class ProjectService {
       if (data.project_name !== undefined) { fields.push('project_name = ?'); params.push(data.project_name); }
       if (data.customer_id !== undefined) { fields.push('customer_id = ?'); params.push(data.customer_id); }
       if (data.source_quotation_id !== undefined) { fields.push('source_quotation_id = ?'); params.push(data.source_quotation_id); }
+      if (data.quotation_reference !== undefined) { fields.push('quotation_reference = ?'); params.push(data.quotation_reference); }
       if (data.project_type_id !== undefined) { fields.push('project_type_id = ?'); params.push(data.project_type_id); }
       if (data.country_id !== undefined) { fields.push('country_id = ?'); params.push(data.country_id); }
       if (data.community_id !== undefined) { fields.push('community_id = ?'); params.push(data.community_id); }
       if (data.nationality_id !== undefined) { fields.push('nationality_id = ?'); params.push(data.nationality_id); }
+      if (data.currency_id !== undefined) { fields.push('currency_id = ?'); params.push(data.currency_id); }
+      if (data.exchange_rate !== undefined) { fields.push('exchange_rate = ?'); params.push(data.exchange_rate); }
+      if (data.start_date !== undefined) { fields.push('start_date = ?'); params.push(data.start_date); }
+      if (data.end_date !== undefined) { fields.push('end_date = ?'); params.push(data.end_date); }
       if (data.budget_amount !== undefined) { fields.push('budget_amount = ?'); params.push(data.budget_amount); }
       if (data.project_address !== undefined) { fields.push('project_address = ?'); params.push(data.project_address); }
       if (data.client_name !== undefined) { fields.push('client_name = ?'); params.push(data.client_name); }
@@ -212,7 +243,10 @@ export class ProjectService {
           `SELECT id, wbs_id FROM project_wbs WHERE project_id = ? AND deleted_at IS NULL`, [id]
         );
         const existingIds = existingRows.map((r: any) => r.id);
-        const incomingIds = data.wbs_allocations.map((w: any) => w.id).filter(Boolean);
+        const incomingIds = data.wbs_allocations.map((w: any) => {
+          const numId = Number(w.id);
+          return (!isNaN(numId) && numId > 0 && numId < 1000000000000 && existingIds.includes(numId)) ? numId : null;
+        }).filter(Boolean);
 
         // Delete removed allocations
         for (const extId of existingIds) {
@@ -222,19 +256,26 @@ export class ProjectService {
         }
 
         for (const wbs of data.wbs_allocations) {
-          if (wbs.id && wbs.id > 1000000000000) wbs.id = undefined;
+          const numId = Number(wbs.id);
+          const validExistingId = (!isNaN(numId) && numId > 0 && numId < 1000000000000 && existingIds.includes(numId)) ? numId : undefined;
+          
           const isMat = wbs.wbs_type === 'material';
-          const wbsType = isMat ? 'material' : 'labour';
-          const plannedQty = Number(wbs.planned_quantity !== undefined ? wbs.planned_quantity : (isMat ? 0 : wbs.total_hours || 0));
+          const isLab = wbs.wbs_type === 'labour';
+          const isBoth = wbs.wbs_type === 'both' || (!isMat && !isLab);
+          const plannedLabCost = isMat ? 0 : Number(wbs.planned_labour_cost !== undefined ? wbs.planned_labour_cost : (isBoth ? (wbs.labour_cost || 0) : (wbs.budget_amount || 0)));
+          const plannedMatCost = isLab ? 0 : Number(wbs.planned_material_cost !== undefined ? wbs.planned_material_cost : (isBoth ? (wbs.material_cost || 0) : (wbs.budget_amount || 0)));
+          const calculatedBudget = plannedLabCost + plannedMatCost;
+          const plannedQty = Number(wbs.planned_quantity !== undefined ? wbs.planned_quantity : (isMat ? 1 : (wbs.total_hours || 1)));
           const rate = Number(wbs.rate || 0);
-          const budget = Number(wbs.budget_amount !== undefined ? wbs.budget_amount : (plannedQty * rate) || 0);
-          const totalHours = isMat ? 0 : Number(wbs.total_hours !== undefined ? wbs.total_hours : plannedQty);
-          const plannedLabCost = isMat ? 0 : Number(wbs.planned_labour_cost !== undefined ? wbs.planned_labour_cost : budget);
-          const plannedMatCost = isMat ? Number(wbs.planned_material_cost !== undefined ? wbs.planned_material_cost : budget) : 0;
+          const budget = Number(wbs.budget_amount !== undefined && wbs.budget_amount > 0 ? wbs.budget_amount : (calculatedBudget > 0 ? calculatedBudget : plannedQty * rate));
+          const totalHours = isMat ? 0 : Number(wbs.total_hours !== undefined ? wbs.total_hours : (isBoth ? (wbs.labour_hours || plannedQty) : plannedQty));
+          const finalWbsType: 'labour' | 'material' | 'both' = (plannedLabCost > 0 && plannedMatCost > 0) ? 'both' : (plannedMatCost > 0 && plannedLabCost === 0 ? 'material' : (wbs.wbs_type || 'both'));
 
-          if (wbs.id) {
-            await this.wbsRepo.updateProjectWbs(connection, wbs.id, {
-              wbs_type: wbsType,
+          if (validExistingId) {
+            await this.wbsRepo.updateProjectWbs(connection, validExistingId, {
+              wbs_name: wbs.wbs_name || undefined,
+              wbs_code: wbs.wbs_code || undefined,
+              wbs_type: finalWbsType,
               unit: wbs.unit || (isMat ? 'Nos' : 'hours'),
               planned_quantity: plannedQty,
               rate: rate,
@@ -267,10 +308,10 @@ export class ProjectService {
               if (existMaster.length > 0) {
                 wbsId = existMaster[0].id;
               } else {
-                const prefix = isMat ? 'MAT-WBS' : 'LAB-WBS';
+                const prefix = isMat ? 'MAT-WBS' : (isBoth ? 'WBS' : 'LAB-WBS');
                 const [masterRes]: any = await connection.execute(
                   `INSERT INTO work_breakdown_structures (wbs_code, wbs_name, wbs_type) VALUES (?, ?, ?)`,
-                  [`${prefix}-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`, wbs.wbs_name, wbsType]
+                  [`${prefix}-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`, wbs.wbs_name, isBoth ? 'both' : (isMat ? 'material' : 'labour')]
                 );
                 wbsId = masterRes.insertId;
               }
@@ -279,7 +320,9 @@ export class ProjectService {
               await this.wbsRepo.createProjectWbs(connection, {
                 project_id: id,
                 wbs_id: wbsId,
-                wbs_type: wbsType,
+                wbs_code: wbs.wbs_code || undefined,
+                wbs_name: wbs.wbs_name || undefined,
+                wbs_type: finalWbsType,
                 unit: wbs.unit || (isMat ? 'Nos' : 'hours'),
                 planned_quantity: plannedQty,
                 rate: rate,
@@ -293,6 +336,38 @@ export class ProjectService {
               });
             }
           }
+        }
+
+        // Auto-recalculate project budget if total of WBS allocations changed
+        const sumWbsBudget = data.wbs_allocations.reduce((acc: number, w: any) => {
+          const lab = Number(w.planned_labour_cost || 0);
+          const mat = Number(w.planned_material_cost || 0);
+          const b = Number(w.budget_amount || 0);
+          return acc + (b > 0 ? b : (lab + mat));
+        }, 0);
+        if (sumWbsBudget > 0 && (!data.budget_amount || data.budget_amount === 0)) {
+          await connection.execute(`UPDATE projects SET budget_amount = ? WHERE project_id = ?`, [sumWbsBudget, id]);
+        }
+      }
+
+      if (data.taxes && Array.isArray(data.taxes)) {
+        await connection.execute(`DELETE FROM project_taxes WHERE project_id = ?`, [id]);
+        for (const tax of data.taxes) {
+          if (!tax.tax_id) continue;
+          await connection.execute(
+            `INSERT INTO project_taxes (project_id, tax_id, tax_name, tax_code, tax_type, tax_percentage, taxable_amount, tax_amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              tax.tax_id,
+              tax.tax_name || 'Tax',
+              tax.tax_code || null,
+              tax.tax_type || 'percentage',
+              Number(tax.tax_percentage || 0),
+              Number(tax.taxable_amount || 0),
+              Number(tax.tax_amount || 0),
+            ]
+          );
         }
       }
 

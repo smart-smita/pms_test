@@ -23,10 +23,10 @@ import termsTemplateRoutes from './termsTemplate.routes';
 import siteSurveyRoutes from './siteSurvey.routes';
 import planningRoutes from './planning.routes';
 import materialRoutes from './material.routes';
-
+import procurementRoutes from './procurement.routes';
+import settingRoutes from './setting.routes';
 
 const router = Router();
-
 router.use('/auth', authRoutes);
 router.use('/employees', employeeRoutes);
 router.use('/projects', projectRoutes);
@@ -51,6 +51,7 @@ router.use('/terms-templates', termsTemplateRoutes);
 router.use('/site-surveys', siteSurveyRoutes);
 router.use('/materials', materialRoutes);
 router.use('/planning', planningRoutes);
+router.use('/procurement', procurementRoutes);
+router.use('/settings', settingRoutes);
 
 export default router;
-

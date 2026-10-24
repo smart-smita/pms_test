@@ -8,6 +8,6 @@ interface InvoicesTabProps {
 
 export const InvoicesTab: React.FC<InvoicesTabProps> = ({ projectId }) => {
   return (
-    <Invoices projectId={projectId} />
+    <Invoices projectId={projectId} hideHeader={true} />
   );
 };

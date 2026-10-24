@@ -27,10 +27,10 @@ export default defineConfig({
       output: {
         // Split large vendor libraries into separate chunks for better caching
         manualChunks: {
-          'vendor-react':    ['react', 'react-dom'],
-          'vendor-charts':   ['recharts'],
-          'vendor-maps':     ['leaflet', 'react-leaflet'],
-          'vendor-icons':    ['lucide-react'],
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-maps': ['leaflet', 'react-leaflet'],
+          'vendor-icons': ['lucide-react'],
         },
       },
     },

@@ -98,11 +98,41 @@ export class TaskService {
     }
 
     if (usedMaterials.length > 0) {
-      await this.taskRepo.saveTaskUsedMaterials(taskId, data.project_id, data.wbs_id || null, usedMaterials);
+      const { ProcurementService } = await import('./procurement.service');
+      const procSvc = new ProcurementService();
+      for (const m of usedMaterials) {
+        if (m.material_id && Number(m.quantity) > 0) {
+          try {
+            await procSvc.recordConsumption({
+              project_id: data.project_id,
+              wbs_id: data.wbs_id || 0,
+              task_id: taskId,
+              material_id: Number(m.material_id),
+              quantity: Number(m.quantity),
+              notes: m.notes,
+              used_date: m.used_date,
+              user_id: (data as any).created_by || 1,
+            });
+          } catch (e: any) {
+            console.error('Task material consumption failed:', e.message);
+            throw e;
+          }
+        }
+      }
     }
 
     if (dependencies.length > 0) {
       await this.taskRepo.updateDependencies(taskId, dependencies);
+    }
+
+    if ((allocations && allocations.length > 0) || (usedMaterials && usedMaterials.length > 0)) {
+      try {
+        const { InvoiceService } = await import('./invoice.service');
+        const invSvc = new InvoiceService();
+        await invSvc.syncDraftInvoicesForProject(data.project_id, taskId);
+      } catch (e) {
+        console.error('Invoice auto-sync on task creation error:', e);
+      }
     }
 
     return await this.taskRepo.findById(taskId);
@@ -153,10 +183,10 @@ export class TaskService {
 
     const allocations = Array.isArray(data.allocations)
       ? data.allocations.filter((a: any) => a && Number(a.labour_id) > 0).map((a: any) => ({
-          ...a,
-          labour_id: Number(a.labour_id),
-          amount: Number(a.amount) || 0
-        }))
+        ...a,
+        labour_id: Number(a.labour_id),
+        amount: Number(a.amount) || 0
+      }))
       : data.allocations;
 
     const dependencies = data.dependencies;
@@ -178,17 +208,48 @@ export class TaskService {
       await this.taskRepo.assignWorkers(id, assignedEmployeeIds || [], allocations || [], task.project_id, effectiveWbsId);
     }
 
-    if (usedMaterials !== undefined) {
-      await this.taskRepo.saveTaskUsedMaterials(id, task.project_id, task.wbs_id || null, usedMaterials);
+    if (usedMaterials !== undefined && Array.isArray(usedMaterials)) {
+      const { ProcurementService } = await import('./procurement.service');
+      const procSvc = new ProcurementService();
+      for (const m of usedMaterials) {
+        if (!m.id && m.material_id && Number(m.quantity) > 0) {
+          try {
+            await procSvc.recordConsumption({
+              project_id: task.project_id,
+              wbs_id: task.wbs_id || 0,
+              task_id: id,
+              material_id: Number(m.material_id),
+              quantity: Number(m.quantity),
+              notes: m.notes,
+              used_date: m.used_date,
+              user_id: (data as any).updated_by || 1,
+            });
+          } catch (e: any) {
+            console.error('Task update material consumption failed:', e.message);
+            throw e;
+          }
+        }
+      }
     }
 
     if (dependencies !== undefined) {
       await this.taskRepo.updateDependencies(id, dependencies);
     }
-    
+
     // If target date changed, we recalculate dependents.
     if (data.target_date && oldTask && data.target_date !== oldTask.target_date) {
       await this.taskRepo.recalculateDependentTasks(id);
+    }
+
+    // Auto-sync draft invoices when task labour allocations or materials are modified
+    if (allocations !== undefined || usedMaterials !== undefined) {
+      try {
+        const { InvoiceService } = await import('./invoice.service');
+        const invSvc = new InvoiceService();
+        await invSvc.syncDraftInvoicesForProject(task.project_id, id);
+      } catch (e) {
+        console.error('Invoice auto-sync on task update error:', e);
+      }
     }
 
     return await this.taskRepo.findById(id);

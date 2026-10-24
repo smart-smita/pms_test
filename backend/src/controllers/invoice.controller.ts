@@ -89,11 +89,24 @@ export class InvoiceController {
     }
   };
 
+  getProjectCosts = async (req: Request, res: Response) => {
+    try {
+      const projectId = Number(req.params.projectId);
+      if (!projectId || isNaN(projectId)) {
+        return sendError(res, 'Invalid project ID', [], 400);
+      }
+      const data = await this.svc.getProjectCosts(projectId);
+      return sendSuccess(res, 'Project costs retrieved successfully', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
   generateInvoice = async (req: Request, res: Response) => {
     try {
-      const { schedule_id, currency_id, items } = req.body;
-      if (!schedule_id || !currency_id || !items || !Array.isArray(items)) {
-        return sendError(res, 'Missing required fields (schedule_id, currency_id, items array)', [], 400);
+      const { schedule_id, items } = req.body;
+      if (!schedule_id || !items || !Array.isArray(items)) {
+        return sendError(res, 'Missing required fields (schedule_id, items array)', [], 400);
       }
       const userId = (req as any).user?.employee_id || 1;
       const data = await this.svc.generateInvoice({ ...req.body, created_by: userId });
@@ -153,6 +166,53 @@ export class InvoiceController {
       
       // Will pipe PDF directly to res
       generateInvoicePDF(invoice, res);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  // ── Phase 6: Draft Regeneration, Credit Notes & Revisions ─────────────
+  regenerateDraftInvoice = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id || 1;
+      const data = await this.svc.regenerateDraftInvoice(id, userId);
+      return sendSuccess(res, 'Draft invoice regenerated from source changes', data);
+    } catch (e: any) {
+      const statusCode = e.message?.includes('immutable') ? 403 : 400;
+      return sendError(res, e.message, [], statusCode);
+    }
+  };
+
+  createCreditNote = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id || 1;
+      const { reason, items } = req.body;
+      const result = await this.svc.createCreditNote(id, { reason, items }, userId);
+      return sendSuccess(res, 'Credit note issued successfully', result, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  createRevision = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id || 1;
+      const { reason } = req.body;
+      const result = await this.svc.createRevision(id, { reason }, userId);
+      return sendSuccess(res, 'Invoice revised successfully', result, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  getInvoiceSources = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const data = await this.svc.getInvoiceSources(id);
+      return sendSuccess(res, 'Invoice item sources retrieved', data);
     } catch (e: any) {
       return sendError(res, e.message, [], 500);
     }

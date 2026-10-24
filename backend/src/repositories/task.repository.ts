@@ -305,8 +305,9 @@ export class TaskRepository {
     // Legacy labour table cleanup (just in case)
     await dbPool.execute(`DELETE FROM task_labour_assignments WHERE task_id = ?`, [taskId]);
 
-    if (employeeIds.length > 0) {
-      const values = employeeIds.map((empId) => `(${taskId}, ${empId})`).join(', ');
+    const uniqueEmpIds = Array.from(new Set((employeeIds || []).map(Number).filter(id => !isNaN(id) && id > 0)));
+    if (uniqueEmpIds.length > 0) {
+      const values = uniqueEmpIds.map((empId) => `(${taskId}, ${empId})`).join(', ');
       await dbPool.execute(`INSERT INTO task_assignments (task_id, employee_id) VALUES ${values}`);
     }
 

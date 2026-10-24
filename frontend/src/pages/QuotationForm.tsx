@@ -1,3 +1,4 @@
+import { useWorkCategory } from '../context/WorkCategoryContext';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
@@ -137,6 +138,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
   const [currenciesList, setCurrenciesList] = useState<CurrencyMaster[]>([]);
   const [laboursList, setLaboursList] = useState<any[]>([]);
   const [materialsList, setMaterialsList] = useState<any[]>([]);
+  const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const [taxesList, setTaxesList] = useState<TaxMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -287,13 +289,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
               const mappedItems: QuotationWbsItem[] = q.disciplines.map((d: any, idx: number) => {
                 let parsedLabours = d.labours || [];
                 let parsedMaterials = d.materials || [];
-                
+
                 if (d.description && d.description.includes('{"labours"')) {
                   try {
                     const parsed = JSON.parse(d.description);
                     if (!d.labours || d.labours.length === 0) parsedLabours = parsed.labours || [];
                     if (!d.materials || d.materials.length === 0) parsedMaterials = parsed.materials || [];
-                  } catch(e){}
+                  } catch (e) { }
                 }
 
                 return {
@@ -395,8 +397,12 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
     let materialSubtotal = 0;
 
     wbsItems.forEach((item) => {
-      item.labours.forEach(l => labourSubtotal += Number(l.amount || 0));
-      item.materials.forEach(m => materialSubtotal += Number(m.amount || 0));
+      if (isLabourEnabled) {
+        item.labours.forEach(l => labourSubtotal += Number(l.amount || 0));
+      }
+      if (isMaterialEnabled) {
+        item.materials.forEach(m => materialSubtotal += Number(m.amount || 0));
+      }
     });
 
     const netSubtotal = labourSubtotal + materialSubtotal;
@@ -520,7 +526,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
   const handleWbsTemplatesChange = async (newIds: (string | number)[]) => {
     const nextIds = newIds.map(Number);
     const removedIds = selectedWbsTemplateIds.filter((id) => !nextIds.includes(id));
-    
+
     if (removedIds.length > 0) {
       const itemsToRemove = wbsItems.filter((item) => removedIds.includes(item.wbs_template_id as number));
       if (itemsToRemove.length > 0) {
@@ -531,16 +537,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
       setAvailableWbsNodes((prev) => prev.filter((node) => !removedIds.includes(node.template_id)));
       setWbsItems((prev) => prev.filter((item) => !removedIds.includes(item.wbs_template_id as number)));
     }
-    
+
     const addedIds = nextIds.filter((id) => !selectedWbsTemplateIds.includes(id));
     setSelectedWbsTemplateIds(nextIds);
-    
+
     if (!formData.project_type_id) return;
 
     for (const templateId of addedIds) {
       const tplMeta = availableWbsTemplates.find((t) => (t.template_id || t.id) === templateId);
       const templateName = tplMeta ? tplMeta.template_name : 'WBS Template';
-      
+
       const tRes = await apiRequest<any[]>(`/wbs-templates/${templateId}/project-types/${formData.project_type_id}/wbs`);
       if (tRes.success && tRes.data) {
         const nodes = tRes.data.map((n: any) => ({
@@ -676,18 +682,18 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
   const handleTermsTemplatesChange = (newIds: (string | number)[]) => {
     const nextIds = newIds.map(Number);
     const removedIds = selectedTermsTemplateIds.filter((id) => !nextIds.includes(id));
-    
+
     if (removedIds.length > 0) {
       setTermsSnapshots((prev) => prev.filter((t) => !removedIds.includes(t.template_id as number)));
     }
-    
+
     const addedIds = nextIds.filter((id) => !selectedTermsTemplateIds.includes(id));
     setSelectedTermsTemplateIds(nextIds);
-    
+
     for (const templateId of addedIds) {
       const template = termsTemplates.find(t => t.template_id === templateId);
       if (!template) continue;
-      
+
       let clauses: TermsSnapshotItem[] = [];
       if (template.items && template.items.length > 0) {
         clauses = template.items.map((item: any, i: number) => ({
@@ -867,7 +873,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
         const avgMaterialRate = totalMaterialQty > 0 ? totalMaterialAmount / totalMaterialQty : 0;
 
         const wbsType = (item.labours.length > 0 && item.materials.length > 0) ? 'both' : (item.materials.length > 0 ? 'material' : 'labour');
-        
+
         disciplinesPayload.push({
           wbs_id: item.wbs_id || null,
           wbs_template_id: item.wbs_template_id || null,
@@ -946,8 +952,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
             isEditMode
               ? 'Quotation updated successfully!'
               : targetStatus === 'approved'
-              ? 'Quotation created & approved successfully!'
-              : 'Quotation saved successfully!'
+                ? 'Quotation created & approved successfully!'
+                : 'Quotation saved successfully!'
           );
         }
         onBack();
@@ -1370,7 +1376,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
             )}
           </div>
 
-          
+
           {/* Available WBS Selection (from templates) */}
           {availableWbsNodes.length > 0 && (
             <div className="glass-card" style={{ padding: '1.25rem' }}>
@@ -1380,21 +1386,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {availableWbsNodes.map(node => {
-                   const isSelected = wbsItems.some(i => i.wbs_id === node.id && i.wbs_template_id === node.template_id);
-                   return (
-                     <label key={`node_${node.template_id}_${node.id}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.8rem', background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)', border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
-                       <input 
-                         type="checkbox" 
-                         checked={isSelected}
-                         onChange={() => handleToggleWbsNode(node)}
-                         style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                       />
-                       <div>
-                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{node.wbs_name}</div>
-                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{node.template_name}</div>
-                       </div>
-                     </label>
-                   );
+                  const isSelected = wbsItems.some(i => i.wbs_id === node.id && i.wbs_template_id === node.template_id);
+                  return (
+                    <label key={`node_${node.template_id}_${node.id}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.8rem', background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)', border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleWbsNode(node)}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{node.wbs_name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{node.template_name}</div>
+                      </div>
+                    </label>
+                  );
                 })}
               </div>
             </div>
@@ -1590,7 +1596,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                       />
                     </div>
 
-                                        {/* Optional Labour & Material Sub-sections */}
+                    {/* Optional Labour & Material Sub-sections */}
                     <div
                       style={{
                         display: 'flex',
@@ -1628,7 +1634,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                           .wbs-mobile-card .close-btn { position: absolute; top: -8px; right: -8px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; font-size: 12px; }
                         }
                       `}</style>
-                      
+
                       {/* Labour Section */}
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
@@ -1643,13 +1649,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                             <Plus size={12} /> Add Labour
                           </button>
                         </div>
-                        
-                        {item.labours.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+
+                        {item.labours.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
                             {item.labours.map((l, idx) => (
                               <div key={l.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', position: 'relative' }}>
                                 <button type="button" onClick={() => handleRemoveLabour(item.id, l.id)} style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                                
+
                                 <div className="grid-responsive-4" style={{ paddingRight: '2.5rem' }}>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Labour / Role</label>
@@ -1667,7 +1673,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                           handleUpdateLabour(item.id, l.id, 'labour_name', val || '');
                                         }
                                       }}
-                                      placeholder="Select or type..."
+                                      placeholder="Select or type role..."
                                     />
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '100px' }}>
@@ -1719,26 +1725,31 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                       }}
                                     />
                                   </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hours</label>
+                                    <input type="number" min="0" step="0.5" className="form-input" placeholder="0" value={l.hours || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'hours', Number(e.target.value))} />
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Rate ({selectedCurrency.symbol})</label>
+                                    <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={l.rate || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'rate', Number(e.target.value))} />
+                                  </div>
                                 </div>
 
-                                <div className="grid-responsive-4" style={{ paddingRight: '2.5rem', borderTop: '1px dashed var(--border-color)', paddingTop: '0.85rem' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hours</label>
-                                    <input type="number" className="form-input" placeholder="0" value={l.hours || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'hours', Number(e.target.value))} />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Rate ({selectedCurrency.symbol})</label>
-                                    <input type="number" className="form-input" placeholder="0.00" value={l.rate || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'rate', Number(e.target.value))} />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Total Cost</label>
-                                    <div style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                                      {selectedCurrency.symbol} {Number(l.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </div>
-                                  </div>
+                                {/* Calculation summary footer */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', paddingTop: '0.2rem' }}>
+                                  <span>
+                                    Calculation: {Number(l.hours || 0)} hrs × {selectedCurrency.symbol} {Number(l.rate || 0).toFixed(2)}
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    Subtotal: {selectedCurrency.symbol} {Number(l.amount || 0).toFixed(2)}
+                                  </span>
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        ) : (
+                          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                            No labour roles added yet. Click <strong>+ Add Labour</strong> to allocate workforce.
                           </div>
                         )}
                       </div>
@@ -1757,16 +1768,75 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                             <Plus size={12} /> Add Material
                           </button>
                         </div>
-                        
-                        {item.materials.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+
+                        {item.materials.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
                             {item.materials.map((m, idx) => (
-                              <div key={m.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', position: 'relative' }}>
-                                <button type="button" onClick={() => handleRemoveMaterial(item.id, m.id)} style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                                
-                                <div className="grid-responsive-4" style={{ paddingRight: '2.5rem' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Material Name</label>
+                              <div
+                                key={m.id}
+                                style={{
+                                  background: 'var(--bg-card)',
+                                  border: '1px solid var(--border-color)',
+                                  borderLeft: '4px solid #06b6d4',
+                                  borderRadius: '10px',
+                                  padding: '1rem',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.85rem',
+                                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                                  transition: 'border-color 0.15s ease',
+                                }}
+                              >
+                                {/* Card Header with Item #, Cost badge, and Remove button */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingBottom: '0.65rem', borderBottom: '1px solid var(--border-color)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(6, 182, 212, 0.15)', color: '#0891b2', letterSpacing: '0.3px' }}>
+                                      MATERIAL #{idx + 1}
+                                    </span>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                      {m.material_name || 'Select material'}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cost:</span>
+                                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#16a34a' }}>
+                                        {selectedCurrency.symbol} {Number(m.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveMaterial(item.id, m.id)}
+                                      style={{
+                                        color: 'var(--danger)',
+                                        background: 'rgba(239, 68, 68, 0.08)',
+                                        width: '28px',
+                                        height: '28px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: '6px',
+                                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                      title="Remove Material item"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Row 1: Material Name + Unit (Spacious 2-column) */}
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                                    gap: '0.85rem',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Material Name</label>
                                     <SearchableSelect
                                       options={materialOptions}
                                       value={m.material_id ? String(m.material_id) : m.material_name || ''}
@@ -1780,7 +1850,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                           handleUpdateMaterial(item.id, m.id, 'material_name', val || '');
                                         }
                                       }}
-                                      placeholder="Select or type..."
+                                      placeholder="Select or type material..."
                                     />
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '80px' }}>
@@ -1832,55 +1902,64 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                       }}
                                     />
                                   </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Quantity</label>
+                                    <input type="number" min="0" step="0.01" className="form-input" placeholder="0" value={m.quantity || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'quantity', Number(e.target.value))} />
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Rate ({selectedCurrency.symbol})</label>
+                                    <input type="number" min="0" step="0.01" className="form-input" placeholder="0.00" value={m.rate || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'rate', Number(e.target.value))} />
+                                  </div>
                                 </div>
 
-                                <div className="grid-responsive-4" style={{ paddingRight: '2.5rem', borderTop: '1px dashed var(--border-color)', paddingTop: '0.85rem' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Quantity</label>
-                                    <input type="number" className="form-input" placeholder="0" value={m.quantity || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'quantity', Number(e.target.value))} />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Rate ({selectedCurrency.symbol})</label>
-                                    <input type="number" className="form-input" placeholder="0.00" value={m.rate || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'rate', Number(e.target.value))} />
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Total Cost</label>
-                                    <div style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                                      {selectedCurrency.symbol} {Number(m.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </div>
-                                  </div>
+                                {/* Calculation summary footer */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', paddingTop: '0.2rem' }}>
+                                  <span>
+                                    Calculation: {Number(m.quantity || 0)} {m.unit || 'units'} × {selectedCurrency.symbol} {Number(m.rate || 0).toFixed(2)}
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    Subtotal: {selectedCurrency.symbol} {Number(m.amount || 0).toFixed(2)}
+                                  </span>
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        ) : (
+                          <div style={{ padding: '0.85rem 1rem', background: 'var(--bg-secondary)', border: '1px dashed var(--border-color)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                            No materials added yet. Click <strong>+ Add Material</strong> to specify items.
                           </div>
                         )}
                       </div>
 
                       {/* WBS Cost Summary */}
-                      <div style={{ 
-                        marginTop: '1rem', 
-                        paddingTop: '0.75rem', 
+                      <div style={{
+                        marginTop: '1rem',
+                        paddingTop: '0.75rem',
                         borderTop: '1px solid var(--border-color)',
                         display: 'flex',
                         justifyContent: 'flex-end'
                       }}>
-                        <div style={{ 
-                          background: 'var(--bg-secondary)', 
-                          border: '1px solid var(--border-color)', 
-                          borderRadius: '8px', 
+                        <div style={{
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
                           padding: '1rem',
                           minWidth: '280px'
                         }}>
                           <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>WBS Cost Summary</h4>
-                          
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.9rem' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Labour Cost:</span>
-                            <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.labours.reduce((sum, l) => sum + Number(l.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Material Cost:</span>
-                            <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.materials.reduce((sum, m) => sum + Number(m.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                          </div>
+
+                          {isLabourEnabled && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.9rem' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Labour Cost:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.labours.reduce((sum, l) => sum + Number(l.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {isMaterialEnabled && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Material Cost:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.materials.reduce((sum, m) => sum + Number(m.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontSize: '1.05rem', color: 'var(--text-primary)' }}>
                             <strong>WBS Total:</strong>
                             <strong>{selectedCurrency.symbol} {(item.labours.reduce((sum, l) => sum + Number(l.amount || 0), 0) + item.materials.reduce((sum, m) => sum + Number(m.amount || 0), 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
@@ -2121,19 +2200,23 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.88rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Labour Subtotal:</span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {selectedCurrency.symbol} {calculations.labourSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+              {isLabourEnabled && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                  <span>Labour Subtotal:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {selectedCurrency.symbol} {calculations.labourSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Material Subtotal:</span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {selectedCurrency.symbol} {calculations.materialSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+              {isMaterialEnabled && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                  <span>Material Subtotal:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {selectedCurrency.symbol} {calculations.materialSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
 
               <div
                 style={{
@@ -2166,11 +2249,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
               <div style={{ paddingTop: '0.4rem' }}>
                 <label className="form-label">Applicable Taxes (from Master):</label>
                 <MultiSelectDropdown
-                options={taxesList.map(tax => ({ value: tax.tax_id, label: `${tax.tax_name} (${tax.tax_percentage}%)` }))}
-                selectedValues={selectedTaxIds}
-                onChange={(vals) => setSelectedTaxIds(vals.map(Number))}
-                placeholder="Select Taxes..."
-              />
+                  options={taxesList.map(tax => ({ value: tax.tax_id, label: `${tax.tax_name} (${tax.tax_percentage}%)` }))}
+                  selectedValues={selectedTaxIds}
+                  onChange={(vals) => setSelectedTaxIds(vals.map(Number))}
+                  placeholder="Select Taxes..."
+                />
               </div>
 
               {/* Detailed Calculated Taxes */}
@@ -2179,15 +2262,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                   {calculations.taxDetails.map((td) => (
                     <div key={td.tax_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                         <span>{td.tax_name}</span>
-                         <input
-                           type="number"
-                           className="form-input"
-                           style={{ width: '60px', padding: '0.1rem 0.25rem', height: 'auto', fontSize: '0.75rem' }}
-                           value={td.tax_percentage}
-                           onChange={(e) => setCustomTaxRates(prev => ({ ...prev, [td.tax_id]: Number(e.target.value) }))}
-                         />
-                         <span>%</span>
+                        <span>{td.tax_name}</span>
+                        <input
+                          type="number"
+                          className="form-input"
+                          style={{ width: '60px', padding: '0.1rem 0.25rem', height: 'auto', fontSize: '0.75rem' }}
+                          value={td.tax_percentage}
+                          onChange={(e) => setCustomTaxRates(prev => ({ ...prev, [td.tax_id]: Number(e.target.value) }))}
+                        />
+                        <span>%</span>
                       </div>
                       <span>
                         {selectedCurrency.symbol} {td.calculated_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}

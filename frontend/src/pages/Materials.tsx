@@ -142,13 +142,17 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
   }, [selectedProjectId]);
 
   const fetchMaterialWbs = async (pId: number) => {
-    const res = await apiRequest<ProjectWBS[]>(`/projects/${pId}/wbs?wbs_type=material`);
+    const res = await apiRequest<ProjectWBS[]>(`/projects/${pId}/wbs`);
     if (res.success && res.data) {
-      // Strictly filter to Material WBS
-      const matWbs = res.data.filter((w) => (w.wbs_type || 'material') === 'material');
-      setMaterialWbsList(matWbs);
-      if (matWbs.length > 0) {
-        setSelectedWbsId(matWbs[0].id);
+      const allWbs = res.data;
+      setMaterialWbsList(allWbs);
+      if (allWbs.length > 0) {
+        setSelectedWbsId((prev) => {
+          if (prev && allWbs.some((w) => Number(w.id) === Number(prev))) {
+            return prev;
+          }
+          return allWbs[0].id;
+        });
       } else {
         setSelectedWbsId('');
         setProjectMaterials([]);
@@ -470,7 +474,7 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
 
               <div style={{ minWidth: '300px' }}>
                 <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
-                  Select Material WBS / Discipline (Only Material WBS)
+                  Select Project WBS / Discipline
                 </label>
                 <select
                   value={selectedWbsId}
@@ -478,21 +482,28 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
                   className="form-select"
                   style={{ width: '100%', padding: '0.6rem 0.85rem', borderRadius: '8px', fontSize: '0.88rem', fontWeight: 600 }}
                 >
-                  <option value="">-- All Material WBS --</option>
+                  <option value="">-- All Project WBS --</option>
                   {materialWbsList.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.wbs_name} ({w.wbs_code || `WBS-${w.id}`}) — Qty: {w.planned_quantity || 0} {w.unit || 'nos'}
+                      {w.wbs_name} ({w.wbs_code || `WBS-${w.id}`})
                     </option>
                   ))}
                 </select>
               </div>
             </div>
 
-            {selectedWbsId && (
+            {selectedWbsId ? (
               <Button variant="primary" onClick={openAddProjectMaterialModal} style={{ background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)', border: 'none' }}>
                 <Plus size={16} style={{ marginRight: '0.35rem' }} /> Add Material to WBS
               </Button>
-            )}
+            ) : materialWbsList.length > 0 ? (
+              <Button variant="primary" onClick={() => {
+                setSelectedWbsId(materialWbsList[0].id);
+                openAddProjectMaterialModal();
+              }} style={{ background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)', border: 'none' }}>
+                <Plus size={16} style={{ marginRight: '0.35rem' }} /> Add Material to WBS
+              </Button>
+            ) : null}
           </div>
 
           {/* Metric Summary Cards */}

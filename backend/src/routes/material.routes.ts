@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { MaterialController } from '../controllers/material.controller';
 import { authenticateJwt } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission.middleware';
+import { requireWorkCategory } from '../middleware/workCategory.middleware';
 
 const router = Router();
 const ctrl = new MaterialController();
 
 router.use(authenticateJwt);
+router.use(requireWorkCategory('material'));
 
 // Master Materials
 router.get('/master', requirePermission('materials', 'view'), ctrl.getMaterials);
@@ -41,4 +43,3 @@ router.post('/project-materials/:id/log', requirePermission('materials', 'update
 router.get('/project-materials/:id/logs', requirePermission('materials', 'view'), ctrl.getProjectMaterialLogs);
 
 export default router;
-

@@ -1,3 +1,4 @@
+import { WorkCategoryProvider } from './context/WorkCategoryContext';
 import React, { useState, useEffect } from 'react';
 import { ToastContainer } from './components/common/Toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -38,6 +39,7 @@ import { Invoices } from './pages/Invoices';
 import { PlannedVsActualReport } from './pages/PlannedVsActualReport';
 import { Materials } from './pages/Materials';
 import { MaterialQuotations } from './pages/MaterialQuotations';
+import { ProcurementHub } from './pages/ProcurementHub';
 
 import { WbsTemplates } from './pages/WbsTemplates';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
@@ -72,7 +74,8 @@ const AppContent: React.FC = () => {
       'timesheets': 'project/workspace/0/timesheets',
       'attendance': 'project/workspace/0/attendance',
       'gantt-chart': 'project/workspace/0/gantt',
-      'invoices': 'project/workspace/0/invoices',
+      'invoices': 'project/monthly-invoice',
+      'project/invoices': 'project/monthly-invoice',
       'wbs-templates': 'masters?tab=wbs-templates',
       'employees': 'masters?tab=employees'
     };
@@ -330,6 +333,11 @@ const AppContent: React.FC = () => {
       case 'project/workspace':
         return <RequirePermission module="projects" action="view" fallback={fallback}><ProjectWorkspace onNavigate={nav} /></RequirePermission>;
 
+      case 'project/monthly-invoice':
+      case 'project/invoices':
+      case 'invoices':
+        return <RequirePermission module="invoices" action="view" fallback={fallback}><Invoices /></RequirePermission>;
+
       // Planning Workspace (Primary Route) Fallback
       case 'planning/workspace':
         return <RequirePermission module="projects" action="view" fallback={fallback}><PlanningWorkspace onNavigate={nav} /></RequirePermission>;
@@ -369,7 +377,21 @@ const AppContent: React.FC = () => {
       case 'reports/planned-vs-actual':
         return <RequirePermission module="reports" action="view" fallback={fallback}><PlannedVsActualReport /></RequirePermission>;
       
-      // Masters
+      // Masters & Procurement
+      case 'procurement':
+      case 'procurement/stock':
+      case 'procurement/grn':
+      case 'procurement/po':
+      case 'procurement/indents':
+      case 'procurement/issues':
+      case 'procurement/reports':
+      case 'reports/procurement':
+        return (
+          <RequirePermission module="stock" action="view" fallback={fallback}>
+            <ProcurementHub initialTab={currentPage.includes('reports') ? 'reports' : undefined} />
+          </RequirePermission>
+        );
+
       case 'materials':
         return <RequirePermission module="materials" action="view" fallback={fallback}><Materials /></RequirePermission>;
       case 'material-quotations':
@@ -395,7 +417,8 @@ const AppContent: React.FC = () => {
         return <RequirePermission module="masters" action="manage" fallback={fallback}><Masters initialTab="taxes" onNavigate={nav} /></RequirePermission>;
 
       case 'settings':
-        return <Settings />;
+      case 'settings/work-category':
+        return <Settings initialTab={currentPage === 'settings/work-category' ? 'project-config' : undefined} />;
       case 'support':
         return <Support />;
       default: 
@@ -413,9 +436,11 @@ const AppContent: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <AuthProvider>
-      <ToastContainer />
-      <AppContent />
-      <PWAInstallPrompt />
+      <WorkCategoryProvider>
+        <ToastContainer />
+        <AppContent />
+        <PWAInstallPrompt />
+      </WorkCategoryProvider>
     </AuthProvider>
   );
 };

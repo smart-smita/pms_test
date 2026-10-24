@@ -67,7 +67,7 @@ export class WbsRepository {
     `;
     const params: any[] = [projectId];
     if (wbsType) {
-      sql += ` AND (pw.wbs_type = ? OR (pw.wbs_type IS NULL AND w.wbs_type = ?))`;
+      sql += ` AND (pw.wbs_type = ? OR pw.wbs_type = 'both' OR (pw.wbs_type IS NULL AND (w.wbs_type = ? OR w.wbs_type = 'both')))`;
       params.push(wbsType, wbsType);
     }
     sql += ` ORDER BY pw.id ASC`;
@@ -155,7 +155,9 @@ export class WbsRepository {
   async createProjectWbs(connection: any, data: {
     project_id: number;
     wbs_id: number;
-    wbs_type?: 'labour' | 'material';
+    wbs_code?: string;
+    wbs_name?: string;
+    wbs_type?: 'labour' | 'material' | 'both';
     unit?: string;
     planned_quantity?: number;
     rate?: number;
@@ -172,24 +174,27 @@ export class WbsRepository {
     note?: string;
   }): Promise<number> {
     const db = connection || dbPool;
-    const wbsType = data.wbs_type || 'labour';
+    const wbsType = data.wbs_type || 'both';
     const isMaterial = wbsType === 'material';
+    const isBoth = wbsType === 'both';
     const plannedQty = Number(data.planned_quantity || (isMaterial ? 0 : data.total_hours || 0));
     const rate = Number(data.rate || 0);
-    const budget = Number(data.budget_amount || (plannedQty * rate) || 0);
-    const plannedLabCost = isMaterial ? 0 : Number(data.planned_labour_cost || budget);
-    const plannedMatCost = isMaterial ? Number(data.planned_material_cost || budget) : 0;
-    const totalHours = isMaterial ? 0 : Number(data.total_hours || plannedQty);
+    const plannedLabCost = isMaterial ? 0 : Number(data.planned_labour_cost !== undefined ? data.planned_labour_cost : (isBoth ? 0 : plannedQty * rate));
+    const plannedMatCost = (isMaterial || isBoth) ? Number(data.planned_material_cost !== undefined ? data.planned_material_cost : (isBoth ? 0 : plannedQty * rate)) : 0;
+    const budget = Number(data.budget_amount !== undefined ? data.budget_amount : (plannedLabCost + plannedMatCost || plannedQty * rate || 0));
+    const totalHours = isMaterial ? 0 : Number(data.total_hours !== undefined ? data.total_hours : plannedQty);
 
     const [result] = await db.execute(
       `INSERT INTO project_wbs (
-         project_id, wbs_id, wbs_type, unit, planned_quantity, rate,
+         project_id, wbs_id, wbs_code, wbs_name, wbs_type, unit, planned_quantity, rate,
          start_date, end_date, total_hours, actual_start_date, actual_end_date, actual_hours,
          budget_amount, planned_labour_cost, planned_material_cost, quotation_discipline_id, note
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.project_id,
         data.wbs_id,
+        data.wbs_code || null,
+        data.wbs_name || null,
         wbsType,
         data.unit || (isMaterial ? 'Nos' : 'hours'),
         plannedQty,
@@ -262,6 +267,8 @@ export class WbsRepository {
     const fields: string[] = [];
     const params: any[] = [];
 
+    if (data.wbs_name !== undefined) { fields.push('wbs_name = ?'); params.push(data.wbs_name || null); }
+    if (data.wbs_code !== undefined) { fields.push('wbs_code = ?'); params.push(data.wbs_code || null); }
     if (data.wbs_type !== undefined) { fields.push('wbs_type = ?'); params.push(data.wbs_type); }
     if (data.unit !== undefined) { fields.push('unit = ?'); params.push(data.unit || null); }
     if (data.planned_quantity !== undefined) { fields.push('planned_quantity = ?'); params.push(data.planned_quantity); }
