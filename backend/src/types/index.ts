@@ -113,8 +113,10 @@ export interface TaskRow {
   assigned_worker_count?: number;
   is_understaffed?: boolean;
   estimated_hours: number;
+  planned_hours?: number;
   actual_hours?: number;
   remaining_hours?: number;
+  extra_hours?: number;
   variance?: number;
   completion_percentage?: number;
   allocation_status?: 'Within Allocation' | 'Near Limit' | 'Hours Exceeded';

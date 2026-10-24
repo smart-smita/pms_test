@@ -708,7 +708,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
             });
             if (allLabours.length > 0) {
               if (key === 'labour') {
-                cell = allLabours.map((l: any) => `${l.labour_name} (${l.labour_type === 'contractor' ? 'Contractor' : 'Direct'}) - ₹${Number(l.amount || 0).toFixed(2)} [${l.payment_status || 'pending'}]`).join(' | ');
+                cell = allLabours.map((l: any) => `${l.name || l.labour_name || 'Labour'} (${l.labour_type === 'contractor' ? 'Contractor' : 'Direct'}) - ₹${Number(l.amount || 0).toFixed(2)} [${l.payment_status || 'pending'}]`).join(' | ');
               } else if (key === 'labour_total') {
                 const total = allLabours.reduce((sum: number, l: any) => sum + Number(l.amount || 0), 0);
                 cell = `₹${total.toFixed(2)}`;
@@ -1093,7 +1093,7 @@ export const Reports: React.FC<ReportsProps> = ({ initialTab, initialReport }) =
                                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                             {allLabours.map((l: any, i: number) => (
                                               <div key={i} style={{ whiteSpace: 'nowrap' }}>
-                                                {l.labour_name} ({l.labour_type === 'contractor' ? 'Contractor' : 'Direct'}) - ₹{Number(l.amount || 0).toFixed(2)} 
+                                                {l.name || l.labour_name || 'Labour'} ({l.labour_type === 'contractor' ? 'Contractor' : 'Direct'}) - ₹{Number(l.amount || 0).toFixed(2)} 
                                                 <span style={{ fontSize: '0.75rem', opacity: 0.8, marginLeft: '4px' }}>[{l.payment_status || 'pending'}]</span>
                                               </div>
                                             ))}

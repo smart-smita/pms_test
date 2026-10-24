@@ -12,9 +12,17 @@ import { CheckSquare, Users } from 'lucide-react';
 
 interface TaskEditPageProps {
   projectId: number;
-  taskId: number;
+  taskId?: number;
   onNavigate: (page: string) => void;
 }
+
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const TaskEditPage: React.FC<TaskEditPageProps> = ({
   projectId,
@@ -38,51 +46,101 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
   const [assignedEmployeeId, setAssignedEmployeeId] = useState('');
   const [assignedLabourId, setAssignedLabourId] = useState('');
-  const [plannedHours, setPlannedHours] = useState<number>(8.0);
+  const [plannedHours, setPlannedHours] = useState<number | string>(8.0);
   const [actualHours, setActualHours] = useState<number>(0.0);
   const [description, setDescription] = useState('');
 
   const selectedWbs = wbsList.find((w) => String(w.id || w.wbs_id) === selectedWbsId);
   const wbsType = selectedWbs?.wbs_type || 'labour_material';
 
-  const remainingHours = Math.max(plannedHours - actualHours, 0);
-  const extraHours = Math.max(actualHours - plannedHours, 0);
+  const numPlanned = typeof plannedHours === 'string' ? (parseFloat(plannedHours) || 0) : (Number(plannedHours) || 0);
+  const numActual = typeof actualHours === 'string' ? (parseFloat(actualHours) || 0) : (Number(actualHours) || 0);
+
+  const remainingHours = Math.max(numPlanned - numActual, 0);
+  const extraHours = Math.max(numActual - numPlanned, 0);
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      const [tRes, pRes, wRes, eRes, lRes] = await Promise.all([
-        apiRequest<Task>(`/tasks/${taskId}`),
+      const reqs: Promise<any>[] = [
         apiRequest<Project>(`/projects/${projectId}`),
         apiRequest<Wbs[]>(`/projects/${projectId}/wbs`),
         apiRequest<Employee[]>('/employees'),
         apiRequest<Labour[]>('/labours'),
-      ]);
+      ];
+      if (taskId) {
+        reqs.unshift(apiRequest<Task>(`/tasks/${taskId}`));
+      }
+
+      const results = await Promise.all(reqs);
+      let tRes: any = null;
+      let pRes: any, wRes: any, eRes: any, lRes: any;
+      if (taskId) {
+        [tRes, pRes, wRes, eRes, lRes] = results;
+      } else {
+        [pRes, wRes, eRes, lRes] = results;
+      }
 
       if (pRes.success && pRes.data) setProject(pRes.data);
-      if (wRes.success && wRes.data) setWbsList(wRes.data);
+      if (wRes.success && wRes.data) {
+        setWbsList(wRes.data);
+        if (!taskId && wRes.data.length > 0) {
+          const firstLabourWbs = wRes.data.find((w: any) => w.wbs_type !== 'material') || wRes.data[0];
+          setSelectedWbsId(String(firstLabourWbs.id || firstLabourWbs.wbs_id));
+        }
+      }
       if (eRes.success && eRes.data) setEmployees(eRes.data);
       if (lRes.success && lRes.data) setLabours(lRes.data);
 
-      if (tRes.success && tRes.data) {
+      if (taskId && tRes?.success && tRes?.data) {
         const t = tRes.data;
         setTaskCode(t.task_code || '');
         setTaskName(t.task_name || '');
         setSelectedWbsId(String(t.wbs_id || ''));
         setStartDate(t.start_date ? t.start_date.split('T')[0] : '');
-        setEndDate(t.end_date ? t.end_date.split('T')[0] : '');
+        const target = t.target_date || (t as any).end_date || '';
+        setEndDate(target ? target.split('T')[0] : '');
         setStatus((t.status as any) || 'in_progress');
         setProgressPercentage(t.progress_percentage || 0);
-        setAssignedEmployeeId(t.assigned_employee_id ? String(t.assigned_employee_id) : '');
-        setAssignedLabourId(t.assigned_labour_id ? String(t.assigned_labour_id) : '');
-        setPlannedHours(Number(t.planned_hours) || 0);
-        setActualHours(Number(t.actual_hours) || 0);
+        setAssignedEmployeeId(t.assigned_employee_id ? String(t.assigned_employee_id) : (t.assigned_employees?.[0]?.employee_id ? String(t.assigned_employees[0].employee_id) : ''));
+        const assignedLabId = t.assigned_labour_id 
+          ? String(t.assigned_labour_id) 
+          : (t.assigned_labours?.[0]?.labour_id 
+              ? String(t.assigned_labours[0].labour_id) 
+              : (t.allocations?.[0]?.labour_id 
+                  ? String(t.allocations[0].labour_id) 
+                  : ''));
+        setAssignedLabourId(assignedLabId);
+
+        // Map planned hours from planned_hours or estimated_hours
+        const rawPlanned = t.planned_hours !== undefined && t.planned_hours !== null 
+          ? t.planned_hours 
+          : t.estimated_hours;
+        const parsedPlanned = Number(rawPlanned);
+        setPlannedHours(!isNaN(parsedPlanned) ? parsedPlanned : 0);
+
+        // Map actual hours from actual_hours
+        const rawActual = t.actual_hours !== undefined && t.actual_hours !== null 
+          ? t.actual_hours 
+          : 0;
+        const parsedActual = Number(rawActual);
+        setActualHours(!isNaN(parsedActual) ? parsedActual : 0);
+
         setDescription(t.description || '');
+      } else if (taskId && (!tRes?.success || !tRes?.data)) {
+        showError(tRes?.message || 'Failed to load task details.');
+      } else if (!taskId) {
+        setStartDate(getTodayStr());
+        setEndDate(getTodayStr());
+        setStatus('pending');
+        setTaskCode(`TSK-${String(Date.now()).slice(-4)}`);
+        setPlannedHours(8.0);
+        setActualHours(0.0);
       }
       setIsLoading(false);
     };
 
-    if (taskId) loadData();
+    if (projectId) loadData();
   }, [taskId, projectId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,37 +149,70 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
       showError('Please enter a valid task name.');
       return;
     }
+    if (!selectedWbsId) {
+      showError('Please select a valid WBS discipline.');
+      return;
+    }
+    if (startDate && endDate && endDate < startDate) {
+      showError('End date cannot be earlier than start date.');
+      return;
+    }
 
     setIsSubmitting(true);
-    const payload = {
+    const wbsNum = Number(selectedWbsId);
+    const empIdNum = Number(assignedEmployeeId);
+    const labIdNum = Number(assignedLabourId);
+
+    const payload: any = {
       project_id: projectId,
-      wbs_id: Number(selectedWbsId),
       task_code: taskCode,
       task_name: taskName,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: startDate || undefined,
+      target_date: endDate || undefined,
+      end_date: endDate || undefined,
       status: status,
-      progress_percentage: Number(progressPercentage),
-      assigned_employee_ids: assignedEmployeeId ? [Number(assignedEmployeeId)] : [],
-      allocations: assignedLabourId ? [{
-        labour_id: Number(assignedLabourId),
-        work_date: startDate || new Date().toISOString().split('T')[0]
-      }] : [],
-      estimated_hours: Number(plannedHours) || 0,
+      progress_percentage: Number(progressPercentage) || 0,
+      estimated_hours: numPlanned,
+      planned_hours: numPlanned,
       description: description,
     };
 
-    const res = await apiRequest(`/tasks/${taskId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
+    if (wbsNum > 0) {
+      payload.wbs_id = wbsNum;
+    }
+    if (empIdNum > 0) {
+      payload.assigned_employee_ids = [empIdNum];
+    } else {
+      payload.assigned_employee_ids = [];
+    }
+    if (labIdNum > 0) {
+      payload.allocations = [{
+        labour_id: labIdNum,
+        work_date: startDate || endDate || getTodayStr()
+      }];
+    } else {
+      payload.allocations = [];
+    }
+
+    let res: any;
+    if (taskId) {
+      res = await apiRequest(`/tasks/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await apiRequest('/tasks', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    }
     setIsSubmitting(false);
 
     if (res.success) {
-      showSuccess('Task updated successfully.');
+      showSuccess(taskId ? 'Task updated successfully.' : 'Task created successfully.');
       onNavigate(`project/workspace/${projectId}/tasks`);
     } else {
-      showError(res.message || 'Failed to update task.');
+      showError(res.message || (taskId ? 'Failed to update task.' : 'Failed to create task.'));
     }
   };
 
@@ -138,18 +229,18 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
     { label: 'Project', onClick: () => onNavigate('project/workspace') },
     { label: project?.project_name || 'Project Workspace', onClick: () => onNavigate(`project/workspace/${projectId}/tasks`) },
     { label: 'Task Management', onClick: () => onNavigate(`project/workspace/${projectId}/tasks`) },
-    { label: taskCode || 'Edit Task' },
+    { label: taskId ? (taskCode || 'Edit Task') : 'Add Task' },
   ];
 
   return (
     <FormPageLayout
       breadcrumbs={breadcrumbs}
-      title={`Edit Task: ${taskCode}`}
-      subtitle="Update task details, schedule, and assignees"
+      title={taskId ? `Edit Task: ${taskCode || 'Details'}` : 'Add Task'}
+      subtitle={taskId ? 'Update task details, schedule, and assignees' : 'Create a new project task, schedule, and assignees'}
       onCancel={() => onNavigate(`project/workspace/${projectId}/tasks`)}
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}
-      saveButtonText="Save Changes"
+      saveButtonText={isSubmitting ? 'Saving...' : taskId ? 'Save Changes' : 'Create Task'}
     >
       {/* 1. Task Details Card */}
       <div
@@ -206,8 +297,12 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
             >
               <option value="">Select WBS...</option>
               {wbsList.map((w) => (
-                <option key={w.id || w.wbs_id} value={String(w.id || w.wbs_id)}>
-                  {w.wbs_code} - {w.wbs_name}
+                <option 
+                  key={w.id || w.wbs_id} 
+                  value={String(w.id || w.wbs_id)}
+                  disabled={w.wbs_type === 'material'}
+                >
+                  {w.wbs_code} - {w.wbs_name} {w.wbs_type === 'material' ? '(Material Only)' : ''}
                 </option>
               ))}
             </select>
@@ -218,7 +313,14 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
               label="Start Date"
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              min={startDate && startDate < getTodayStr() ? startDate : getTodayStr()}
+              onChange={(e) => {
+                const val = e.target.value;
+                setStartDate(val);
+                if (endDate && endDate < val) {
+                  setEndDate(val);
+                }
+              }}
               required
             />
           </div>
@@ -228,6 +330,7 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
               label="End Date"
               type="date"
               value={endDate}
+              min={startDate ? startDate : getTodayStr()}
               onChange={(e) => setEndDate(e.target.value)}
               required
             />
@@ -319,12 +422,17 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
                 fontSize: '0.85rem',
               }}
             >
-              <option value="">Search labour...</option>
-              {labours.map((lab) => (
-                <option key={lab.labour_id} value={String(lab.labour_id)}>
-                  {lab.labour_name} ({lab.labour_code || 'LBR'})
-                </option>
-              ))}
+              <option value="">-- Select Labour / Contractor --</option>
+              {labours.map((lab) => {
+                const displayName = lab.name || lab.labour_name || 'Labour';
+                const typeLabel = lab.labour_type === 'contractor' ? 'Contractor' : 'Direct Labour';
+                const contractorInfo = lab.contractor_name ? ` (via ${lab.contractor_name})` : '';
+                return (
+                  <option key={lab.labour_id} value={String(lab.labour_id)}>
+                    {displayName} ({typeLabel}){contractorInfo}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -351,7 +459,7 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
               step="0.5"
               min="0"
               value={plannedHours}
-              onChange={(e) => setPlannedHours(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPlannedHours(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.55rem 0.75rem',
@@ -371,10 +479,10 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
             </label>
             <input
               type="number"
-              step="0.5"
-              min="0"
               value={actualHours}
-              onChange={(e) => setActualHours(parseFloat(e.target.value) || 0)}
+              readOnly
+              tabIndex={-1}
+              title="Actual hours are automatically calculated from employee timesheets and labour work logs."
               style={{
                 width: '100%',
                 padding: '0.55rem 0.75rem',
@@ -384,6 +492,8 @@ export const TaskEditPage: React.FC<TaskEditPageProps> = ({
                 color: 'var(--text-primary)',
                 fontWeight: 600,
                 fontSize: '0.9rem',
+                cursor: 'not-allowed',
+                opacity: 0.85,
               }}
             />
           </div>

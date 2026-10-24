@@ -82,7 +82,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   return (
-    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', position: 'relative', width: '100%' }}>
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', position: 'relative', width: '100%', minWidth: 0 }}>
       {label && (
         <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
           {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
@@ -106,9 +106,10 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           gap: '0.5rem',
           boxShadow: isOpen ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none',
           transition: 'all 0.15s ease',
+          minWidth: 0,
         }}
       >
-        <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {selectedOption ? (
             <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 500 }}>
               {selectedOption.code && (

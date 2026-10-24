@@ -67,9 +67,9 @@ export const Project360Modal: React.FC<Project360ModalProps> = ({ isOpen, onClos
   const termsSnapshots: any[] = (data as any)?.terms_snapshots || [];
 
   const handleDownloadPdf = (quotationId: number, code: string) => {
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-    window.open(`${apiUrl}/quotations/${quotationId}/pdf?token=${token}`, '_blank');
+    const token = localStorage.getItem('access_token') || localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
+    const apiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '/api/v1';
+    window.open(`${apiUrl}/quotations/${quotationId}/pdf?token=${encodeURIComponent(token)}`, '_blank');
   };
 
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';

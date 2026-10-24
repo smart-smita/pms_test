@@ -161,6 +161,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
     planning_required: true,
   });
 
+  // Current today date string (YYYY-MM-DD) for past-date disabling
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   // Validation Errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -554,8 +557,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
           wbs_template_id: node.template_id,
           wbs_template_name: node.template_name,
           discipline_name: node.wbs_name || 'WBS Task',
-          start_date: formData.quotation_date,
-          end_date: formData.validity_date || '',
+          start_date: (formData.quotation_date && formData.quotation_date >= todayStr) ? formData.quotation_date : todayStr,
+          end_date: (formData.validity_date && formData.validity_date >= todayStr) ? formData.validity_date : '',
           labours: [{ id: `l_${Date.now()}_${idx}`, labour_name: '', labour_type: '', hours: 0, rate: 0, amount: 0 }],
           materials: [{ id: `m_${Date.now()}_${idx}`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }],
         }));
@@ -577,8 +580,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
         wbs_template_id: node.template_id,
         wbs_template_name: node.template_name,
         discipline_name: node.wbs_name || 'WBS Task',
-        start_date: formData.quotation_date,
-        end_date: formData.validity_date || '',
+        start_date: (formData.quotation_date && formData.quotation_date >= todayStr) ? formData.quotation_date : todayStr,
+        end_date: (formData.validity_date && formData.validity_date >= todayStr) ? formData.validity_date : '',
         labours: [{ id: `l_${Date.now()}_1`, labour_name: '', labour_type: '', hours: 0, rate: 0, amount: 0 }],
         materials: [{ id: `m_${Date.now()}_1`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }],
       };
@@ -594,8 +597,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
       wbs_template_id: null,
       wbs_template_name: 'Custom WBS',
       discipline_name: 'New Custom Task',
-      start_date: formData.quotation_date,
-      end_date: formData.validity_date || '',
+      start_date: (formData.quotation_date && formData.quotation_date >= todayStr) ? formData.quotation_date : todayStr,
+      end_date: (formData.validity_date && formData.validity_date >= todayStr) ? formData.validity_date : '',
       labours: [{ id: `l_${Date.now()}_1`, labour_name: '', labour_type: '', hours: 0, rate: 0, amount: 0 }],
       materials: [{ id: `m_${Date.now()}_1`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }],
     };
@@ -789,10 +792,52 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
 
     if (!formData.quotation_date) {
       newErrors.quotation_date = 'Quotation Date is compulsory';
+    } else if (formData.quotation_date < todayStr) {
+      newErrors.quotation_date = 'Quotation Date cannot be a past date';
     }
 
     if (wbsItems.length === 0) {
       newErrors.wbs = 'Please select at least one WBS Template or add a Custom WBS task';
+    } else {
+      for (const item of wbsItems) {
+        if (item.start_date && item.start_date < todayStr) {
+          newErrors.wbs = `WBS "${item.discipline_name}": Start Date cannot be a past date`;
+          break;
+        }
+        if (item.end_date && item.start_date && item.end_date < item.start_date) {
+          newErrors.wbs = `WBS "${item.discipline_name}": End Date cannot be earlier than Start Date`;
+          break;
+        }
+        let labourDateError = false;
+        for (const l of item.labours) {
+          if (l.start_date && l.start_date < todayStr) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Labour Start Date cannot be a past date`;
+            labourDateError = true;
+            break;
+          }
+          if (l.end_date && l.start_date && l.end_date < l.start_date) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Labour End Date cannot be earlier than Start Date`;
+            labourDateError = true;
+            break;
+          }
+        }
+        if (labourDateError) break;
+
+        let matDateError = false;
+        for (const m of item.materials) {
+          if (m.start_date && m.start_date < todayStr) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Material Start Date cannot be a past date`;
+            matDateError = true;
+            break;
+          }
+          if (m.end_date && m.start_date && m.end_date < m.start_date) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Material End Date cannot be earlier than Start Date`;
+            matDateError = true;
+            break;
+          }
+        }
+        if (matDateError) break;
+      }
     }
 
     setErrors(newErrors);
@@ -1262,7 +1307,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                   required
                   value={formData.quotation_date}
                   error={errors.quotation_date}
-                  onChange={(e) => setFormData({ ...formData, quotation_date: e.target.value })}
+                  min={todayStr}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && val < todayStr) {
+                      showWarning('Quotation Date cannot be a past date');
+                      return;
+                    }
+                    setFormData({ ...formData, quotation_date: val });
+                  }}
                 />
               </div>
             </div>
@@ -1413,6 +1466,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                 {wbsItems.map((item, idx) => (
                   <div
                     key={item.id}
+                    className="wbs-item-card"
                     style={{
                       background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
@@ -1505,13 +1559,34 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                         label="Start Date"
                         type="date"
                         value={item.start_date}
-                        onChange={(e) => handleUpdateWbsItem(item.id, { start_date: e.target.value })}
+                        min={todayStr}
+                        onChange={(e) => {
+                          const newStartDate = e.target.value;
+                          if (newStartDate && newStartDate < todayStr) {
+                            showWarning('Start Date cannot be a past date');
+                            return;
+                          }
+                          const updates: Partial<QuotationWbsItem> = { start_date: newStartDate };
+                          if (item.end_date && item.end_date < newStartDate) {
+                            updates.end_date = newStartDate;
+                          }
+                          handleUpdateWbsItem(item.id, updates);
+                        }}
                       />
                       <FormInput
                         label="End Date"
                         type="date"
                         value={item.end_date}
-                        onChange={(e) => handleUpdateWbsItem(item.id, { end_date: e.target.value })}
+                        min={item.start_date || todayStr}
+                        onChange={(e) => {
+                          const newEndDate = e.target.value;
+                          const minAllowed = item.start_date || todayStr;
+                          if (newEndDate && newEndDate < minAllowed) {
+                            showWarning(item.start_date ? 'End Date cannot be earlier than Start Date' : 'End Date cannot be a past date');
+                            return;
+                          }
+                          handleUpdateWbsItem(item.id, { end_date: newEndDate });
+                        }}
                       />
                     </div>
 
@@ -1526,11 +1601,25 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                       }}
                     >
                       <style>{`
+                        .wbs-item-card { container-type: inline-size; }
                         .wbs-details-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
                         .wbs-details-table th { background: var(--bg-card); color: var(--text-secondary); font-weight: 600; padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
                         .wbs-details-table td { padding: 0.5rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
                         .wbs-details-table .form-input { padding: 0.35rem 0.5rem; }
                         .wbs-mobile-cards { display: none; }
+                        
+                        @container (max-width: 820px) {
+                          .grid-responsive-4 {
+                            grid-template-columns: 1fr 1fr !important;
+                            gap: 0.75rem !important;
+                          }
+                        }
+                        @container (max-width: 480px) {
+                          .grid-responsive-4 {
+                            grid-template-columns: 1fr !important;
+                            gap: 0.75rem !important;
+                          }
+                        }
                         
                         @media (max-width: 900px) {
                           .wbs-details-table { display: none; }
@@ -1562,7 +1651,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                 <button type="button" onClick={() => handleRemoveLabour(item.id, l.id)} style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
                                 
                                 <div className="grid-responsive-4" style={{ paddingRight: '2.5rem' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Labour / Role</label>
                                     <SearchableSelect
                                       options={labourOptions}
@@ -1581,17 +1670,54 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                       placeholder="Select or type..."
                                     />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '100px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Type</label>
-                                    <input className="form-input" placeholder="e.g. Skilled" value={l.labour_type || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'labour_type', e.target.value)} />
+                                    <input
+                                      className="form-input"
+                                      placeholder="e.g. Skilled"
+                                      value={l.labour_type || ''}
+                                      onChange={e => handleUpdateLabour(item.id, l.id, 'labour_type', e.target.value)}
+                                      style={{ width: '100%', minWidth: '100px' }}
+                                    />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Date</label>
-                                    <input type="date" className="form-input" value={l.start_date || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'start_date', e.target.value)} />
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={l.start_date || ''}
+                                      min={item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newStart = e.target.value;
+                                        const minAllowed = item.start_date || todayStr;
+                                        if (newStart && newStart < minAllowed) {
+                                          showWarning('Start Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateLabour(item.id, l.id, 'start_date', newStart);
+                                        if (l.end_date && l.end_date < newStart) {
+                                          handleUpdateLabour(item.id, l.id, 'end_date', newStart);
+                                        }
+                                      }}
+                                    />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>End Date</label>
-                                    <input type="date" className="form-input" value={l.end_date || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'end_date', e.target.value)} />
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={l.end_date || ''}
+                                      min={l.start_date || item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newEnd = e.target.value;
+                                        const minAllowed = l.start_date || item.start_date || todayStr;
+                                        if (newEnd && newEnd < minAllowed) {
+                                          showWarning(l.start_date ? 'End Date cannot be earlier than Start Date' : 'End Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateLabour(item.id, l.id, 'end_date', newEnd);
+                                      }}
+                                    />
                                   </div>
                                 </div>
 
@@ -1657,17 +1783,54 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                       placeholder="Select or type..."
                                     />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '80px' }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Unit</label>
-                                    <input className="form-input" placeholder="e.g. Kg, Pcs" value={m.unit || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'unit', e.target.value)} />
+                                    <input
+                                      className="form-input"
+                                      placeholder="e.g. Kg, Pcs"
+                                      value={m.unit || ''}
+                                      onChange={e => handleUpdateMaterial(item.id, m.id, 'unit', e.target.value)}
+                                      style={{ width: '100%', minWidth: '80px' }}
+                                    />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Date</label>
-                                    <input type="date" className="form-input" value={m.start_date || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'start_date', e.target.value)} />
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={m.start_date || ''}
+                                      min={item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newStart = e.target.value;
+                                        const minAllowed = item.start_date || todayStr;
+                                        if (newStart && newStart < minAllowed) {
+                                          showWarning('Start Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateMaterial(item.id, m.id, 'start_date', newStart);
+                                        if (m.end_date && m.end_date < newStart) {
+                                          handleUpdateMaterial(item.id, m.id, 'end_date', newStart);
+                                        }
+                                      }}
+                                    />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
                                     <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>End Date</label>
-                                    <input type="date" className="form-input" value={m.end_date || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'end_date', e.target.value)} />
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={m.end_date || ''}
+                                      min={m.start_date || item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newEnd = e.target.value;
+                                        const minAllowed = m.start_date || item.start_date || todayStr;
+                                        if (newEnd && newEnd < minAllowed) {
+                                          showWarning(m.start_date ? 'End Date cannot be earlier than Start Date' : 'End Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateMaterial(item.id, m.id, 'end_date', newEnd);
+                                      }}
+                                    />
                                   </div>
                                 </div>
 

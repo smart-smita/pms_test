@@ -8,13 +8,21 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest, parseApiErrors, apiService } from '../services/api';
 import { Task, Project, Employee } from '../types';
-import { showSuccess, showError } from '../utils/toast';
+import { showSuccess, showError, showWarning } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw, Package } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { LogHistoryModal } from '../components/common/LogHistoryModal';
 import { LabourCombobox } from '../components/common/LabourCombobox';
+
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProjectId }) => {
   const { user } = useAuth();
@@ -214,9 +222,10 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setDescription('');
     setWorkerCount(1);
     setWorkingHours(8);
-    setStartDate(new Date().toISOString().split('T')[0]);
+    const today = getTodayStr();
+    setStartDate(today);
     setStartTime('09:00');
-    setTargetDate(new Date().toISOString().split('T')[0]);
+    setTargetDate(today);
     setTargetTime('18:00');
     setPriority('medium');
     setProgressPercentage(0);
@@ -336,6 +345,12 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
       return;
     }
 
+    const today = getTodayStr();
+    if (timesheetForm.log_date && timesheetForm.log_date < today) {
+      showError('Log date cannot be a past date');
+      return;
+    }
+
     setIsLoggingTimesheet(true);
     try {
       const res = await apiService.post('/timesheets', {
@@ -407,7 +422,20 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setFormErrors({});
 
     // Manual frontend date/time validation
+    const today = getTodayStr();
+    if (!editingTask && startDate && startDate < today) {
+      setFormErrors({ start_date: 'Start date cannot be a past date.' });
+      return;
+    }
+    if (!editingTask && targetDate && targetDate < today) {
+      setFormErrors({ target_date: 'End date cannot be a past date.' });
+      return;
+    }
     if (startDate && targetDate) {
+      if (targetDate < startDate) {
+        setFormErrors({ target_date: 'End date cannot be earlier than start date.' });
+        return;
+      }
       const startDateTime = new Date(`${startDate}T${startTime || '00:00:00'}`);
       const endDateTime = new Date(`${targetDate}T${targetTime || '23:59:59'}`);
       if (endDateTime < startDateTime) {
@@ -852,7 +880,16 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 label="Log Date *"
                 type="date"
                 value={timesheetForm.log_date}
-                onChange={(e) => setTimesheetForm({ ...timesheetForm, log_date: e.target.value })}
+                min={getTodayStr()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (val && val < today) {
+                    showError('Log date cannot be a past date');
+                    return;
+                  }
+                  setTimesheetForm({ ...timesheetForm, log_date: val });
+                }}
                 required
               />
               <FormInput
@@ -968,9 +1005,20 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 label="Start Date *"
                 type="date"
                 value={startDate}
+                min={editingTask && editingTask.start_date ? editingTask.start_date.split('T')[0] : getTodayStr()}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (!editingTask && val && val < today) {
+                    setFormErrors((prev) => ({ ...prev, start_date: 'Start date cannot be a past date.' }));
+                    return;
+                  }
+                  setStartDate(val);
                   setFormErrors((prev) => ({ ...prev, start_date: '' }));
+                  if (targetDate && targetDate < val) {
+                    setTargetDate(val);
+                    setFormErrors((prev) => ({ ...prev, target_date: '' }));
+                  }
                 }}
                 required
                 error={formErrors.start_date}
@@ -979,8 +1027,19 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 label="End Date *"
                 type="date"
                 value={targetDate}
+                min={startDate ? startDate : (editingTask ? undefined : getTodayStr())}
                 onChange={(e) => {
-                  setTargetDate(e.target.value);
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (!editingTask && val && val < today) {
+                    setFormErrors((prev) => ({ ...prev, target_date: 'End date cannot be a past date.' }));
+                    return;
+                  }
+                  if (startDate && val && val < startDate) {
+                    setFormErrors((prev) => ({ ...prev, target_date: 'End date cannot be earlier than start date.' }));
+                    return;
+                  }
+                  setTargetDate(val);
                   setFormErrors((prev) => ({ ...prev, target_date: '' }));
                 }}
                 required
@@ -1698,3 +1757,5 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     </div>
   );
 };
+
+export default Tasks;

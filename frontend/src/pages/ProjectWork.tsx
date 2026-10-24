@@ -10,6 +10,14 @@ import { Modal } from '../components/common/Modal';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const ProjectWork: React.FC = () => {
   const { user } = useAuth();
   const canManage = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
@@ -44,7 +52,7 @@ export const ProjectWork: React.FC = () => {
     material_rate: '',
     working_hours: '',
     description: '',
-    log_date: new Date().toISOString().split('T')[0]
+    log_date: getTodayStr()
   });
 
   useEffect(() => {
@@ -133,6 +141,12 @@ export const ProjectWork: React.FC = () => {
       return;
     }
 
+    const today = getTodayStr();
+    if (logForm.log_date && logForm.log_date < today) {
+      showError('Log Date cannot be a past date');
+      return;
+    }
+
     let finalTaskId: number | undefined = undefined;
     let finalTaskName: string | undefined = undefined;
     
@@ -147,7 +161,7 @@ export const ProjectWork: React.FC = () => {
 
     let finalLabourId: number | undefined = undefined;
     if (logForm.labour_name && logForm.labour_name.trim() !== '') {
-      const existingLabour = labours.find(l => l.labour_name.toLowerCase() === logForm.labour_name.trim().toLowerCase());
+      const existingLabour = labours.find(l => (l.name || l.labour_name || '').toLowerCase() === logForm.labour_name.trim().toLowerCase());
       if (existingLabour) {
         finalLabourId = existingLabour.labour_id;
       } else {
@@ -210,7 +224,7 @@ export const ProjectWork: React.FC = () => {
         setIsLogWorkOpen(false);
         setLogForm({
           task_id: '', task_name: '', is_new_task: false, employee_id: '', labour_id: '', labour_name: '',
-          material_id: '', material_name: '', material_qty: '', material_rate: '', working_hours: '', description: '', log_date: new Date().toISOString().split('T')[0]
+          material_id: '', material_name: '', material_qty: '', material_rate: '', working_hours: '', description: '', log_date: getTodayStr()
         });
         fetchProjectData(Number(selectedProjectId));
       } else {
@@ -451,7 +465,7 @@ export const ProjectWork: React.FC = () => {
                 </div>
                 <datalist id="labourOptions">
                   {labours.map(l => (
-                    <option key={l.labour_id} value={l.labour_name} />
+                    <option key={l.labour_id} value={l.name || l.labour_name} />
                   ))}
                 </datalist>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.4rem" }}>
@@ -462,7 +476,22 @@ export const ProjectWork: React.FC = () => {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem' }}>
               <div style={{ flex: '1 1 200px' }}>
-                <FormInput label="Log Date *" type="date" value={logForm.log_date} onChange={e => setLogForm(p => ({ ...p, log_date: e.target.value }))} required />
+                <FormInput
+                  label="Log Date *"
+                  type="date"
+                  value={logForm.log_date}
+                  min={getTodayStr()}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const today = getTodayStr();
+                    if (val && val < today) {
+                      showError('Log Date cannot be a past date');
+                      return;
+                    }
+                    setLogForm(p => ({ ...p, log_date: val }));
+                  }}
+                  required
+                />
               </div>
               <div style={{ flex: '1 1 200px' }}>
                 <FormInput label="Work HRs. *" type="number" min="0.5" step="0.5" value={logForm.working_hours} onChange={e => setLogForm(p => ({ ...p, working_hours: e.target.value }))} required placeholder="e.g. 6" />

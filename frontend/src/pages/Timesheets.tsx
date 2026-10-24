@@ -24,6 +24,14 @@ export interface Timesheet {
   created_at: string;
 }
 
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: string) => void }> = ({ projectId, onNavigate }) => {
   const { user, hasPermission } = useAuth();
   const isEmployee = user?.role_name === 'Employee';
@@ -57,7 +65,7 @@ export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: stri
     wbs_id: '',
     task_id: '',
     employee_id: isEmployee && user ? String(user.employee_id) : '',
-    log_date: new Date().toISOString().split('T')[0],
+    log_date: getTodayStr(),
     working_hours: 8,
     comment: '',
   });
@@ -157,7 +165,7 @@ export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: stri
         wbs_id: '',
         task_id: '',
         employee_id: isEmployee && user ? String(user.employee_id) : '',
-        log_date: new Date().toISOString().split('T')[0],
+        log_date: getTodayStr(),
         working_hours: 8,
         comment: '',
       });
@@ -187,6 +195,10 @@ export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: stri
     e.preventDefault();
     if (!form.task_id && !form.project_id) return showError('Please select a project or a task');
     if (!form.employee_id) return showError('Employee is required');
+    const today = getTodayStr();
+    if (!editingTs && form.log_date && form.log_date < today) {
+      return showError('Log date cannot be a past date');
+    }
     setIsSubmitting(true);
 
     try {
@@ -488,7 +500,16 @@ export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: stri
                       type="date"
                       required
                       value={form.log_date}
-                      onChange={(e) => setForm({ ...form, log_date: e.target.value })}
+                      min={editingTs ? undefined : getTodayStr()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const today = getTodayStr();
+                        if (!editingTs && val && val < today) {
+                          showError('Log date cannot be a past date');
+                          return;
+                        }
+                        setForm({ ...form, log_date: val });
+                      }}
                       className="form-input"
                     />
                   </div>

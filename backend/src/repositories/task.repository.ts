@@ -126,11 +126,23 @@ export class TaskRepository {
         }
       }
 
+      const assignedLabours = await this.getAssignedLabours(r.task_id);
+      const targetDateStr = r.target_date ? (r.target_date instanceof Date ? r.target_date.toISOString().split('T')[0] : String(r.target_date).split('T')[0]) : null;
+      const startDateStr = r.start_date ? (r.start_date instanceof Date ? r.start_date.toISOString().split('T')[0] : String(r.start_date).split('T')[0]) : null;
+
+      const extraHrs = Math.max(actualHrs - estimatedHrs, 0);
+
       tasks.push({
         ...r,
         status: currentStatus,
+        start_date: startDateStr || r.start_date,
+        target_date: targetDateStr || r.target_date,
+        end_date: targetDateStr || r.target_date || null,
+        estimated_hours: Math.round(estimatedHrs * 100) / 100,
+        planned_hours: Math.round(estimatedHrs * 100) / 100,
         actual_hours: Math.round(actualHrs * 100) / 100,
         remaining_hours: Math.round(remainingHrs * 100) / 100,
+        extra_hours: Math.round(extraHrs * 100) / 100,
         variance: Math.round(varianceHrs * 100) / 100,
         completion_percentage: compPct,
         allocation_status: allocStatus,
@@ -141,7 +153,12 @@ export class TaskRepository {
         is_understaffed: assignedCount < requiredCount,
         productivity_status: productivityStatus,
         assigned_employees: assignedEmployees,
-        assigned_labours: await this.getAssignedLabours(r.task_id),
+        assigned_employee_name: assignedEmployees.map((e) => e.name).join(', ') || null,
+        assigned_employee_id: assignedEmployees[0]?.employee_id || null,
+        assigned_labours: assignedLabours,
+        assigned_labour_name: assignedLabours.map((l) => l.name).join(', ') || null,
+        assigned_labour_id: assignedLabours[0]?.labour_id || null,
+        allocations: await this.getTaskAllocations(r.task_id),
         used_materials: await this.getTaskUsedMaterials(r.task_id),
         dependencies: await this.getDependencies(r.task_id),
       } as unknown as TaskRow);
@@ -183,11 +200,14 @@ export class TaskRepository {
 
   async getAssignedLabours(taskId: number): Promise<{ labour_id: number; name: string; labour_type: string }[]> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT l.labour_id, l.name, l.labour_type
-       FROM task_labour_assignments tla
-       JOIN labours l ON tla.labour_id = l.labour_id
-       WHERE tla.task_id = ?`,
-      [taskId]
+      `SELECT DISTINCT l.labour_id, l.name, l.labour_type
+       FROM labours l
+       WHERE l.labour_id IN (
+         SELECT labour_id FROM task_labour_assignments WHERE task_id = ?
+         UNION
+         SELECT labour_id FROM labour_work_logs WHERE task_id = ? AND (is_deleted = 0 OR is_deleted IS NULL)
+       )`,
+      [taskId, taskId]
     );
     return rows as { labour_id: number; name: string; labour_type: string }[];
   }
@@ -257,10 +277,10 @@ export class TaskRepository {
     if (data.description !== undefined) { fields.push('description = ?'); params.push(data.description); }
     if (data.required_worker_count !== undefined) { fields.push('required_worker_count = ?'); params.push(data.required_worker_count); }
     if (data.estimated_hours !== undefined) { fields.push('estimated_hours = ?'); params.push(data.estimated_hours); }
-    if (data.start_date !== undefined) { fields.push('start_date = ?'); params.push(data.start_date); }
-    if (data.start_time !== undefined) { fields.push('start_time = ?'); params.push(data.start_time); }
-    if (data.target_date !== undefined) { fields.push('target_date = ?'); params.push(data.target_date); }
-    if (data.target_time !== undefined) { fields.push('target_time = ?'); params.push(data.target_time); }
+    if (data.start_date !== undefined) { fields.push('start_date = ?'); params.push(data.start_date || null); }
+    if (data.start_time !== undefined) { fields.push('start_time = ?'); params.push(data.start_time || null); }
+    if (data.target_date !== undefined) { fields.push('target_date = ?'); params.push(data.target_date || null); }
+    if (data.target_time !== undefined) { fields.push('target_time = ?'); params.push(data.target_time || null); }
     if (data.status !== undefined) { fields.push('status = ?'); params.push(data.status); }
     if (data.priority !== undefined) { fields.push('priority = ?'); params.push(data.priority); }
     if (data.progress_percentage !== undefined) { fields.push('progress_percentage = ?'); params.push(data.progress_percentage); }

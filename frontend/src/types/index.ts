@@ -383,6 +383,10 @@ export interface QuotationDiscipline {
   material_quantity?: number;
   material_rate?: number;
   material_cost?: number;
+  labour_name?: string;
+  material_name?: string;
+  labours?: any[];
+  materials?: any[];
   start_date?: string;
   end_date?: string;
 }
@@ -410,10 +414,14 @@ export interface Quotation {
   quotation_code: string;
   customer_id: number;
   customer_name?: string;
+  contact_person?: string;
+  contact_number?: string;
   project_id?: number | null;
   project_name?: string;
   new_project_name?: string | null;
   project_type_id?: number | null;
+  project_type_name?: string;
+  project_type_code?: string;
   currency_id?: number | null;
   currency_code?: string;
   currency_symbol?: string;
@@ -518,6 +526,10 @@ export interface BillingSchedule {
   approved_amount?: number | null;
   completion_percentage?: number | null;
   work_status?: 'draft' | 'submitted' | 'approved' | 'rejected' | null;
+  invoice_id?: number | null;
+  invoice_number?: string | null;
+  invoice_status?: 'draft' | 'pending_approval' | 'approved' | 'sent' | 'partially_paid' | 'paid' | 'cancelled' | null;
+  paid_amount?: number | null;
   created_at?: string;
 }
 

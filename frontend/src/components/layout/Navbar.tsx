@@ -68,17 +68,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, theme = 'dark',
   const pageTitle = currentPage.charAt(0).toUpperCase() + currentPage.slice(1);
 
   const fetchNotifications = async () => {
-    const res = await apiRequest<any[]>('/notifications');
-    if (res.success && res.data) {
-      setNotifications(res.data);
-      setUnreadCount(res.data.filter(n => !n.is_read).length);
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+      const res = await apiRequest<any[]>('/notifications');
+      if (res.success && res.data) {
+        setNotifications(res.data);
+        setUnreadCount(res.data.filter(n => !n.is_read).length);
+      }
+    } catch {
+      // Safe fallback for background polling
     }
   };
 
   const fetchActiveStatus = async () => {
-    const res = await apiRequest<any>('/attendance/active');
-    if (res.success) {
-      setActiveCheckIn(res.data || null);
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    try {
+      const res = await apiRequest<any>('/attendance/active');
+      if (res.success) {
+        setActiveCheckIn(res.data || null);
+      }
+    } catch {
+      // Safe fallback for background polling
     }
   };
 

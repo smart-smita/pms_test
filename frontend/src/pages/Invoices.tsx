@@ -5,7 +5,7 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
-import { apiRequest } from '../services/api';
+import { apiRequest, API_BASE_URL } from '../services/api';
 import { Invoice, BillingSchedule, MonthlyCompletedWork, Currency, Tax, Country, Project, Customer, InvoicePayment, SiteSurvey, Discipline, InvoiceItem } from '../types';
 import { Plus, FileText, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
@@ -33,6 +33,9 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<number | null>(null);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [isApprovingInvoice, setIsApprovingInvoice] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ? String(projectId) : '');
   const [invoiceCountryId, setInvoiceCountryId] = useState<string>('');
 
@@ -341,6 +344,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
+      project_id: Number(invoiceForm.project_id || selectedProjectId || selectedCompletedWork?.project_id || 0),
       schedule_id: Number(invoiceForm.schedule_id),
       completed_work_id: Number(invoiceForm.completed_work_id),
       survey_id: invoiceForm.survey_id ? Number(invoiceForm.survey_id) : null,
@@ -354,6 +358,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
       invoice_date: invoiceForm.invoice_date,
       due_date: invoiceForm.due_date,
       items: invoiceForm.items,
+      status: 'pending_approval',
     };
 
     const res = await apiRequest('/invoices', {
@@ -362,35 +367,58 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
     });
 
     if (res.success) {
-      showSuccess('Invoice generated successfully!');
+      showSuccess('Invoice generated successfully! Pending approval.');
       setIsInvoiceModalOpen(false);
       fetchInvoices();
+      fetchSchedules();
+      fetchCompletedWorks();
     } else {
       showError(res.message || 'Failed to generate invoice.');
     }
   };
 
   const handleApproveInvoice = async (id: number) => {
-    const res = await apiRequest(`/invoices/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'approved' }),
-    });
+    try {
+      setIsApprovingInvoice(id);
+      const res = await apiRequest(`/invoices/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'approved' }),
+      });
 
-    if (res.success) {
-      showSuccess('Invoice approved!');
-      fetchInvoices();
-    } else {
-      showError(res.message || 'Failed to approve invoice.');
+      if (res.success) {
+        showSuccess('Invoice approved successfully!');
+        fetchInvoices();
+        fetchSchedules();
+        fetchCompletedWorks();
+      } else {
+        showError(res.message || 'Failed to approve invoice.');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to approve invoice.');
+    } finally {
+      setIsApprovingInvoice(null);
     }
   };
 
   const openPaymentModal = (inv: Invoice) => {
+    if (inv.status === 'draft' || inv.status === 'pending_approval') {
+      showError('Cannot pay an unapproved invoice. Please approve the invoice first.');
+      return;
+    }
+    if (inv.status === 'paid') {
+      showError('This invoice is already fully paid.');
+      return;
+    }
+    if (inv.status === 'cancelled') {
+      showError('Cannot record payment for a cancelled invoice.');
+      return;
+    }
     setSelectedInvoice(inv);
-    const remaining = Number(inv.total_amount) - Number(inv.paid_amount || 0);
+    const remaining = Math.max(0, Math.round((Number(inv.total_amount) - Number(inv.paid_amount || 0)) * 100) / 100);
     setPaymentForm({
       invoice_id: inv.invoice_id,
       payment_date: new Date().toISOString().split('T')[0],
-      amount: remaining > 0 ? remaining : 0,
+      amount: remaining,
       payment_method: 'Bank Transfer',
       reference_number: '',
     });
@@ -399,28 +427,81 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
 
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!paymentForm.amount || paymentForm.amount <= 0) {
-      showError('Please enter a valid payment amount.');
+    if (isSubmittingPayment) return;
+
+    const amt = Number(paymentForm.amount);
+    if (!amt || amt <= 0) {
+      showError('Please enter a valid positive payment amount.');
       return;
     }
 
-    const res = await apiRequest(`/invoices/${paymentForm.invoice_id}/payments`, {
-      method: 'POST',
-      body: JSON.stringify(paymentForm),
-    });
+    if (selectedInvoice) {
+      const alreadyPaid = Number(selectedInvoice.paid_amount || 0);
+      const remaining = Math.round((Number(selectedInvoice.total_amount) - alreadyPaid) * 100) / 100;
+      if (amt > remaining + 0.01) {
+        showError(`Payment amount (${amt.toFixed(2)}) exceeds remaining balance of ${remaining.toFixed(2)}.`);
+        return;
+      }
+    }
 
-    if (res.success) {
-      showSuccess('Payment recorded successfully!');
-      setIsPaymentModalOpen(false);
-      fetchInvoices();
-    } else {
-      showError(res.message || 'Failed to record payment.');
+    setIsSubmittingPayment(true);
+    try {
+      const res = await apiRequest(`/invoices/${paymentForm.invoice_id}/payments`, {
+        method: 'POST',
+        body: JSON.stringify(paymentForm),
+      });
+
+      if (res.success) {
+        showSuccess('Payment recorded successfully!');
+        setIsPaymentModalOpen(false);
+        fetchInvoices();
+        fetchSchedules();
+      } else {
+        showError(res.message || 'Failed to record payment.');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to record payment.');
+    } finally {
+      setIsSubmittingPayment(false);
     }
   };
 
-  const handleDownloadPdf = (invoiceId: number, invoiceNum: string) => {
-    const url = `/api/v1/invoices/${invoiceId}/pdf`;
-    window.open(url, '_blank');
+  const handleDownloadPdf = async (invoiceId: number, invoiceNum: string) => {
+    try {
+      setIsDownloadingPdf(invoiceId);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/pdf`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        let errMsg = 'Failed to generate invoice PDF';
+        try {
+          const errData = await response.json();
+          errMsg = errData.message || errMsg;
+        } catch (_) {}
+        showError(errMsg);
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanNum = invoiceNum && !invoiceNum.includes('undefined') ? invoiceNum : `INV-${invoiceId}`;
+      link.download = `${cleanNum}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showSuccess(`Invoice PDF (${cleanNum}) downloaded.`);
+    } catch (err: any) {
+      showError(err.message || 'Failed to download PDF.');
+    } finally {
+      setIsDownloadingPdf(null);
+    }
   };
 
   const handleCreateCurrency = async (e: React.FormEvent) => {
@@ -518,7 +599,16 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
 
   // Columns for Invoices Table
   const invoiceColumns: Column<Invoice>[] = [
-    { header: 'Invoice #', accessor: 'invoice_number', sortKey: 'invoice_number' },
+    { 
+      header: 'Invoice #', 
+      accessor: (r) => {
+        const num = r.invoice_number?.includes('undefined')
+          ? r.invoice_number.replace('undefined', String(r.project_id || '8'))
+          : r.invoice_number;
+        return <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{num}</span>;
+      },
+      sortKey: 'invoice_number' 
+    },
     {
       header: 'Customer / Project',
       accessor: (r) => (
@@ -626,7 +716,36 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
       ),
     },
     {
-      header: 'Status',
+      header: 'Invoice Status',
+      accessor: (r) => {
+        if (!r.invoice_id) {
+          return <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Not Generated</span>;
+        }
+        const variantMap: Record<string, 'success' | 'warning' | 'info' | 'danger' | 'secondary'> = {
+          draft: 'secondary',
+          pending_approval: 'warning',
+          approved: 'info',
+          sent: 'info',
+          partially_paid: 'warning',
+          paid: 'success',
+          cancelled: 'danger',
+        };
+        const status = r.invoice_status || 'draft';
+        const num = r.invoice_number?.includes('undefined')
+          ? r.invoice_number.replace('undefined', String(r.project_id || '8'))
+          : r.invoice_number;
+        return (
+          <div>
+            <Badge variant={variantMap[status] || 'secondary'}>{status.replace('_', ' ').toUpperCase()}</Badge>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.15rem', fontFamily: 'monospace' }}>
+              {num}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Schedule Status',
       accessor: (r) => <Badge variant={r.status === 'invoiced' || r.status === 'paid' ? 'success' : 'secondary'}>{r.status.toUpperCase()}</Badge>,
       sortKey: 'status',
     },
@@ -716,16 +835,30 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             isLoading={isLoading}
             actions={(row) => (
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <Button variant="secondary" onClick={() => handleDownloadPdf(row.invoice_id, row.invoice_number)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}>
-                  <Download size={13} /> PDF
+                <Button 
+                  variant="secondary" 
+                  disabled={isDownloadingPdf === row.invoice_id}
+                  onClick={() => handleDownloadPdf(row.invoice_id, row.invoice_number)} 
+                  style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}
+                >
+                  <Download size={13} /> {isDownloadingPdf === row.invoice_id ? 'Downloading...' : 'PDF'}
                 </Button>
-                {isAdminOrManager && row.status === 'pending_approval' && (
-                  <Button variant="primary" onClick={() => handleApproveInvoice(row.invoice_id)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}>
-                    <CheckCircle size={13} /> Approve
+                {isAdminOrManager && (row.status === 'draft' || row.status === 'pending_approval') && (
+                  <Button 
+                    variant="primary" 
+                    disabled={isApprovingInvoice === row.invoice_id}
+                    onClick={() => handleApproveInvoice(row.invoice_id)} 
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}
+                  >
+                    <CheckCircle size={13} /> {isApprovingInvoice === row.invoice_id ? 'Approving...' : 'Approve'}
                   </Button>
                 )}
-                {isAdminOrManager && row.status !== 'paid' && row.status !== 'cancelled' && (
-                  <Button variant="secondary" onClick={() => openPaymentModal(row)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>
+                {isAdminOrManager && (row.status === 'approved' || row.status === 'partially_paid') && (
+                  <Button 
+                    variant="secondary" 
+                    onClick={() => openPaymentModal(row)} 
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}
+                  >
                     <CreditCard size={13} /> Pay
                   </Button>
                 )}
@@ -744,12 +877,51 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             exportFilename="billing_schedules"
             isLoading={isLoading}
             actions={(row) => (
-              <div>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {row.status === 'pending' && isAdminOrManager && (
                   <Button variant="primary" onClick={() => openLogCompletedWorkModal(row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
                     <CheckCircle size={13} /> Log Monthly Work
                   </Button>
                 )}
+                {row.invoice_id ? (
+                  <>
+                    <Button 
+                      variant="secondary" 
+                      disabled={isDownloadingPdf === row.invoice_id}
+                      onClick={() => handleDownloadPdf(row.invoice_id!, row.invoice_number || '')} 
+                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}
+                    >
+                      <Download size={13} /> {isDownloadingPdf === row.invoice_id ? 'Downloading...' : 'PDF'}
+                    </Button>
+                    {isAdminOrManager && (row.invoice_status === 'draft' || row.invoice_status === 'pending_approval') && (
+                      <Button 
+                        variant="primary" 
+                        disabled={isApprovingInvoice === row.invoice_id}
+                        onClick={() => handleApproveInvoice(row.invoice_id!)} 
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}
+                      >
+                        <CheckCircle size={13} /> Approve
+                      </Button>
+                    )}
+                    {isAdminOrManager && (row.invoice_status === 'approved' || row.invoice_status === 'partially_paid') && (
+                      <Button 
+                        variant="secondary" 
+                        onClick={() => {
+                          const inv = invoices.find(i => i.invoice_id === row.invoice_id);
+                          if (inv) openPaymentModal(inv);
+                          else {
+                            apiRequest<Invoice>(`/invoices/${row.invoice_id}`).then(res => {
+                              if (res.success && res.data) openPaymentModal(res.data);
+                            });
+                          }
+                        }} 
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}
+                      >
+                        <CreditCard size={13} /> Pay
+                      </Button>
+                    )}
+                  </>
+                ) : null}
               </div>
             )}
           />
@@ -1106,8 +1278,20 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
       </Modal>
 
       {/* Record Payment Modal */}
-      <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title={`Record Payment for ${selectedInvoice?.invoice_number}`}>
+      <Modal 
+        isOpen={isPaymentModalOpen} 
+        onClose={() => setIsPaymentModalOpen(false)} 
+        title={`Record Payment for ${selectedInvoice?.invoice_number?.includes('undefined') ? selectedInvoice.invoice_number.replace('undefined', String(selectedInvoice.project_id || '8')) : selectedInvoice?.invoice_number || ''}`}
+      >
         <form onSubmit={handleSubmitPayment}>
+          {selectedInvoice && (
+            <div style={{ padding: '0.75rem 1rem', background: 'rgba(56,189,248,0.08)', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.2)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+              <div>Total: <strong>{selectedInvoice.currency_symbol || '$'} {Number(selectedInvoice.total_amount).toLocaleString()}</strong></div>
+              <div>Paid: <strong style={{ color: '#4ade80' }}>{selectedInvoice.currency_symbol || '$'} {Number(selectedInvoice.paid_amount || 0).toLocaleString()}</strong></div>
+              <div>Outstanding: <strong style={{ color: '#f87171' }}>{selectedInvoice.currency_symbol || '$'} {Math.max(0, Number(selectedInvoice.total_amount) - Number(selectedInvoice.paid_amount || 0)).toLocaleString()}</strong></div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <FormInput
               label="Payment Date"
@@ -1119,6 +1303,7 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
             <FormInput
               label="Payment Amount"
               type="number"
+              step="0.01"
               value={String(paymentForm.amount)}
               onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })}
               required
@@ -1144,8 +1329,10 @@ export const Invoices: React.FC<{ projectId?: number }> = ({ projectId }) => {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <Button type="button" variant="secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">Record Payment</Button>
+            <Button type="button" variant="secondary" onClick={() => setIsPaymentModalOpen(false)} disabled={isSubmittingPayment}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={isSubmittingPayment}>
+              {isSubmittingPayment ? 'Processing...' : 'Record Payment'}
+            </Button>
           </div>
         </form>
       </Modal>

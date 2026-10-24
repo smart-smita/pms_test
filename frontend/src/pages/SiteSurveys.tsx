@@ -5,7 +5,7 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
-import { apiRequest } from '../services/api';
+import { apiRequest, API_BASE_URL } from '../services/api';
 import { SiteSurvey, Project, Discipline, Employee, Customer, SiteSurveyPhoto } from '../types';
 import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKanban, MapPin, Eye, Upload, Image, Layers, User, Download, ClipboardCheck, Package } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
@@ -266,7 +266,11 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
     }
   };
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+  const apiUrl = API_BASE_URL;
+
+  const getAuthToken = () => {
+    return localStorage.getItem('access_token') || localStorage.getItem('token') || '';
+  };
 
   const columns: Column<SiteSurvey>[] = [
     {
@@ -281,6 +285,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           </div>
         </div>
       ),
+      csvAccessor: (r) => `${r.survey_code} (${r.survey_date ? new Date(r.survey_date).toLocaleDateString() : ''})`,
       sortKey: 'survey_code',
     },
     {
@@ -295,6 +300,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           </div>
         </div>
       ),
+      csvAccessor: (r) => `${r.project_name || 'N/A'} - ${r.customer_name || 'N/A'}`,
+      sortKey: 'project_name',
     },
     {
       header: 'Discipline',
@@ -304,6 +311,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           {r.discipline_name || 'General Site'}
         </Badge>
       ),
+      csvAccessor: (r) => r.discipline_name || 'General Site',
+      sortKey: 'discipline_name',
     },
     {
       header: 'Entry Mode',
@@ -312,6 +321,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           {r.entry_type === 'system_entry' ? `System Form (${r.photo_count || 0} pics)` : 'Attached Report PDF'}
         </Badge>
       ),
+      csvAccessor: (r) => (r.entry_type === 'system_entry' ? `System Form (${r.photo_count || 0} pics)` : 'Attached Report PDF'),
+      sortKey: 'entry_type',
     },
     {
       header: 'Inspector',
@@ -320,6 +331,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           <User size={13} color="#4ade80" /> {r.conducted_by_name || 'N/A'}
         </div>
       ),
+      csvAccessor: (r) => r.conducted_by_name || 'N/A',
+      sortKey: 'conducted_by_name',
     },
     {
       header: 'Status',
@@ -328,6 +341,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           {r.status}
         </Badge>
       ),
+      csvAccessor: (r) => r.status,
       sortKey: 'status',
     },
   ];
@@ -401,9 +415,16 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               </Button>
               {row.entry_type === 'system_entry' ? (
                 <a
-                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${localStorage.getItem('token')}`}
+                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${encodeURIComponent(getAuthToken())}`}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={(e) => {
+                    const token = getAuthToken();
+                    if (!token) {
+                      e.preventDefault();
+                      showError('Authentication token missing. Please log in again.');
+                    }
+                  }}
                   style={{
                     padding: '0.35rem 0.65rem',
                     background: 'rgba(56, 189, 248, 0.1)',

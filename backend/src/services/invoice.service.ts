@@ -138,6 +138,7 @@ export class InvoiceService {
       is_extra_work: boolean | number;
     }[];
     created_by: number;
+    status?: InvoiceRow['status'];
   }): Promise<number> {
     const schedule = await this.repo.getScheduleById(data.schedule_id);
     if (!schedule) throw new Error("Schedule not found");
@@ -148,9 +149,9 @@ export class InvoiceService {
     const projectId = data.project_id || schedule.project_id;
     const quotationId = data.quotation_id || schedule.quotation_id;
     
+    const project = await this.projectRepo.findById(projectId);
     let customerId = data.customer_id;
     if (!customerId) {
-      const project = await this.projectRepo.findById(projectId);
       if (project?.customer_id) {
         customerId = project.customer_id;
       } else {
@@ -161,8 +162,10 @@ export class InvoiceService {
       }
     }
 
-    // Generate Invoice Number (e.g. INV-PRJ1-YYYYMM-01)
-    const invoiceNumber = `INV-${data.project_id}-${Date.now().toString().slice(-6)}`;
+    // Generate Invoice Number (e.g. INV-PRJ1-YYYYMM-01) - ensure no undefined
+    const projectCode = (project?.project_code || `PRJ${projectId}`).replace(/[^a-zA-Z0-9_-]/g, '');
+    const monthPart = (schedule.billing_month ? String(schedule.billing_month) : new Date().toISOString().slice(0, 10)).replace(/-/g, '').slice(0, 6);
+    const invoiceNumber = `INV-${projectCode}-${monthPart}-${Date.now().toString().slice(-4)}`;
     
     const subtotal = data.items.reduce((sum, item) => sum + Number(item.amount), 0);
     const taxAmt = data.tax_amount !== undefined ? Number(data.tax_amount) : (data.tax_percentage ? (subtotal * data.tax_percentage) / 100 : 0);
@@ -171,6 +174,8 @@ export class InvoiceService {
     const now = new Date();
     const dueDate = new Date(now);
     dueDate.setDate(now.getDate() + 30); // 30 days due
+
+    const initialStatus = data.status || 'pending_approval';
 
     const id = await this.repo.createInvoice({
       invoice_number: invoiceNumber,
@@ -190,9 +195,9 @@ export class InvoiceService {
       subtotal_amount: subtotal,
       tax_amount: taxAmt,
       total_amount: totalAmt,
-      status: 'draft',
+      status: initialStatus,
       created_by: data.created_by,
-      approved_by: null
+      approved_by: initialStatus === 'approved' ? data.created_by : null
     });
 
     if (data.items && data.items.length > 0) {
@@ -210,7 +215,15 @@ export class InvoiceService {
   }
 
   async approveInvoice(id: number, userId: number): Promise<void> {
+    const invoice = await this.repo.getInvoiceById(id);
+    if (!invoice) throw new Error("Invoice not found");
+
     await this.repo.updateInvoiceStatus(id, 'approved', userId);
+
+    // If attached to a schedule, ensure completed work is also approved
+    if (invoice.schedule_id) {
+      await this.repo.approveCompletedWorkByScheduleId(invoice.schedule_id, userId);
+    }
   }
 
   // ── Invoice Payments ───────────────────────────────────────────────────────
@@ -228,14 +241,26 @@ export class InvoiceService {
     const invoice = await this.repo.getInvoiceById(data.invoice_id);
     if (!invoice) throw new Error("Invoice not found");
     if (invoice.status === 'paid') throw new Error("Invoice is already fully paid");
+    if (invoice.status === 'cancelled') throw new Error("Cannot pay a cancelled invoice");
     if (invoice.status === 'draft' || invoice.status === 'pending_approval') {
       throw new Error("Cannot pay an unapproved invoice");
+    }
+
+    const paymentAmount = Number(data.amount);
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+      throw new Error("Payment amount must be greater than zero");
+    }
+
+    const alreadyPaid = Number(invoice.paid_amount || 0);
+    const outstanding = Math.round((Number(invoice.total_amount) - alreadyPaid) * 100) / 100;
+    if (paymentAmount > outstanding + 0.01) {
+      throw new Error(`Payment amount cannot exceed outstanding balance of ${outstanding.toFixed(2)}`);
     }
 
     const paymentId = await this.repo.addPayment({
       invoice_id: data.invoice_id,
       payment_date: data.payment_date,
-      amount: data.amount,
+      amount: paymentAmount,
       payment_method: data.payment_method || null,
       reference_number: data.reference_number || null,
       status: 'completed'
@@ -243,11 +268,13 @@ export class InvoiceService {
 
     const existingPayments = await this.repo.getPaymentsByInvoice(data.invoice_id);
     const totalPaid = existingPayments.reduce((sum, p) => sum + (p.status === 'completed' ? Number(p.amount) : 0), 0);
-    const newTotalPaid = totalPaid + data.amount;
 
-    if (newTotalPaid >= invoice.total_amount) {
+    if (totalPaid >= Number(invoice.total_amount) - 0.01) {
       await this.repo.updateInvoiceStatus(data.invoice_id, 'paid');
-    } else {
+      if (invoice.schedule_id) {
+        await this.repo.updateScheduleStatus(invoice.schedule_id, 'paid');
+      }
+    } else if (totalPaid > 0) {
       await this.repo.updateInvoiceStatus(data.invoice_id, 'partially_paid');
     }
 

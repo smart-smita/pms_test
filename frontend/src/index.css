@@ -543,7 +543,7 @@ h1, h2, h3, h4, h5 {
   color: var(--text-secondary);
   margin-bottom: 0.4rem;
 }
-.form-input, .form-select, textarea.form-input {
+.form-input, .form-select, .form-control, textarea.form-input, textarea.form-control {
   width: 100%;
   padding: 0.6rem 0.85rem;
   background: var(--input-bg-solid);
@@ -554,24 +554,39 @@ h1, h2, h3, h4, h5 {
   font-size: 0.85rem;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
   /* Ensure text is always legible regardless of OS theme */
   -webkit-text-fill-color: var(--input-text);
 }
 
+/* Card fallback for pages using .card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 /* Override WebKit autofill */
 .form-input:-webkit-autofill,
-.form-select:-webkit-autofill {
+.form-select:-webkit-autofill,
+.form-control:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px var(--input-bg-solid) inset !important;
   -webkit-text-fill-color: var(--input-text) !important;
   caret-color: var(--input-text);
 }
 
-.form-input::placeholder, textarea.form-input::placeholder {
+.form-input::placeholder, textarea.form-input::placeholder, .form-control::placeholder, textarea.form-control::placeholder {
   color: var(--input-placeholder);
   -webkit-text-fill-color: var(--input-placeholder);
   opacity: 1;
 }
-.form-input:focus, .form-select:focus {
+.form-input:focus, .form-select:focus, .form-control:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
@@ -584,7 +599,8 @@ h1, h2, h3, h4, h5 {
 
 /* ── Select element — cross-browser option theming ── */
 select.form-select,
-select.form-input {
+select.form-input,
+select.form-control {
   appearance: auto; /* keep native arrow */
   background-color: var(--input-bg-solid);
   color: var(--input-text);
@@ -593,19 +609,22 @@ select.form-input {
 
 /* Option list panel — dark theme */
 select.form-select option,
-select.form-input option {
+select.form-input option,
+select.form-control option {
   background-color: var(--select-option-bg);
   color: var(--select-option-color);
 }
 
 /* Light theme explicit overrides */
 [data-theme="light"] select.form-select,
-[data-theme="light"] select.form-input {
+[data-theme="light"] select.form-input,
+[data-theme="light"] select.form-control {
   background-color: #ffffff;
   color: #0f172a;
 }
 [data-theme="light"] select.form-select option,
-[data-theme="light"] select.form-input option {
+[data-theme="light"] select.form-input option,
+[data-theme="light"] select.form-control option {
   background-color: #ffffff;
   color: #0f172a;
 }
@@ -613,7 +632,9 @@ select.form-input option {
 /* Disabled state */
 .form-input:disabled,
 .form-select:disabled,
-textarea.form-input:disabled {
+.form-control:disabled,
+textarea.form-input:disabled,
+textarea.form-control:disabled {
   opacity: 0.85;
   cursor: not-allowed;
   background: var(--border-color);
@@ -622,7 +643,9 @@ textarea.form-input:disabled {
 
 [data-theme="light"] .form-input:disabled,
 [data-theme="light"] .form-select:disabled,
-[data-theme="light"] textarea.form-input:disabled {
+[data-theme="light"] .form-control:disabled,
+[data-theme="light"] textarea.form-input:disabled,
+[data-theme="light"] textarea.form-control:disabled {
   background: #f1f5f9;
 }
 
@@ -2040,13 +2063,24 @@ textarea.form-input:disabled {
 /* Responsive Grid Utilities */
 .grid-responsive-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+.grid-responsive-2 > * {
+  min-width: 0;
+}
+.grid-responsive-materials {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+.grid-responsive-materials > * {
+  min-width: 0;
 }
 .grid-responsive-4 {
   display: grid;
-  grid-template-columns: 1fr 0.8fr 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr);
+  gap: 0.85rem;
 }
 .grid-responsive-wbs-row {
   display: grid;
@@ -2059,6 +2093,13 @@ textarea.form-input:disabled {
   gap: 0.5rem;
 }
 
+@media (max-width: 1400px) {
+  .grid-responsive-4 {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+  }
+}
+
 @media (max-width: 1024px) {
   .grid-responsive-wbs-fields {
     grid-template-columns: 1fr 1fr;
@@ -2068,12 +2109,30 @@ textarea.form-input:disabled {
   }
 }
 
+@media (max-width: 860px) {
+  .grid-responsive-materials {
+    grid-template-columns: 1fr 1fr;
+  }
+  .grid-responsive-materials > :first-child {
+    grid-column: span 2;
+  }
+}
+
 @media (max-width: 768px) {
   .grid-responsive-2,
   .grid-responsive-4,
   .grid-responsive-wbs-row,
   .grid-responsive-wbs-fields {
     grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .grid-responsive-materials {
+    grid-template-columns: 1fr !important;
+  }
+  .grid-responsive-materials > :first-child {
+    grid-column: span 1 !important;
   }
 }
 
@@ -2106,3 +2165,49 @@ textarea.form-input:disabled {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── PRINT & PDF EXPORT STYLES ────────────────────────────────────────────── */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .sidebar,
+  .top-navbar,
+  .no-print,
+  button,
+  .modal-overlay,
+  nav {
+    display: none !important;
+  }
+
+  .page-body,
+  .main-content,
+  .app-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .glass-card {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 1rem !important;
+    padding: 1rem !important;
+    color: #0f172a !important;
+  }
+
+  .quotation-view-layout {
+    display: block !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+

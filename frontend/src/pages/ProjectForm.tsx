@@ -23,6 +23,14 @@ interface ProjectFormProps {
   isWorkspace?: boolean;
 }
 
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 interface ProjectWbsAllocation {
   id: string | number;
   wbs_id?: number | null;
@@ -447,6 +455,20 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
       return;
     }
 
+    const today = getTodayStr();
+    if (!projectId && startDate && startDate < today) {
+      showError('Start Date cannot be a past date');
+      return;
+    }
+    if (!projectId && endDate && endDate < today) {
+      showError('End Date cannot be a past date');
+      return;
+    }
+    if (startDate && endDate && endDate < startDate) {
+      showError('End Date cannot be earlier than Start Date');
+      return;
+    }
+
     setIsSubmitting(true);
     const payload = {
       project_code: projectCode,
@@ -676,7 +698,19 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
                 label="Start Date"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                min={projectId ? undefined : getTodayStr()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (!projectId && val && val < today) {
+                    showWarning('Start Date cannot be a past date');
+                    return;
+                  }
+                  setStartDate(val);
+                  if (endDate && endDate < val) {
+                    setEndDate(val);
+                  }
+                }}
                 required
               />
 
@@ -684,7 +718,20 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
                 label="Target End Date"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                min={startDate || (projectId ? undefined : getTodayStr())}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (!projectId && val && val < today) {
+                    showWarning('End Date cannot be a past date');
+                    return;
+                  }
+                  if (startDate && val && val < startDate) {
+                    showWarning('End Date cannot be earlier than Start Date');
+                    return;
+                  }
+                  setEndDate(val);
+                }}
               />
 
               {/* Status */}

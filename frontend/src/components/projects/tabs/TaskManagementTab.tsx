@@ -76,6 +76,22 @@ export const TaskManagementTab: React.FC<TaskManagementTabProps> = ({
     setCurrentPage(1);
   };
 
+  const getAssigneeName = (t: Task) => {
+    if (t.assigned_employees && t.assigned_employees.length > 0) {
+      return t.assigned_employees.map((e) => e.name).join(', ');
+    }
+    if (t.assigned_employee_name) return t.assigned_employee_name;
+    if (t.assigned_labours && t.assigned_labours.length > 0) {
+      return t.assigned_labours.map((l) => l.name).join(', ');
+    }
+    if (t.assigned_labour_name) return t.assigned_labour_name;
+    return 'Unassigned';
+  };
+
+  const getEndDate = (t: Task) => {
+    return t.end_date || t.target_date || undefined;
+  };
+
   // Filtered Task records
   const filteredTasks = tasks.filter((t: any) => {
     if (filterStatus && t.status !== filterStatus) return false;
@@ -84,7 +100,7 @@ export const TaskManagementTab: React.FC<TaskManagementTabProps> = ({
       const q = appliedSearch.toLowerCase();
       const code = String(t.task_code || '').toLowerCase();
       const name = String(t.task_name || '').toLowerCase();
-      const assignee = String(t.assigned_employee_name || t.assigned_labour_name || '').toLowerCase();
+      const assignee = getAssigneeName(t).toLowerCase();
       if (!code.includes(q) && !name.includes(q) && !assignee.includes(q)) {
         return false;
       }
@@ -105,9 +121,9 @@ export const TaskManagementTab: React.FC<TaskManagementTabProps> = ({
         { label: 'Task Code', key: 'task_code' },
         { label: 'Task Name', key: 'task_name' },
         { label: 'WBS', accessor: (r) => r.wbs_name || 'N/A' },
-        { label: 'Assignee', accessor: (r) => r.assigned_employee_name || r.assigned_labour_name || 'Unassigned' },
+        { label: 'Assignee', accessor: (r) => getAssigneeName(r) },
         { label: 'Start Date', key: 'start_date', type: 'date' },
-        { label: 'End Date', key: 'end_date', type: 'date' },
+        { label: 'End Date', accessor: (r) => formatDate(getEndDate(r)), type: 'date' },
         { label: 'Planned Hours', key: 'planned_hours', type: 'number' },
         { label: 'Actual Hours', key: 'actual_hours', type: 'number' },
         { label: 'Progress %', key: 'progress_percentage', type: 'number' },
@@ -388,7 +404,7 @@ export const TaskManagementTab: React.FC<TaskManagementTabProps> = ({
                   <td style={{ padding: '0.9rem 1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                       <User size={13} color="#4ade80" />
-                      <span>{t.assigned_employee_name || t.assigned_labour_name || 'Unassigned'}</span>
+                      <span>{getAssigneeName(t)}</span>
                     </div>
                   </td>
 
@@ -397,7 +413,7 @@ export const TaskManagementTab: React.FC<TaskManagementTabProps> = ({
                   </td>
 
                   <td style={{ padding: '0.9rem 1rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    {formatDate(t.end_date)}
+                    {formatDate(getEndDate(t))}
                   </td>
 
                   <td style={{ padding: '0.9rem 1rem' }}>

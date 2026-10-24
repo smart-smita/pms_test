@@ -9,6 +9,16 @@ export interface BillingScheduleRow {
   expected_amount: number;
   status: 'pending' | 'completed_work_logged' | 'invoiced' | 'paid';
   created_at?: string;
+  project_name?: string;
+  customer_name?: string;
+  completed_work_id?: number;
+  completion_percentage?: number;
+  approved_amount?: number;
+  work_status?: string;
+  invoice_id?: number;
+  invoice_number?: string;
+  invoice_status?: string;
+  paid_amount?: number;
 }
 
 export interface MonthlyCompletedWorkRow {
@@ -26,13 +36,19 @@ export interface InvoiceRow {
   invoice_id: number;
   invoice_number: string;
   customer_id: number;
+  customer_name?: string;
   project_id: number;
+  project_name?: string;
   quotation_id: number;
   schedule_id: number;
   survey_id?: number | null;
   currency_id: number;
+  currency_code?: string;
+  currency_symbol?: string;
   tax_id: number | null;
+  tax_name?: string;
   tax_type?: string | null;
+  tax_percentage?: number;
   cgst_amount?: number;
   sgst_amount?: number;
   igst_amount?: number;
@@ -41,6 +57,7 @@ export interface InvoiceRow {
   subtotal_amount: number;
   tax_amount: number;
   total_amount: number;
+  paid_amount?: number;
   status: 'draft' | 'pending_approval' | 'approved' | 'sent' | 'partially_paid' | 'paid' | 'cancelled';
   created_by: number | null;
   approved_by: number | null;
@@ -73,11 +90,20 @@ export class InvoiceRepository {
   // ── Billing Schedules ──────────────────────────────────────────────────
   async getSchedulesByProject(projectId?: number): Promise<BillingScheduleRow[]> {
     let sql = `SELECT bs.*, p.project_name, cust.customer_name,
-                      mcw.completed_work_id, mcw.completion_percentage, mcw.approved_amount, mcw.status AS work_status
+                      mcw.completed_work_id, mcw.completion_percentage, mcw.approved_amount, mcw.status AS work_status,
+                      inv.invoice_id, inv.invoice_number, inv.status AS invoice_status,
+                      COALESCE(pmt.paid_amount, 0) AS paid_amount
                FROM billing_schedules bs
                LEFT JOIN projects p ON bs.project_id = p.project_id
                LEFT JOIN customers cust ON p.customer_id = cust.customer_id
-               LEFT JOIN monthly_completed_work mcw ON bs.schedule_id = mcw.schedule_id`;
+               LEFT JOIN monthly_completed_work mcw ON bs.schedule_id = mcw.schedule_id
+               LEFT JOIN invoices inv ON bs.schedule_id = inv.schedule_id
+               LEFT JOIN (
+                 SELECT invoice_id, SUM(amount) AS paid_amount 
+                 FROM invoice_payments 
+                 WHERE status = 'completed' 
+                 GROUP BY invoice_id
+               ) pmt ON inv.invoice_id = pmt.invoice_id`;
     const params: any[] = [];
     if (projectId) {
       sql += ` WHERE bs.project_id = ?`;
@@ -139,6 +165,14 @@ export class InvoiceRepository {
       await dbPool.query(`UPDATE monthly_completed_work SET status = ?, approved_by = ? WHERE completed_work_id = ?`, [status, approvedBy, id]);
     } else {
       await dbPool.query(`UPDATE monthly_completed_work SET status = ? WHERE completed_work_id = ?`, [status, id]);
+    }
+  }
+
+  async approveCompletedWorkByScheduleId(scheduleId: number, approvedBy?: number): Promise<void> {
+    if (approvedBy) {
+      await dbPool.query(`UPDATE monthly_completed_work SET status = 'approved', approved_by = ? WHERE schedule_id = ? AND status != 'approved'`, [approvedBy, scheduleId]);
+    } else {
+      await dbPool.query(`UPDATE monthly_completed_work SET status = 'approved' WHERE schedule_id = ? AND status != 'approved'`, [scheduleId]);
     }
   }
 
