@@ -12,13 +12,36 @@ export interface SystemSettingRow extends RowDataPacket {
 }
 
 export class SettingRepository {
+  private async ensureTableExists(): Promise<void> {
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        setting_key VARCHAR(100) NOT NULL PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        setting_group VARCHAR(50) NOT NULL DEFAULT 'general',
+        description VARCHAR(255) NULL,
+        updated_by INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+  }
+
   async getSetting(key: string): Promise<string | null> {
-    const [rows] = await dbPool.query<SystemSettingRow[]>(
-      `SELECT setting_value FROM system_settings WHERE setting_key = ?`,
-      [key]
-    );
-    if (!rows || rows.length === 0) return null;
-    return rows[0].setting_value;
+    try {
+      const [rows] = await dbPool.query<SystemSettingRow[]>(
+        `SELECT setting_value FROM system_settings WHERE setting_key = ?`,
+        [key]
+      );
+      if (!rows || rows.length === 0) return null;
+      return rows[0].setting_value;
+    } catch (err: any) {
+      if (err.code === 'ER_NO_SUCH_TABLE') {
+        await this.ensureTableExists();
+        return null;
+      }
+      console.error('Error fetching setting:', err.message);
+      return null;
+    }
   }
 
   async setSetting(
@@ -28,17 +51,36 @@ export class SettingRepository {
     description?: string,
     updatedBy?: number
   ): Promise<void> {
-    await dbPool.query(
-      `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-         setting_value = VALUES(setting_value),
-         setting_group = VALUES(setting_group),
-         description = COALESCE(VALUES(description), description),
-         updated_by = VALUES(updated_by),
-         updated_at = CURRENT_TIMESTAMP`,
-      [key, value, group, description || null, updatedBy || null]
-    );
+    try {
+      await dbPool.query(
+        `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+           setting_value = VALUES(setting_value),
+           setting_group = VALUES(setting_group),
+           description = COALESCE(VALUES(description), description),
+           updated_by = VALUES(updated_by),
+           updated_at = CURRENT_TIMESTAMP`,
+        [key, value, group, description || null, updatedBy || null]
+      );
+    } catch (err: any) {
+      if (err.code === 'ER_NO_SUCH_TABLE') {
+        await this.ensureTableExists();
+        await dbPool.query(
+          `INSERT INTO system_settings (setting_key, setting_value, setting_group, description, updated_by)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE 
+             setting_value = VALUES(setting_value),
+             setting_group = VALUES(setting_group),
+             description = COALESCE(VALUES(description), description),
+             updated_by = VALUES(updated_by),
+             updated_at = CURRENT_TIMESTAMP`,
+          [key, value, group, description || null, updatedBy || null]
+        );
+      } else {
+        throw err;
+      }
+    }
   }
 
   async getWorkCategoryImpact(targetCategory: 'material' | 'labour' | 'both'): Promise<{

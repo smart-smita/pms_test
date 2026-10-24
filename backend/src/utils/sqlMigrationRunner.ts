@@ -1,14 +1,15 @@
 import mysql from 'mysql2/promise';
 import * as fs from 'fs';
 import * as path from 'path';
+import { env } from '../config/env';
 
 export async function runSqlMigrations(): Promise<void> {
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'pms_test',
+    host: env.DB_HOST,
+    port: env.DB_PORT,
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    database: env.DB_NAME,
     multipleStatements: true,
   });
 

@@ -41,7 +41,20 @@ SET @sql := IF(@exist_qwm_id = 0,
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 
--- 3. Add revision and credit note fields to invoices table
+-- 3. Add invoice_type, revision and credit note fields to invoices table
+SET @exist_inv_type := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS 
+  WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'invoices' 
+    AND COLUMN_NAME = 'invoice_type'
+);
+
+SET @sql := IF(@exist_inv_type = 0,
+  'ALTER TABLE invoices ADD COLUMN invoice_type ENUM(\'combined\', \'labour\', \'material\', \'credit_note\') NOT NULL DEFAULT \'combined\' AFTER total_amount',
+  'SELECT "Column invoice_type already exists on invoices"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 SET @exist_orig_inv := (
   SELECT COUNT(*) FROM information_schema.COLUMNS 
   WHERE TABLE_SCHEMA = DATABASE() 
