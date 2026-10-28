@@ -76,6 +76,9 @@ export class LabourWorkLogService {
     try {
       const { InvoiceService } = await import('./invoice.service');
       const invSvc = new InvoiceService();
+      if (data.task_id) {
+        await invSvc.autoGenerateInvoiceForCompletedTask(data.task_id, data.created_by || undefined);
+      }
       await invSvc.syncDraftInvoicesForProject(data.project_id, data.task_id);
     } catch (e) {
       console.error('Invoice auto-sync on labour create error:', e);
@@ -141,6 +144,9 @@ export class LabourWorkLogService {
     try {
       const { InvoiceService } = await import('./invoice.service');
       const invSvc = new InvoiceService();
+      if (updatedTaskId) {
+        await invSvc.autoGenerateInvoiceForCompletedTask(updatedTaskId, userId);
+      }
       await invSvc.syncDraftInvoicesForProject(updatedProjectId, updatedTaskId, userId);
     } catch (e) {
       console.error('Invoice auto-sync on labour update error:', e);

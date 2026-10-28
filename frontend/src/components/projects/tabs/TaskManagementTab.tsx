@@ -10,5 +10,5 @@ export const TaskManagementTab: React.FC<TaskManagementTabProps> = ({
   projectId,
   onNavigate,
 }) => {
-  return <Tasks projectId={projectId} />;
+  return <Tasks projectId={projectId} onNavigate={onNavigate} />;
 };

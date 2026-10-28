@@ -78,6 +78,50 @@ export class SiteSurveyRepository {
     return rows;
   }
 
+  static async getMatchingSurveyForProject(projectId: number, directSurveyId?: number | null) {
+    if (!projectId || isNaN(projectId) || projectId <= 0) {
+      return null;
+    }
+
+    // 1. Direct survey_id link check (verifying strict project boundary)
+    if (directSurveyId) {
+      const direct = await SiteSurveyRepository.getById(Number(directSurveyId));
+      if (direct && Number(direct.project_id) === Number(projectId)) {
+        return direct;
+      }
+    }
+
+    // 2. Query site surveys strictly belonging to this project
+    // Prefer verified surveys, then completed, then approved, then draft; newest date first
+    const [candidates]: any = await dbPool.query(
+      `SELECT survey_id, project_id, status, survey_date
+       FROM site_surveys
+       WHERE project_id = ?
+       ORDER BY 
+         CASE 
+           WHEN status = 'verified' THEN 1
+           WHEN status = 'completed' THEN 2
+           WHEN status = 'approved' THEN 3
+           ELSE 4 
+         END ASC,
+         survey_date DESC,
+         survey_id DESC
+       LIMIT 1`,
+      [projectId]
+    );
+
+    if (!candidates || candidates.length === 0) {
+      return null;
+    }
+
+    const matched = candidates[0];
+    if (Number(matched.project_id) !== Number(projectId)) {
+      return null;
+    }
+
+    return await SiteSurveyRepository.getById(Number(matched.survey_id));
+  }
+
   static async getById(id: number) {
     const [rows]: any = await dbPool.query(
       `

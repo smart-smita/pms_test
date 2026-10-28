@@ -131,6 +131,7 @@ export interface Task {
   assigned_employees?: { employee_id: number; name: string; employee_code: string }[];
   assigned_labours?: { labour_id: number; name: string; labour_type: string }[];
   allocations?: any[];
+  used_materials?: any[];
 }
 
 export interface AttendanceLog {

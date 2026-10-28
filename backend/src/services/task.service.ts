@@ -241,15 +241,18 @@ export class TaskService {
       await this.taskRepo.recalculateDependentTasks(id);
     }
 
-    // Auto-sync draft invoices when task labour allocations or materials are modified
-    if (allocations !== undefined || usedMaterials !== undefined) {
-      try {
-        const { InvoiceService } = await import('./invoice.service');
-        const invSvc = new InvoiceService();
-        await invSvc.syncDraftInvoicesForProject(task.project_id, id);
-      } catch (e) {
-        console.error('Invoice auto-sync on task update error:', e);
+    // Auto-sync or generate invoices when task labour allocations, materials, or status are modified
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      if (data.status === 'completed' || task.status === 'completed') {
+        await invSvc.autoGenerateInvoiceForCompletedTask(id, (data as any).updated_by);
       }
+      if (allocations !== undefined || usedMaterials !== undefined) {
+        await invSvc.syncDraftInvoicesForProject(task.project_id, id);
+      }
+    } catch (e) {
+      console.error('Invoice auto-sync on task update error:', e);
     }
 
     return await this.taskRepo.findById(id);
@@ -277,13 +280,35 @@ export class TaskService {
       );
     }
 
+    // Auto-generate invoice if task is already completed
+    if (task.status === 'completed') {
+      try {
+        const { InvoiceService } = await import('./invoice.service');
+        const invSvc = new InvoiceService();
+        await invSvc.autoGenerateInvoiceForCompletedTask(taskId);
+      } catch (e) {
+        console.error('Invoice auto-generation on assignWorkers error:', e);
+      }
+    }
+
     return await this.taskRepo.findById(taskId);
   }
 
-  async updateTaskStatus(id: number, status: string) {
+  async updateTaskStatus(id: number, status: string, userId?: number) {
     const task = await this.taskRepo.findById(id);
     if (!task) throw new Error('Task not found');
     await this.taskRepo.updateStatus(id, status);
+
+    if (status === 'completed') {
+      try {
+        const { InvoiceService } = await import('./invoice.service');
+        const invSvc = new InvoiceService();
+        await invSvc.autoGenerateInvoiceForCompletedTask(id, userId);
+      } catch (e) {
+        console.error('Invoice auto-generation on task completion error:', e);
+      }
+    }
+
     return await this.taskRepo.findById(id);
   }
 

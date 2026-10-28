@@ -4,14 +4,7 @@ import { InvoiceRow, InvoiceItemRow } from '../repositories/invoice.repository';
 import fs from 'fs';
 import path from 'path';
 
-export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
-  const doc = new PDFDocument({ margin: 50 });
-
-  // Pipe the PDF directly to the response
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="Invoice-${invoice.invoice_number}.pdf"`);
-  doc.pipe(res);
-
+export const renderInvoiceContent = (doc: any, invoice: InvoiceRow) => {
   const rawSymbol = (invoice as any).currency_symbol || (invoice as any).symbol || (invoice as any).currency_code || 'INR';
   // Built-in PDFKit fonts (Helvetica) use WinAnsiEncoding which does not contain '₹' (U+20B9)
   const currencySymbol = rawSymbol === '₹' ? 'Rs.' : rawSymbol;
@@ -211,7 +204,10 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
   }
 
   // ── Footer & Bank Details ────────────────────────────────────────────────
-  const footerTop = 720;
+  const footerTop = 715;
+  const prevBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+
   doc.moveTo(50, footerTop).lineTo(550, footerTop).strokeColor('#e2e8f0').stroke();
 
   doc.fontSize(8)
@@ -229,6 +225,46 @@ export const generateInvoicePDF = (invoice: InvoiceRow, res: Response) => {
       footerTop + 20,
       { align: 'center', width: 500 }
     );
+
+  doc.page.margins.bottom = prevBottom;
+};
+
+export const generateInvoicePDF = async (invoice: InvoiceRow, res: Response) => {
+  const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
+
+  // Pipe the PDF directly to the response
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="Invoice-${invoice.invoice_number}.pdf"`);
+  doc.pipe(res);
+
+  renderInvoiceContent(doc, invoice);
+
+  // Match the exact project's Site Survey Report
+  let matchingSurvey: any = null;
+  try {
+    const { SiteSurveyRepository } = await import('../repositories/siteSurvey.repository');
+    matchingSurvey = await SiteSurveyRepository.getMatchingSurveyForProject(
+      Number(invoice.project_id),
+      invoice.survey_id ? Number(invoice.survey_id) : null
+    );
+  } catch (err) {
+    console.error('Error fetching matching site survey for invoice PDF:', err);
+  }
+
+  if (matchingSurvey) {
+    const invoicePagesCount = doc.bufferedPageRange().count;
+    doc.addPage({
+      size: 'A4',
+      margins: {
+        top: 35,
+        bottom: 20,
+        left: 40,
+        right: 40,
+      },
+    });
+
+    renderSiteSurveyContent(doc, matchingSurvey, invoicePagesCount);
+  }
 
   doc.end();
 };
@@ -450,6 +486,12 @@ export const generateSiteSurveyPDF = (survey: any, res: Response) => {
   res.setHeader('Content-Disposition', `attachment; filename="Survey-${survey.survey_code || 'Report'}.pdf"`);
   doc.pipe(res);
 
+  renderSiteSurveyContent(doc, survey, 0);
+
+  doc.end();
+};
+
+export function renderSiteSurveyContent(doc: any, survey: any, startPageIndex: number = 0) {
   // ── Color Palette & Geometry Tokens ─────────────────────────────────────────
   const colors = {
     primary: '#1e3a8a',      // Executive Navy Blue
@@ -1007,11 +1049,14 @@ export const generateSiteSurveyPDF = (survey: any, res: Response) => {
     timeStyle: 'short',
   });
 
-  for (let i = 0; i < totalPages; i++) {
+  for (let i = startPageIndex; i < totalPages; i++) {
     doc.switchToPage(i);
 
-    // If continuation page (Page 2+), render compact running header
-    if (i > 0) {
+    const surveyPageNum = i - startPageIndex + 1;
+    const surveyPageCount = totalPages - startPageIndex;
+
+    // If continuation page (Page 2+ of survey), render compact running header
+    if (surveyPageNum > 1) {
       doc.rect(0, 0, pageWidth, 4).fill(colors.primary);
 
       doc.fillColor(colors.textMuted).font('Helvetica-Bold').fontSize(8);
@@ -1027,7 +1072,7 @@ export const generateSiteSurveyPDF = (survey: any, res: Response) => {
       doc.moveTo(marginLeft, 26).lineTo(marginLeft + contentWidth, 26).strokeColor(colors.cardBorder).stroke();
     }
 
-    // Running Footer on every page
+    // Running Footer on every page of survey
     const footerTop = pageHeight - 28;
 
     // Temporarily zero out bottom margin so drawing the footer never triggers auto-pagination
@@ -1057,12 +1102,13 @@ export const generateSiteSurveyPDF = (survey: any, res: Response) => {
         lineBreak: false,
       });
 
-    // Footer Right: Dynamic Pagination (Page X of Y)
+    // Footer Right: Dynamic Pagination (Page X of Y or Survey Page X of Y)
+    const pageLabel = startPageIndex > 0 ? `Survey Page ${surveyPageNum} of ${surveyPageCount}` : `Page ${surveyPageNum} of ${surveyPageCount}`;
     doc
       .fillColor(colors.primaryDark)
       .font('Helvetica-Bold')
       .fontSize(7.5)
-      .text(`Page ${i + 1} of ${totalPages}`, marginLeft, footerTop + 6, {
+      .text(pageLabel, marginLeft, footerTop + 6, {
         width: contentWidth,
         align: 'right',
         lineBreak: false,
@@ -1071,7 +1117,5 @@ export const generateSiteSurveyPDF = (survey: any, res: Response) => {
     // Restore bottom margin
     doc.page.margins.bottom = prevBottomMargin;
   }
-
-  doc.end();
-};
+}
 
