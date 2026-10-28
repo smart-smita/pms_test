@@ -163,6 +163,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
     planning_required: true,
   });
 
+  // Current today date string (YYYY-MM-DD) for past-date disabling
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   // Validation Errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -286,13 +289,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
               const mappedItems: QuotationWbsItem[] = q.disciplines.map((d: any, idx: number) => {
                 let parsedLabours = d.labours || [];
                 let parsedMaterials = d.materials || [];
-                
+
                 if (d.description && d.description.includes('{"labours"')) {
                   try {
                     const parsed = JSON.parse(d.description);
                     if (!d.labours || d.labours.length === 0) parsedLabours = parsed.labours || [];
                     if (!d.materials || d.materials.length === 0) parsedMaterials = parsed.materials || [];
-                  } catch(e){}
+                  } catch (e) { }
                 }
 
                 return {
@@ -523,7 +526,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
   const handleWbsTemplatesChange = async (newIds: (string | number)[]) => {
     const nextIds = newIds.map(Number);
     const removedIds = selectedWbsTemplateIds.filter((id) => !nextIds.includes(id));
-    
+
     if (removedIds.length > 0) {
       const itemsToRemove = wbsItems.filter((item) => removedIds.includes(item.wbs_template_id as number));
       if (itemsToRemove.length > 0) {
@@ -534,16 +537,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
       setAvailableWbsNodes((prev) => prev.filter((node) => !removedIds.includes(node.template_id)));
       setWbsItems((prev) => prev.filter((item) => !removedIds.includes(item.wbs_template_id as number)));
     }
-    
+
     const addedIds = nextIds.filter((id) => !selectedWbsTemplateIds.includes(id));
     setSelectedWbsTemplateIds(nextIds);
-    
+
     if (!formData.project_type_id) return;
 
     for (const templateId of addedIds) {
       const tplMeta = availableWbsTemplates.find((t) => (t.template_id || t.id) === templateId);
       const templateName = tplMeta ? tplMeta.template_name : 'WBS Template';
-      
+
       const tRes = await apiRequest<any[]>(`/wbs-templates/${templateId}/project-types/${formData.project_type_id}/wbs`);
       if (tRes.success && tRes.data) {
         const nodes = tRes.data.map((n: any) => ({
@@ -560,8 +563,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
           wbs_template_id: node.template_id,
           wbs_template_name: node.template_name,
           discipline_name: node.wbs_name || 'WBS Task',
-          start_date: formData.quotation_date,
-          end_date: formData.validity_date || '',
+          start_date: (formData.quotation_date && formData.quotation_date >= todayStr) ? formData.quotation_date : todayStr,
+          end_date: (formData.validity_date && formData.validity_date >= todayStr) ? formData.validity_date : '',
           labours: [{ id: `l_${Date.now()}_${idx}`, labour_name: '', labour_type: '', hours: 0, rate: 0, amount: 0 }],
           materials: [{ id: `m_${Date.now()}_${idx}`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }],
         }));
@@ -583,8 +586,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
         wbs_template_id: node.template_id,
         wbs_template_name: node.template_name,
         discipline_name: node.wbs_name || 'WBS Task',
-        start_date: formData.quotation_date,
-        end_date: formData.validity_date || '',
+        start_date: (formData.quotation_date && formData.quotation_date >= todayStr) ? formData.quotation_date : todayStr,
+        end_date: (formData.validity_date && formData.validity_date >= todayStr) ? formData.validity_date : '',
         labours: [{ id: `l_${Date.now()}_1`, labour_name: '', labour_type: '', hours: 0, rate: 0, amount: 0 }],
         materials: [{ id: `m_${Date.now()}_1`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }],
       };
@@ -600,8 +603,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
       wbs_template_id: null,
       wbs_template_name: 'Custom WBS',
       discipline_name: 'New Custom Task',
-      start_date: formData.quotation_date,
-      end_date: formData.validity_date || '',
+      start_date: (formData.quotation_date && formData.quotation_date >= todayStr) ? formData.quotation_date : todayStr,
+      end_date: (formData.validity_date && formData.validity_date >= todayStr) ? formData.validity_date : '',
       labours: [{ id: `l_${Date.now()}_1`, labour_name: '', labour_type: '', hours: 0, rate: 0, amount: 0 }],
       materials: [{ id: `m_${Date.now()}_1`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }],
     };
@@ -679,18 +682,18 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
   const handleTermsTemplatesChange = (newIds: (string | number)[]) => {
     const nextIds = newIds.map(Number);
     const removedIds = selectedTermsTemplateIds.filter((id) => !nextIds.includes(id));
-    
+
     if (removedIds.length > 0) {
       setTermsSnapshots((prev) => prev.filter((t) => !removedIds.includes(t.template_id as number)));
     }
-    
+
     const addedIds = nextIds.filter((id) => !selectedTermsTemplateIds.includes(id));
     setSelectedTermsTemplateIds(nextIds);
-    
+
     for (const templateId of addedIds) {
       const template = termsTemplates.find(t => t.template_id === templateId);
       if (!template) continue;
-      
+
       let clauses: TermsSnapshotItem[] = [];
       if (template.items && template.items.length > 0) {
         clauses = template.items.map((item: any, i: number) => ({
@@ -795,10 +798,52 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
 
     if (!formData.quotation_date) {
       newErrors.quotation_date = 'Quotation Date is compulsory';
+    } else if (formData.quotation_date < todayStr) {
+      newErrors.quotation_date = 'Quotation Date cannot be a past date';
     }
 
     if (wbsItems.length === 0) {
       newErrors.wbs = 'Please select at least one WBS Template or add a Custom WBS task';
+    } else {
+      for (const item of wbsItems) {
+        if (item.start_date && item.start_date < todayStr) {
+          newErrors.wbs = `WBS "${item.discipline_name}": Start Date cannot be a past date`;
+          break;
+        }
+        if (item.end_date && item.start_date && item.end_date < item.start_date) {
+          newErrors.wbs = `WBS "${item.discipline_name}": End Date cannot be earlier than Start Date`;
+          break;
+        }
+        let labourDateError = false;
+        for (const l of item.labours) {
+          if (l.start_date && l.start_date < todayStr) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Labour Start Date cannot be a past date`;
+            labourDateError = true;
+            break;
+          }
+          if (l.end_date && l.start_date && l.end_date < l.start_date) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Labour End Date cannot be earlier than Start Date`;
+            labourDateError = true;
+            break;
+          }
+        }
+        if (labourDateError) break;
+
+        let matDateError = false;
+        for (const m of item.materials) {
+          if (m.start_date && m.start_date < todayStr) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Material Start Date cannot be a past date`;
+            matDateError = true;
+            break;
+          }
+          if (m.end_date && m.start_date && m.end_date < m.start_date) {
+            newErrors.wbs = `WBS "${item.discipline_name}": Material End Date cannot be earlier than Start Date`;
+            matDateError = true;
+            break;
+          }
+        }
+        if (matDateError) break;
+      }
     }
 
     setErrors(newErrors);
@@ -828,7 +873,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
         const avgMaterialRate = totalMaterialQty > 0 ? totalMaterialAmount / totalMaterialQty : 0;
 
         const wbsType = (item.labours.length > 0 && item.materials.length > 0) ? 'both' : (item.materials.length > 0 ? 'material' : 'labour');
-        
+
         disciplinesPayload.push({
           wbs_id: item.wbs_id || null,
           wbs_template_id: item.wbs_template_id || null,
@@ -907,8 +952,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
             isEditMode
               ? 'Quotation updated successfully!'
               : targetStatus === 'approved'
-              ? 'Quotation created & approved successfully!'
-              : 'Quotation saved successfully!'
+                ? 'Quotation created & approved successfully!'
+                : 'Quotation saved successfully!'
           );
         }
         onBack();
@@ -1268,7 +1313,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                   required
                   value={formData.quotation_date}
                   error={errors.quotation_date}
-                  onChange={(e) => setFormData({ ...formData, quotation_date: e.target.value })}
+                  min={todayStr}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && val < todayStr) {
+                      showWarning('Quotation Date cannot be a past date');
+                      return;
+                    }
+                    setFormData({ ...formData, quotation_date: val });
+                  }}
                 />
               </div>
             </div>
@@ -1323,7 +1376,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
             )}
           </div>
 
-          
+
           {/* Available WBS Selection (from templates) */}
           {availableWbsNodes.length > 0 && (
             <div className="glass-card" style={{ padding: '1.25rem' }}>
@@ -1333,21 +1386,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {availableWbsNodes.map(node => {
-                   const isSelected = wbsItems.some(i => i.wbs_id === node.id && i.wbs_template_id === node.template_id);
-                   return (
-                     <label key={`node_${node.template_id}_${node.id}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.8rem', background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)', border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
-                       <input 
-                         type="checkbox" 
-                         checked={isSelected}
-                         onChange={() => handleToggleWbsNode(node)}
-                         style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                       />
-                       <div>
-                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{node.wbs_name}</div>
-                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{node.template_name}</div>
-                       </div>
-                     </label>
-                   );
+                  const isSelected = wbsItems.some(i => i.wbs_id === node.id && i.wbs_template_id === node.template_id);
+                  return (
+                    <label key={`node_${node.template_id}_${node.id}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.8rem', background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)', border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleWbsNode(node)}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{node.wbs_name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{node.template_name}</div>
+                      </div>
+                    </label>
+                  );
                 })}
               </div>
             </div>
@@ -1419,6 +1472,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                 {wbsItems.map((item, idx) => (
                   <div
                     key={item.id}
+                    className="wbs-item-card"
                     style={{
                       background: 'var(--border-color)',
                       border: '1px solid var(--border-color)',
@@ -1511,17 +1565,38 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                         label="Start Date"
                         type="date"
                         value={item.start_date}
-                        onChange={(e) => handleUpdateWbsItem(item.id, { start_date: e.target.value })}
+                        min={todayStr}
+                        onChange={(e) => {
+                          const newStartDate = e.target.value;
+                          if (newStartDate && newStartDate < todayStr) {
+                            showWarning('Start Date cannot be a past date');
+                            return;
+                          }
+                          const updates: Partial<QuotationWbsItem> = { start_date: newStartDate };
+                          if (item.end_date && item.end_date < newStartDate) {
+                            updates.end_date = newStartDate;
+                          }
+                          handleUpdateWbsItem(item.id, updates);
+                        }}
                       />
                       <FormInput
                         label="End Date"
                         type="date"
                         value={item.end_date}
-                        onChange={(e) => handleUpdateWbsItem(item.id, { end_date: e.target.value })}
+                        min={item.start_date || todayStr}
+                        onChange={(e) => {
+                          const newEndDate = e.target.value;
+                          const minAllowed = item.start_date || todayStr;
+                          if (newEndDate && newEndDate < minAllowed) {
+                            showWarning(item.start_date ? 'End Date cannot be earlier than Start Date' : 'End Date cannot be a past date');
+                            return;
+                          }
+                          handleUpdateWbsItem(item.id, { end_date: newEndDate });
+                        }}
                       />
                     </div>
 
-                                        {/* Optional Labour & Material Sub-sections */}
+                    {/* Optional Labour & Material Sub-sections */}
                     <div
                       style={{
                         display: 'flex',
@@ -1532,11 +1607,25 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                       }}
                     >
                       <style>{`
+                        .wbs-item-card { container-type: inline-size; }
                         .wbs-details-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
                         .wbs-details-table th { background: var(--bg-card); color: var(--text-secondary); font-weight: 600; padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
                         .wbs-details-table td { padding: 0.5rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
                         .wbs-details-table .form-input { padding: 0.35rem 0.5rem; }
                         .wbs-mobile-cards { display: none; }
+                        
+                        @container (max-width: 820px) {
+                          .grid-responsive-4 {
+                            grid-template-columns: 1fr 1fr !important;
+                            gap: 0.75rem !important;
+                          }
+                        }
+                        @container (max-width: 480px) {
+                          .grid-responsive-4 {
+                            grid-template-columns: 1fr !important;
+                            gap: 0.75rem !important;
+                          }
+                        }
                         
                         @media (max-width: 900px) {
                           .wbs-details-table { display: none; }
@@ -1545,7 +1634,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                           .wbs-mobile-card .close-btn { position: absolute; top: -8px; right: -8px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; font-size: 12px; }
                         }
                       `}</style>
-                      
+
                       {/* Labour Section */}
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
@@ -1560,75 +1649,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                             <Plus size={12} /> Add Labour
                           </button>
                         </div>
-                        
+
                         {item.labours.length > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
                             {item.labours.map((l, idx) => (
-                              <div
-                                key={l.id}
-                                style={{
-                                  background: 'var(--bg-card)',
-                                  border: '1px solid var(--border-color)',
-                                  borderLeft: '4px solid #f59e0b',
-                                  borderRadius: '10px',
-                                  padding: '1rem',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '0.85rem',
-                                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                                  transition: 'border-color 0.15s ease',
-                                }}
-                              >
-                                {/* Card Header with Item #, Cost badge, and Remove button */}
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingBottom: '0.65rem', borderBottom: '1px solid var(--border-color)' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', letterSpacing: '0.3px' }}>
-                                      LABOUR #{idx + 1}
-                                    </span>
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                      {l.labour_name || 'Select labour / role'}
-                                    </span>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'var(--bg-secondary)', padding: '0.25rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cost:</span>
-                                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#16a34a' }}>
-                                        {selectedCurrency.symbol} {Number(l.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                      </span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveLabour(item.id, l.id)}
-                                      style={{
-                                        color: 'var(--danger)',
-                                        background: 'rgba(239, 68, 68, 0.08)',
-                                        width: '28px',
-                                        height: '28px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        borderRadius: '6px',
-                                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s ease',
-                                      }}
-                                      title="Remove Labour item"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
+                              <div key={l.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', position: 'relative' }}>
+                                <button type="button" onClick={() => handleRemoveLabour(item.id, l.id)} style={{ position: 'absolute', top: '0.85rem', right: '0.85rem', color: 'var(--danger)', background: 'rgba(239, 68, 68, 0.1)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
 
-                                {/* Row 1: Labour Role + Labour Type (Spacious 2-column) */}
-                                <div
-                                  style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                                    gap: '0.85rem',
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Labour / Role</label>
+                                <div className="grid-responsive-4" style={{ paddingRight: '2.5rem' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Labour / Role</label>
                                     <SearchableSelect
                                       options={labourOptions}
                                       value={l.labour_id ? String(l.labour_id) : l.labour_name || ''}
@@ -1646,31 +1676,54 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                       placeholder="Select or type role..."
                                     />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Labour Type / Skill</label>
-                                    <input className="form-input" placeholder="e.g. Skilled, Semi-Skilled, Helper" value={l.labour_type || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'labour_type', e.target.value)} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '100px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Type</label>
+                                    <input
+                                      className="form-input"
+                                      placeholder="e.g. Skilled"
+                                      value={l.labour_type || ''}
+                                      onChange={e => handleUpdateLabour(item.id, l.id, 'labour_type', e.target.value)}
+                                      style={{ width: '100%', minWidth: '100px' }}
+                                    />
                                   </div>
-                                </div>
-
-                                {/* Row 2: Dates, Working Hours & Rate (Clean self-wrapping grid) */}
-                                <div
-                                  style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                                    gap: '0.85rem',
-                                    background: 'var(--bg-secondary)',
-                                    padding: '0.85rem',
-                                    borderRadius: '8px',
-                                    border: '1px dashed var(--border-color)',
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Date</label>
-                                    <input type="date" className="form-input" value={l.start_date || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'start_date', e.target.value)} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Date</label>
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={l.start_date || ''}
+                                      min={item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newStart = e.target.value;
+                                        const minAllowed = item.start_date || todayStr;
+                                        if (newStart && newStart < minAllowed) {
+                                          showWarning('Start Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateLabour(item.id, l.id, 'start_date', newStart);
+                                        if (l.end_date && l.end_date < newStart) {
+                                          handleUpdateLabour(item.id, l.id, 'end_date', newStart);
+                                        }
+                                      }}
+                                    />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>End Date</label>
-                                    <input type="date" className="form-input" value={l.end_date || ''} onChange={e => handleUpdateLabour(item.id, l.id, 'end_date', e.target.value)} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>End Date</label>
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={l.end_date || ''}
+                                      min={l.start_date || item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newEnd = e.target.value;
+                                        const minAllowed = l.start_date || item.start_date || todayStr;
+                                        if (newEnd && newEnd < minAllowed) {
+                                          showWarning(l.start_date ? 'End Date cannot be earlier than Start Date' : 'End Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateLabour(item.id, l.id, 'end_date', newEnd);
+                                      }}
+                                    />
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                     <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hours</label>
@@ -1715,7 +1768,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                             <Plus size={12} /> Add Material
                           </button>
                         </div>
-                        
+
                         {item.materials.length > 0 ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '0.5rem' }}>
                             {item.materials.map((m, idx) => (
@@ -1800,31 +1853,54 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                       placeholder="Select or type material..."
                                     />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Unit of Measurement</label>
-                                    <input className="form-input" placeholder="e.g. Kg, Mtr, Pcs, Bags, Lot" value={m.unit || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'unit', e.target.value)} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '80px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Unit</label>
+                                    <input
+                                      className="form-input"
+                                      placeholder="e.g. Kg, Pcs"
+                                      value={m.unit || ''}
+                                      onChange={e => handleUpdateMaterial(item.id, m.id, 'unit', e.target.value)}
+                                      style={{ width: '100%', minWidth: '80px' }}
+                                    />
                                   </div>
-                                </div>
-
-                                {/* Row 2: Dates, Quantity & Rate (Clean self-wrapping grid) */}
-                                <div
-                                  style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                                    gap: '0.85rem',
-                                    background: 'var(--bg-secondary)',
-                                    padding: '0.85rem',
-                                    borderRadius: '8px',
-                                    border: '1px dashed var(--border-color)',
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Date</label>
-                                    <input type="date" className="form-input" value={m.start_date || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'start_date', e.target.value)} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Date</label>
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={m.start_date || ''}
+                                      min={item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newStart = e.target.value;
+                                        const minAllowed = item.start_date || todayStr;
+                                        if (newStart && newStart < minAllowed) {
+                                          showWarning('Start Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateMaterial(item.id, m.id, 'start_date', newStart);
+                                        if (m.end_date && m.end_date < newStart) {
+                                          handleUpdateMaterial(item.id, m.id, 'end_date', newStart);
+                                        }
+                                      }}
+                                    />
                                   </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>End Date</label>
-                                    <input type="date" className="form-input" value={m.end_date || ''} onChange={e => handleUpdateMaterial(item.id, m.id, 'end_date', e.target.value)} />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>End Date</label>
+                                    <input
+                                      type="date"
+                                      className="form-input"
+                                      value={m.end_date || ''}
+                                      min={m.start_date || item.start_date || todayStr}
+                                      onChange={e => {
+                                        const newEnd = e.target.value;
+                                        const minAllowed = m.start_date || item.start_date || todayStr;
+                                        if (newEnd && newEnd < minAllowed) {
+                                          showWarning(m.start_date ? 'End Date cannot be earlier than Start Date' : 'End Date cannot be a past date');
+                                          return;
+                                        }
+                                        handleUpdateMaterial(item.id, m.id, 'end_date', newEnd);
+                                      }}
+                                    />
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                     <label style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Quantity</label>
@@ -1856,33 +1932,33 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                       </div>
 
                       {/* WBS Cost Summary */}
-                      <div style={{ 
-                        marginTop: '1rem', 
-                        paddingTop: '0.75rem', 
+                      <div style={{
+                        marginTop: '1rem',
+                        paddingTop: '0.75rem',
                         borderTop: '1px solid var(--border-color)',
                         display: 'flex',
                         justifyContent: 'flex-end'
                       }}>
-                        <div style={{ 
-                          background: 'var(--bg-secondary)', 
-                          border: '1px solid var(--border-color)', 
-                          borderRadius: '8px', 
+                        <div style={{
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
                           padding: '1rem',
                           minWidth: '280px'
                         }}>
                           <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>WBS Cost Summary</h4>
-                          
+
                           {isLabourEnabled && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.9rem' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Labour Cost:</span>
-                            <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.labours.reduce((sum, l) => sum + Number(l.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                          </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.9rem' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Labour Cost:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.labours.reduce((sum, l) => sum + Number(l.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
                           )}
                           {isMaterialEnabled && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Material Cost:</span>
-                            <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.materials.reduce((sum, m) => sum + Number(m.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                          </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Material Cost:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedCurrency.symbol} {item.materials.reduce((sum, m) => sum + Number(m.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontSize: '1.05rem', color: 'var(--text-primary)' }}>
                             <strong>WBS Total:</strong>
@@ -2125,21 +2201,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.88rem' }}>
               {isLabourEnabled && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Labour Subtotal:</span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {selectedCurrency.symbol} {calculations.labourSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                  <span>Labour Subtotal:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {selectedCurrency.symbol} {calculations.labourSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               )}
 
               {isMaterialEnabled && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                <span>Material Subtotal:</span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {selectedCurrency.symbol} {calculations.materialSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                  <span>Material Subtotal:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {selectedCurrency.symbol} {calculations.materialSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               )}
 
               <div
@@ -2173,11 +2249,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
               <div style={{ paddingTop: '0.4rem' }}>
                 <label className="form-label">Applicable Taxes (from Master):</label>
                 <MultiSelectDropdown
-                options={taxesList.map(tax => ({ value: tax.tax_id, label: `${tax.tax_name} (${tax.tax_percentage}%)` }))}
-                selectedValues={selectedTaxIds}
-                onChange={(vals) => setSelectedTaxIds(vals.map(Number))}
-                placeholder="Select Taxes..."
-              />
+                  options={taxesList.map(tax => ({ value: tax.tax_id, label: `${tax.tax_name} (${tax.tax_percentage}%)` }))}
+                  selectedValues={selectedTaxIds}
+                  onChange={(vals) => setSelectedTaxIds(vals.map(Number))}
+                  placeholder="Select Taxes..."
+                />
               </div>
 
               {/* Detailed Calculated Taxes */}
@@ -2186,15 +2262,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                   {calculations.taxDetails.map((td) => (
                     <div key={td.tax_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                         <span>{td.tax_name}</span>
-                         <input
-                           type="number"
-                           className="form-input"
-                           style={{ width: '60px', padding: '0.1rem 0.25rem', height: 'auto', fontSize: '0.75rem' }}
-                           value={td.tax_percentage}
-                           onChange={(e) => setCustomTaxRates(prev => ({ ...prev, [td.tax_id]: Number(e.target.value) }))}
-                         />
-                         <span>%</span>
+                        <span>{td.tax_name}</span>
+                        <input
+                          type="number"
+                          className="form-input"
+                          style={{ width: '60px', padding: '0.1rem 0.25rem', height: 'auto', fontSize: '0.75rem' }}
+                          value={td.tax_percentage}
+                          onChange={(e) => setCustomTaxRates(prev => ({ ...prev, [td.tax_id]: Number(e.target.value) }))}
+                        />
+                        <span>%</span>
                       </div>
                       <span>
                         {selectedCurrency.symbol} {td.calculated_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}

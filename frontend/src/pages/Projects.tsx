@@ -182,7 +182,7 @@ export const Projects: React.FC<{ onNavigate: (page: string) => void }> = ({ onN
           <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
             {r.project_name}
           </div>
-          <div style={{ fontSize: '0.78rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.1rem' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary, #475569)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.1rem' }}>
             <Building2 size={12} color="#6366f1" /> {r.customer_name || r.client_name || 'N/A'}
           </div>
         </div>

@@ -87,6 +87,8 @@ export class QuotationRepository {
         c.customer_code,
         COALESCE(p.project_name, q.new_project_name, 'New Project (Pending)') AS project_name,
         p.project_code,
+        COALESCE(pt_q.type_name, pt_p.type_name) AS project_type_name,
+        COALESCE(pt_q.type_code, pt_p.type_code) AS project_type_code,
         cur.currency_code,
         cur.symbol AS currency_symbol,
         e1.name AS created_by_name,
@@ -94,6 +96,8 @@ export class QuotationRepository {
       FROM quotations q
       JOIN customers c ON q.customer_id = c.customer_id
       LEFT JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN project_types pt_q ON q.project_type_id = pt_q.type_id
+      LEFT JOIN project_types pt_p ON p.project_type_id = pt_p.type_id
       LEFT JOIN currencies cur ON q.currency_id = cur.currency_id
       LEFT JOIN employees e1 ON q.created_by = e1.employee_id
       LEFT JOIN employees e2 ON q.approved_by = e2.employee_id
@@ -133,6 +137,8 @@ export class QuotationRepository {
         COALESCE(p.project_name, q.new_project_name, 'New Project (Pending)') AS project_name,
         p.project_code,
         p.project_address,
+        COALESCE(pt_q.type_name, pt_p.type_name) AS project_type_name,
+        COALESCE(pt_q.type_code, pt_p.type_code) AS project_type_code,
         cur.currency_code,
         cur.currency_name,
         cur.symbol AS currency_symbol,
@@ -142,6 +148,8 @@ export class QuotationRepository {
       FROM quotations q
       JOIN customers c ON q.customer_id = c.customer_id
       LEFT JOIN projects p ON q.project_id = p.project_id
+      LEFT JOIN project_types pt_q ON q.project_type_id = pt_q.type_id
+      LEFT JOIN project_types pt_p ON p.project_type_id = pt_p.type_id
       LEFT JOIN currencies cur ON q.currency_id = cur.currency_id
       LEFT JOIN employees e1 ON q.created_by = e1.employee_id
       LEFT JOIN employees e2 ON q.approved_by = e2.employee_id
@@ -173,6 +181,12 @@ export class QuotationRepository {
     for (let i = 0; i < disciplines.length; i++) {
       disciplines[i].labours = labours.filter((l: any) => l.quotation_discipline_id === disciplines[i].id);
       disciplines[i].materials = materials.filter((m: any) => m.quotation_discipline_id === disciplines[i].id);
+      if (disciplines[i].labours.length > 0 && !disciplines[i].labour_name) {
+        disciplines[i].labour_name = disciplines[i].labours.map((l: any) => l.labour_name).join(', ');
+      }
+      if (disciplines[i].materials.length > 0 && !disciplines[i].material_name) {
+        disciplines[i].material_name = disciplines[i].materials.map((m: any) => m.material_name).join(', ');
+      }
     }
 
     quotation.disciplines = disciplines;

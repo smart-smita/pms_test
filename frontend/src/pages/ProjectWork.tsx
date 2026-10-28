@@ -10,6 +10,14 @@ import { Modal } from '../components/common/Modal';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const ProjectWork: React.FC = () => {
   const { user } = useAuth();
   const canManage = user?.role_name === 'Admin' || user?.role_name === 'Super Admin' || user?.role_name === 'Manager';
@@ -17,7 +25,7 @@ export const ProjectWork: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  
+
   const [wbsList, setWbsList] = useState<ProjectWBS[]>([]);
   const [masterWbsList, setMasterWbsList] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -30,7 +38,7 @@ export const ProjectWork: React.FC = () => {
   const [isAddWbsOpen, setIsAddWbsOpen] = useState(false);
   const [isLogWorkOpen, setIsLogWorkOpen] = useState(false);
   const [selectedWbsForLog, setSelectedWbsForLog] = useState<number | ''>('');
-  
+
   // Forms
   const [wbsForm, setWbsForm] = useState({ wbs_id: '', note: '', total_hours: 0, budget_amount: 0 });
   const [logForm, setLogForm] = useState({
@@ -44,7 +52,7 @@ export const ProjectWork: React.FC = () => {
     material_rate: '',
     working_hours: '',
     description: '',
-    log_date: new Date().toISOString().split('T')[0]
+    log_date: getTodayStr()
   });
 
   useEffect(() => {
@@ -100,7 +108,7 @@ export const ProjectWork: React.FC = () => {
     try {
       const masterWbs = masterWbsList.find(m => String(m.wbs_id) === String(wbsForm.wbs_id));
       if (!masterWbs) throw new Error("Invalid WBS Selected");
-      
+
       const payload = {
         project_id: Number(selectedProjectId),
         wbs_id: Number(wbsForm.wbs_id),
@@ -128,28 +136,68 @@ export const ProjectWork: React.FC = () => {
 
   const handleSaveLog = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!logForm.employee_id) {
-      showError('Please select an Employee');
+    if (!logForm.employee_id && !logForm.labour_name) {
+      showError('Please select at least an Employee or a Labour/Contractor');
       return;
     }
-    if (!logForm.working_hours || Number(logForm.working_hours) <= 0) {
-      showError('Please enter valid Work HRs (greater than 0)');
-      return;
-    }
-    if (!logForm.log_date) {
-      showError('Log Date is required');
+
+    const today = getTodayStr();
+    if (logForm.log_date && logForm.log_date < today) {
+      showError('Log Date cannot be a past date');
       return;
     }
 
     let finalTaskId: number | undefined = undefined;
     let finalTaskName: string | undefined = undefined;
-    
+
     if (logForm.task_name && logForm.task_name.trim() !== '') {
       const existingTask = tasks.find(t => t.task_name.toLowerCase() === logForm.task_name.trim().toLowerCase() && (!selectedWbsForLog || String(t.wbs_id) === String(selectedWbsForLog)));
       if (existingTask) {
         finalTaskId = existingTask.task_id;
       } else {
         finalTaskName = logForm.task_name.trim();
+      }
+    }
+
+    let finalLabourId: number | undefined = undefined;
+    if (logForm.labour_name && logForm.labour_name.trim() !== '') {
+      const existingLabour = labours.find(l => (l.name || l.labour_name || '').toLowerCase() === logForm.labour_name.trim().toLowerCase());
+      if (existingLabour) {
+        finalLabourId = existingLabour.labour_id;
+      } else {
+        // Create new labour
+        try {
+          const res = await apiRequest<{ labour_id: number }>('/labours', {
+            method: 'POST',
+            body: JSON.stringify({ name: logForm.labour_name.trim(), labour_type: 'direct_labour', status: 'active' })
+          });
+          if (res.success && res.data) {
+            finalLabourId = res.data.labour_id;
+          }
+        } catch (e) {
+          console.error('Failed to create labour inline', e);
+        }
+      }
+    }
+
+    let finalMaterialId: number | undefined = undefined;
+    if (logForm.material_name && logForm.material_name.trim() !== '') {
+      const existingMaterial = materials.find(m => m.material_name.toLowerCase() === logForm.material_name.trim().toLowerCase());
+      if (existingMaterial) {
+        finalMaterialId = existingMaterial.material_id;
+      } else {
+        // Create new material
+        try {
+          const res = await apiRequest<{ material_id: number }>('/materials/master', {
+            method: 'POST',
+            body: JSON.stringify({ material_name: logForm.material_name.trim(), unit: 'Nos', status: 'active' })
+          });
+          if (res.success && res.data) {
+            finalMaterialId = res.data.material_id;
+          }
+        } catch (e) {
+          console.error('Failed to create material inline', e);
+        }
       }
     }
 
@@ -171,7 +219,7 @@ export const ProjectWork: React.FC = () => {
         setIsLogWorkOpen(false);
         setLogForm({
           task_id: '', task_name: '', is_new_task: false, employee_id: '', labour_id: '', labour_name: '',
-          material_id: '', material_name: '', material_qty: '', material_rate: '', working_hours: '', description: '', log_date: new Date().toISOString().split('T')[0]
+          material_id: '', material_name: '', material_qty: '', material_rate: '', working_hours: '', description: '', log_date: getTodayStr()
         });
         fetchProjectData(Number(selectedProjectId));
       } else {
@@ -202,9 +250,9 @@ export const ProjectWork: React.FC = () => {
       <div style={{ background: 'var(--bg-surface)', padding: '1.25rem 1.5rem', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'center' }}>
           <div>
-            <FormSelect 
+            <FormSelect
               label="Project Name"
-              value={selectedProjectId} 
+              value={selectedProjectId}
               onChange={e => setSelectedProjectId(e.target.value ? Number(e.target.value) : '')}
               options={[
                 { value: '', label: 'Select project' },
@@ -293,7 +341,7 @@ export const ProjectWork: React.FC = () => {
             <tbody>
               {wbsList.map((wbs, index) => {
                 const wbsActualHrs = projectTimesheets.filter(ts => ts.wbs_id === wbs.id).reduce((sum, ts) => sum + (Number(ts.working_hours) || 0), 0);
-                
+
                 return (
                   <tr key={wbs.id}>
                     <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{index + 1}</td>
@@ -314,8 +362,8 @@ export const ProjectWork: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button 
-                        className="btn btn-primary" 
+                      <button
+                        className="btn btn-primary"
                         style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                         onClick={() => {
                           setSelectedWbsForLog(wbs.id || '');
@@ -380,13 +428,13 @@ export const ProjectWork: React.FC = () => {
               <div style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
                 <Search size={15} />
               </div>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 list="taskOptionsModalProjectWork"
-                className="form-input" 
-                placeholder="Search task or type to create new..." 
-                value={logForm.task_name || ''} 
-                onChange={e => setLogForm(p => ({ ...p, task_name: e.target.value }))} 
+                className="form-input"
+                placeholder="Search task or type to create new..."
+                value={logForm.task_name || ''}
+                onChange={e => setLogForm(p => ({ ...p, task_name: e.target.value }))}
                 style={{ width: "100%", paddingLeft: "2.4rem", paddingRight: "2.2rem", borderRadius: "6px", fontSize: "0.88rem" }}
               />
               <div style={{ position: "absolute", right: "0.85rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
@@ -403,16 +451,15 @@ export const ProjectWork: React.FC = () => {
             </div>
           </div>
 
-          {/* Employee Name * */}
+          {/* Employee Name */}
           <div>
             <label className="form-label" style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.35rem", display: "block" }}>
-              Employee Name <span style={{ color: "#ef4444" }}>*</span>
+              Employee Name
             </label>
             <select
               className="form-select"
               value={logForm.employee_id || ''}
               onChange={e => setLogForm(p => ({ ...p, employee_id: e.target.value }))}
-              required
               style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "6px", fontSize: "0.88rem" }}
             >
               <option value="">-- Select Employee --</option>
@@ -422,6 +469,35 @@ export const ProjectWork: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Labour / Contractor Name */}
+          <div>
+            <label className="form-label" style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.35rem", display: "block" }}>
+              Labour / Contractor Name <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
+            </label>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                list="labourOptionsProjectWork"
+                className="form-input"
+                placeholder="Search labour or type to add new..."
+                value={logForm.labour_name || ''}
+                onChange={e => setLogForm(p => ({ ...p, labour_name: e.target.value }))}
+                style={{ width: "100%", paddingRight: "2rem" }}
+              />
+              <div style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
+                <ChevronDown size={16} />
+              </div>
+            </div>
+            <datalist id="labourOptionsProjectWork">
+              {labours.map(l => (
+                <option key={l.labour_id} value={l.name || l.labour_name} />
+              ))}
+            </datalist>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.4rem" }}>
+              * If new labour name is typed, it will be created.
+            </div>
           </div>
 
           {/* Log Date & Work HRs */}
@@ -434,7 +510,16 @@ export const ProjectWork: React.FC = () => {
                 type="date"
                 className="form-input"
                 value={logForm.log_date}
-                onChange={e => setLogForm(p => ({ ...p, log_date: e.target.value }))}
+                min={getTodayStr()}
+                onChange={e => {
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (val && val < today) {
+                    showError('Log Date cannot be a past date');
+                    return;
+                  }
+                  setLogForm(p => ({ ...p, log_date: val }));
+                }}
                 required
                 style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "6px", fontSize: "0.88rem" }}
               />
@@ -455,6 +540,50 @@ export const ProjectWork: React.FC = () => {
                 style={{ width: "100%", padding: "0.55rem 0.75rem", borderRadius: "6px", fontSize: "0.88rem" }}
               />
             </div>
+          </div>
+
+          {/* Material Used (optional) */}
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
+            <label className="form-label" style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.35rem", display: "block" }}>
+              Material Used (optional)
+            </label>
+            <div style={{ position: "relative", marginBottom: "0.75rem" }}>
+              <input
+                type="text"
+                list="materialOptionsProjectWork"
+                className="form-input"
+                placeholder="Search material or type to add new..."
+                value={logForm.material_name || ''}
+                onChange={e => setLogForm(p => ({ ...p, material_name: e.target.value }))}
+                style={{ width: "100%", paddingRight: "2rem" }}
+              />
+              <div style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
+                <ChevronDown size={16} />
+              </div>
+            </div>
+            <datalist id="materialOptionsProjectWork">
+              {materials.map(m => (
+                <option key={m.material_id} value={m.material_name} />
+              ))}
+            </datalist>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <FormInput label="Material Qty" type="number" min="0" step="any" value={logForm.material_qty} onChange={e => setLogForm(p => ({ ...p, material_qty: e.target.value }))} />
+              <FormInput label="Material Rate" type="number" min="0" step="any" value={logForm.material_rate} onChange={e => setLogForm(p => ({ ...p, material_rate: e.target.value }))} />
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
+            <label className="form-label" style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.35rem", display: "block" }}>
+              Description / Comments
+            </label>
+            <textarea
+              className="form-input"
+              rows={3}
+              value={logForm.description || ''}
+              onChange={e => setLogForm(p => ({ ...p, description: e.target.value }))}
+              style={{ width: "100%", resize: 'vertical' }}
+              placeholder="Add any details about the work done here..."
+            />
           </div>
 
           {/* Action buttons */}

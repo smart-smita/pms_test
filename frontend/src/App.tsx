@@ -140,12 +140,12 @@ const AppContent: React.FC = () => {
     // ── 1. Dynamic Task Routes inside Project Workspace ──
     // Route: project/workspace/:projectId/tasks/new
     if (currentPage.includes('/tasks/new')) {
+      const match = currentPage.match(/project\/workspace\/(\d+)\/tasks\/new/);
+      const projectId = match ? parseInt(match[1], 10) : 0;
       return (
-        <div style={{ padding: '3rem', textAlign: 'center' }}>
-          <h2>Task Creation Moved</h2>
-          <p>Please go to the Manage Project Work tab to log timesheets and auto-create tasks.</p>
-          <button onClick={() => nav('project/workspace')}>Go to Project Workspace</button>
-        </div>
+        <RequirePermission module="tasks" action="create" fallback={fallback}>
+          <TaskEditPage projectId={projectId} onNavigate={nav} />
+        </RequirePermission>
       );
     }
 

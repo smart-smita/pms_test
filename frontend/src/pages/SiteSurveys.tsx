@@ -5,7 +5,7 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
-import { apiRequest } from '../services/api';
+import { apiRequest, API_BASE_URL } from '../services/api';
 import { SiteSurvey, Project, Discipline, Employee, Customer, SiteSurveyPhoto } from '../types';
 import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKanban, MapPin, Eye, Upload, Image, Layers, User, Download, ClipboardCheck, Package } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
@@ -266,35 +266,42 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
     }
   };
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+  const apiUrl = API_BASE_URL;
+
+  const getAuthToken = () => {
+    return localStorage.getItem('access_token') || localStorage.getItem('token') || '';
+  };
 
   const columns: Column<SiteSurvey>[] = [
     {
       header: 'Survey Code / Date',
       accessor: (r) => (
         <div>
-          <div style={{ fontWeight: 700, color: '#818cf8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div style={{ fontWeight: 700, color: 'var(--accent-primary, #4f46e5)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <FileText size={15} /> {r.survey_code}
           </div>
-          <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #475569)', marginTop: '0.15rem' }}>
             Date: {new Date(r.survey_date).toLocaleDateString()}
           </div>
         </div>
       ),
+      csvAccessor: (r) => `${r.survey_code} (${r.survey_date ? new Date(r.survey_date).toLocaleDateString() : ''})`,
       sortKey: 'survey_code',
     },
     {
       header: 'Project & Client',
       accessor: (r) => (
         <div>
-          <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <FolderKanban size={14} color="#6366f1" /> {r.project_name || 'N/A'}
           </div>
-          <div style={{ fontSize: '0.78rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <Building2 size={13} color="#38bdf8" /> {r.customer_name || 'N/A'}
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary, #334155)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+            <Building2 size={13} color="#0284c7" /> {r.customer_name || 'N/A'}
           </div>
         </div>
       ),
+      csvAccessor: (r) => `${r.project_name || 'N/A'} - ${r.customer_name || 'N/A'}`,
+      sortKey: 'project_name',
     },
     {
       header: 'Discipline',
@@ -304,6 +311,8 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           {r.discipline_name || 'General Site'}
         </Badge>
       ),
+      csvAccessor: (r) => r.discipline_name || 'General Site',
+      sortKey: 'discipline_name',
     },
     {
       header: 'Entry Mode',
@@ -312,14 +321,18 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           {r.entry_type === 'system_entry' ? `System Form (${r.photo_count || 0} pics)` : 'Attached Report PDF'}
         </Badge>
       ),
+      csvAccessor: (r) => (r.entry_type === 'system_entry' ? `System Form (${r.photo_count || 0} pics)` : 'Attached Report PDF'),
+      sortKey: 'entry_type',
     },
     {
       header: 'Inspector',
       accessor: (r) => (
-        <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <User size={13} color="#4ade80" /> {r.conducted_by_name || 'N/A'}
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <User size={13} color="#16a34a" /> {r.conducted_by_name || 'N/A'}
         </div>
       ),
+      csvAccessor: (r) => r.conducted_by_name || 'N/A',
+      sortKey: 'conducted_by_name',
     },
     {
       header: 'Status',
@@ -328,6 +341,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
           {r.status}
         </Badge>
       ),
+      csvAccessor: (r) => r.status,
       sortKey: 'status',
     },
   ];
@@ -401,9 +415,16 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               </Button>
               {row.entry_type === 'system_entry' ? (
                 <a
-                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${encodeURIComponent(localStorage.getItem('access_token') || localStorage.getItem('token') || '')}`}
+                  href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${encodeURIComponent(getAuthToken())}`}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={(e) => {
+                    const token = getAuthToken();
+                    if (!token) {
+                      e.preventDefault();
+                      showError('Authentication token missing. Please log in again.');
+                    }
+                  }}
                   style={{
                     padding: '0.35rem 0.65rem',
                     background: 'rgba(56, 189, 248, 0.1)',
@@ -758,7 +779,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
                       <a href={`${apiUrl.replace('/api/v1', '')}${p.file_path}`} target="_blank" rel="noreferrer">
                         <img src={`${apiUrl.replace('/api/v1', '')}${p.file_path}`} alt={p.photo_name || 'Photo'} style={{ width: '100%', height: '110px', objectFit: 'cover' }} />
                       </a>
-                      {p.caption && <div style={{ fontSize: '0.75rem', padding: '0.3rem', color: '#cbd5e1', textAlign: 'center' }}>{p.caption}</div>}
+                      {p.caption && <div style={{ fontSize: '0.75rem', padding: '0.3rem', color: 'var(--text-secondary, #475569)', textAlign: 'center' }}>{p.caption}</div>}
                     </div>
                   ))}
                 </div>

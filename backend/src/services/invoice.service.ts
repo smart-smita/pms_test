@@ -1,11 +1,13 @@
 import { SettingService } from './setting.service';
 import { InvoiceRepository, BillingScheduleRow, MonthlyCompletedWorkRow, InvoiceRow, InvoicePaymentRow } from '../repositories/invoice.repository';
 import { ProjectRepository } from '../repositories/project.repository';
+import { TaskRepository } from '../repositories/task.repository';
 import { dbPool } from '../config/db';
 
 export class InvoiceService {
   private repo = new InvoiceRepository();
   private projectRepo = new ProjectRepository();
+  private taskRepo = new TaskRepository();
 
   // ── Billing Schedules ──────────────────────────────────────────────────
   async getSchedulesByProject(projectId?: number): Promise<BillingScheduleRow[]> {
@@ -47,13 +49,13 @@ export class InvoiceService {
     }
 
     const monthlyAmount = Math.round((totalAmount / periodMonths) * 100) / 100;
-    
+
     const [yearStr, monthStr] = startMonth.split('-');
     let year = parseInt(yearStr, 10);
     let month = parseInt(monthStr, 10);
 
     const schedules: Omit<BillingScheduleRow, 'schedule_id' | 'status' | 'created_at'>[] = [];
-    
+
     for (let i = 0; i < periodMonths; i++) {
       let m = month + i;
       let y = year;
@@ -62,7 +64,7 @@ export class InvoiceService {
         y += 1;
       }
       const formattedMonth = `${y}-${m.toString().padStart(2, '0')}-01`;
-      
+
       let amount = monthlyAmount;
       if (i === periodMonths - 1) {
         amount = totalAmount - (monthlyAmount * (periodMonths - 1));
@@ -101,7 +103,7 @@ export class InvoiceService {
       completion_percentage: data.completion_percentage,
       approved_amount: data.approved_amount
     });
-    
+
     await this.repo.updateScheduleStatus(data.schedule_id, 'completed_work_logged');
     return id;
   }
@@ -112,7 +114,344 @@ export class InvoiceService {
 
   // ── Invoices ─────────────────────────────────────────────────────────────
   async getInvoices(projectId?: number): Promise<InvoiceRow[]> {
+    if (projectId) {
+      try {
+        await this.syncCompletedTasksInvoicesForProject(projectId);
+      } catch (e) {
+        console.error('Error auto-syncing completed tasks invoices for project:', e);
+      }
+    }
     return this.repo.getInvoices(projectId);
+  }
+
+  /**
+   * Automatically generate an invoice when a task is completed and has labour assigned/logged.
+   * Ensures idempotency: will not create duplicate invoices for the same task.
+   * If a draft invoice already exists for the task, syncs its line items and totals.
+   */
+  async autoGenerateInvoiceForCompletedTask(taskId: number, userId?: number): Promise<InvoiceRow | null> {
+    const task = await this.taskRepo.findById(taskId);
+    if (!task || task.status !== 'completed') {
+      return null;
+    }
+
+    const projectId = task.project_id;
+    const project = await this.projectRepo.findById(projectId);
+    if (!project) return null;
+
+    // Check if an invoice for this task already exists
+    const [existing]: any = await dbPool.query(
+      `SELECT * FROM invoices WHERE task_id = ? AND status != 'cancelled'`,
+      [taskId]
+    );
+
+    if (existing.length > 0) {
+      const inv = existing[0];
+      if (inv.status === 'draft') {
+        await this.syncDraftInvoicesForProject(projectId, taskId, userId);
+      }
+      return await this.repo.getInvoiceById(inv.invoice_id);
+    }
+
+    // 1. Fetch timesheets for this task
+    const [timesheetRows]: any = await dbPool.query(
+      `SELECT ts.*, e.name AS employee_name, COALESCE(ts.rate_snapshot, e.hourly_rate, 0.00) AS rate
+       FROM timesheets ts
+       LEFT JOIN employees e ON ts.employee_id = e.employee_id
+       WHERE ts.task_id = ? AND (ts.is_deleted = 0 OR ts.is_deleted IS NULL)`,
+      [taskId]
+    );
+
+    // 2. Fetch labour work logs for this task
+    const [labourLogRows]: any = await dbPool.query(
+      `SELECT lwl.*, l.name AS labour_name, l.labour_type
+       FROM labour_work_logs lwl
+       LEFT JOIN labours l ON lwl.labour_id = l.labour_id
+       WHERE lwl.task_id = ? AND (lwl.is_deleted = 0 OR lwl.is_deleted IS NULL)`,
+      [taskId]
+    );
+
+    // 3. Fetch assigned employees
+    const [assignedEmployees]: any = await dbPool.query(
+      `SELECT ta.*, e.name AS employee_name, e.hourly_rate
+       FROM task_assignments ta
+       JOIN employees e ON ta.employee_id = e.employee_id
+       WHERE ta.task_id = ?`,
+      [taskId]
+    );
+
+    // 4. Fetch assigned labours
+    const [assignedLabours]: any = await dbPool.query(
+      `SELECT tla.*, l.name AS labour_name, l.labour_type, COALESCE(l.hourly_rate, 0.00) AS hourly_rate
+       FROM task_labour_assignments tla
+       JOIN labours l ON tla.labour_id = l.labour_id
+       WHERE tla.task_id = ?`,
+      [taskId]
+    );
+
+    const hasLabour = timesheetRows.length > 0 || labourLogRows.length > 0 || assignedEmployees.length > 0 || assignedLabours.length > 0;
+    if (!hasLabour) {
+      return null;
+    }
+
+    const items: any[] = [];
+
+    // Add timesheet items
+    for (const ts of timesheetRows) {
+      const hours = Number(ts.working_hours || 0);
+      const rate = Number(ts.rate || 0);
+      const amt = Number(ts.cost || (hours * rate));
+      const logDate = ts.log_date ? new Date(ts.log_date).toISOString().slice(0, 10) : '';
+      items.push({
+        discipline_id: ts.wbs_id || task.wbs_id || null,
+        description: `Labour: ${ts.employee_name} (Employee) - ${ts.comment || task.task_name}${logDate ? ` [${logDate}]` : ''}`,
+        amount: amt,
+        cost_amount: amt,
+        is_extra_work: 0,
+        item_type: 'labour' as const,
+        project_wbs_id: ts.wbs_id || task.wbs_id || null,
+        task_id: taskId,
+        quantity: hours,
+        rate: rate,
+      });
+    }
+
+    // Add contractor labour work log items
+    for (const lwl of labourLogRows) {
+      const hours = Number(lwl.total_working_hours || 0);
+      const rate = Number(lwl.rate || 0);
+      const amt = Number(lwl.amount || (hours * rate));
+      const workDate = lwl.work_date ? new Date(lwl.work_date).toISOString().slice(0, 10) : '';
+      items.push({
+        discipline_id: lwl.wbs_id || task.wbs_id || null,
+        description: `Labour: ${lwl.labour_name} (${lwl.labour_type === 'direct_labour' ? 'Direct' : 'Contractor'}) - ${lwl.work_description || task.task_name}${workDate ? ` [${workDate}]` : ''}`,
+        amount: amt,
+        cost_amount: amt,
+        is_extra_work: 0,
+        item_type: 'labour' as const,
+        project_wbs_id: lwl.wbs_id || task.wbs_id || null,
+        task_id: taskId,
+        quantity: hours,
+        rate: rate,
+      });
+    }
+
+    // If no work logs or timesheets yet, use assigned workers
+    if (timesheetRows.length === 0 && labourLogRows.length === 0) {
+      for (const ae of assignedEmployees) {
+        const hours = Number(task.estimated_hours || 8);
+        const rate = Number(ae.hourly_rate || 50);
+        items.push({
+          discipline_id: task.wbs_id || null,
+          description: `Labour: ${ae.employee_name} (Assigned Worker) - ${task.task_name}`,
+          amount: hours * rate,
+          cost_amount: hours * rate,
+          is_extra_work: 0,
+          item_type: 'labour' as const,
+          project_wbs_id: task.wbs_id || null,
+          task_id: taskId,
+          quantity: hours,
+          rate: rate,
+        });
+      }
+      for (const al of assignedLabours) {
+        const hours = Number(task.estimated_hours || 8);
+        const rate = Number(al.hourly_rate || 50);
+        items.push({
+          discipline_id: task.wbs_id || null,
+          description: `Labour: ${al.labour_name} (Assigned Labour) - ${task.task_name}`,
+          amount: hours * rate,
+          cost_amount: hours * rate,
+          is_extra_work: 0,
+          item_type: 'labour' as const,
+          project_wbs_id: task.wbs_id || null,
+          task_id: taskId,
+          quantity: hours,
+          rate: rate,
+        });
+      }
+    }
+
+    // Also include any material consumptions for this task
+    const [matRows]: any = await dbPool.query(
+      `SELECT sl.ledger_id, sl.material_id, m.material_name, m.unit,
+              (sl.qty_out - sl.billed_qty) AS quantity,
+              COALESCE(qwm.rate, pm.unit_rate, m.billing_rate, m.rate, 0.00) AS rate,
+              sl.rate AS cost_rate
+       FROM stock_ledger sl
+       JOIN materials m ON sl.material_id = m.material_id
+       LEFT JOIN project_wbs pw ON sl.wbs_id = pw.id
+       LEFT JOIN quotation_wbs_material qwm ON (pw.quotation_discipline_id = qwm.quotation_discipline_id AND qwm.material_id = sl.material_id)
+       LEFT JOIN project_materials pm ON (pm.project_id = sl.project_id AND pm.wbs_id = sl.wbs_id AND pm.material_id = sl.material_id)
+       WHERE sl.task_id = ? AND sl.txn_type = 'consumption' AND (sl.qty_out - sl.billed_qty) > 0`,
+      [taskId]
+    );
+
+    let hasMaterials = false;
+    for (const m of matRows) {
+      const q = Number(m.quantity || 0);
+      const r = Number(m.rate || 0);
+      if (q > 0) {
+        hasMaterials = true;
+        items.push({
+          discipline_id: task.wbs_id || null,
+          description: `Material: ${m.material_name} (${q} ${m.unit} @ ₹${r.toFixed(2)}) - ${task.task_name}`,
+          amount: q * r,
+          cost_amount: q * Number(m.cost_rate || 0),
+          is_extra_work: 0,
+          item_type: 'material' as const,
+          project_wbs_id: task.wbs_id || null,
+          task_id: taskId,
+          consumption_log_id: m.ledger_id,
+          quantity: q,
+          rate: r,
+          cost_rate: Number(m.cost_rate || 0),
+        });
+      }
+    }
+
+    if (items.length === 0) return null;
+
+    const invoiceType: 'combined' | 'labour' = hasMaterials ? 'combined' : 'labour';
+    const subtotal = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+
+    let taxId: number | null = null;
+    let taxType: string | null = null;
+    let taxPct = 0;
+    let cgstAmt = 0;
+    let sgstAmt = 0;
+    let igstAmt = 0;
+    let taxAmt = 0;
+
+    let quotationId = (project as any).source_quotation_id || (project as any).quotation_id || null;
+    if (quotationId) {
+      const [qRows]: any = await dbPool.query('SELECT * FROM quotations WHERE quotation_id = ?', [quotationId]);
+      if (qRows.length > 0) {
+        const q = qRows[0];
+        taxId = q.tax_id || null;
+        taxType = q.tax_type || null;
+        taxPct = Number(q.tax_percentage || 0);
+      }
+    }
+
+    if (!taxId) {
+      const [tRows]: any = await dbPool.query('SELECT * FROM taxes WHERE status = 1 ORDER BY tax_id ASC LIMIT 1');
+      if (tRows.length > 0) {
+        taxId = tRows[0].tax_id;
+        taxType = tRows[0].tax_type;
+        taxPct = Number(tRows[0].tax_percentage || 0);
+      }
+    }
+
+    if (taxId) {
+      const [taxRows]: any = await dbPool.query('SELECT * FROM taxes WHERE tax_id = ?', [taxId]);
+      if (taxRows.length > 0) {
+        const tax = taxRows[0];
+        taxPct = Number(tax.tax_percentage || taxPct || 0);
+        const isSplit = Boolean(tax.is_split || tax.tax_type === 'CGST_SGST');
+        if (isSplit) {
+          const half = taxPct / 2;
+          cgstAmt = (subtotal * half) / 100;
+          sgstAmt = (subtotal * half) / 100;
+          taxAmt = cgstAmt + sgstAmt;
+        } else if (tax.tax_type === 'IGST') {
+          igstAmt = (subtotal * taxPct) / 100;
+          taxAmt = igstAmt;
+        } else {
+          taxAmt = (subtotal * taxPct) / 100;
+        }
+      }
+    }
+
+    const totalAmt = subtotal + taxAmt;
+
+    let scheduleId: number | null = null;
+    try {
+      const schedules = await this.repo.getSchedulesByProject(projectId);
+      if (schedules.length > 0) {
+        const openSchedule = schedules.find(s => s.status !== 'invoiced' && s.status !== 'paid') || schedules[0];
+        scheduleId = openSchedule.schedule_id;
+      } else if (quotationId) {
+        const newSchedules = await this.generateBillingSchedules({ project_id: projectId });
+        if (newSchedules && newSchedules.length > 0) {
+          scheduleId = newSchedules[0].schedule_id;
+        }
+      }
+    } catch (e) {
+      // Schedule is optional
+    }
+
+    const projectCode = (project.project_code || `PRJ${projectId}`).replace(/[^a-zA-Z0-9_-]/g, '');
+    const now = new Date();
+    const monthPart = now.toISOString().slice(0, 7).replace(/-/g, '');
+    const invoiceNumber = `INV-${projectCode}-${monthPart}-T${taskId}`;
+
+    const dueDate = new Date(now);
+    dueDate.setDate(now.getDate() + 30);
+
+    const customerId = project.customer_id;
+    if (!customerId) return null;
+
+    const currencyId = project.currency_id || 2;
+
+    const id = await this.repo.createInvoice({
+      invoice_number: invoiceNumber,
+      customer_id: customerId,
+      project_id: projectId,
+      task_id: taskId,
+      quotation_id: quotationId || 0,
+      schedule_id: scheduleId || 0,
+      currency_id: currencyId,
+      tax_id: taxId,
+      tax_type: taxType,
+      cgst_amount: cgstAmt,
+      sgst_amount: sgstAmt,
+      igst_amount: igstAmt,
+      invoice_date: now.toISOString().split('T')[0],
+      due_date: dueDate.toISOString().split('T')[0],
+      subtotal_amount: subtotal,
+      tax_amount: taxAmt,
+      total_amount: totalAmt,
+      status: 'draft',
+      invoice_type: invoiceType,
+      created_by: userId || null,
+      approved_by: null,
+    });
+
+    await this.repo.createInvoiceItems(id, items);
+
+    await dbPool.query(
+      `INSERT INTO audit_logs (user_id, action, module, description, record_id, created_at)
+       VALUES (?, 'AUTO_GENERATE_TASK_INVOICE', 'invoices', ?, ?, NOW())`,
+      [
+        userId || null,
+        `Invoice #${invoiceNumber} automatically generated for completed task #${taskId} ("${task.task_name}"). Subtotal: ${subtotal.toFixed(2)}, Total: ${totalAmt.toFixed(2)}`,
+        id
+      ]
+    ).catch(() => {});
+
+    return await this.repo.getInvoiceById(id);
+  }
+
+  /**
+   * Scans a project for completed tasks that have assigned labour or work logs,
+   * and auto-generates invoices for any that do not have one yet.
+   */
+  async syncCompletedTasksInvoicesForProject(projectId: number, userId?: number): Promise<void> {
+    const [tasks]: any = await dbPool.query(
+      `SELECT task_id FROM tasks WHERE project_id = ? AND status = 'completed' AND is_deleted = 0`,
+      [projectId]
+    );
+
+    for (const t of tasks) {
+      const [existing]: any = await dbPool.query(
+        `SELECT invoice_id FROM invoices WHERE task_id = ? AND status != 'cancelled'`,
+        [t.task_id]
+      );
+      if (existing.length === 0) {
+        await this.autoGenerateInvoiceForCompletedTask(t.task_id, userId);
+      }
+    }
   }
 
   async getInvoiceById(id: number): Promise<InvoiceRow | null> {
@@ -146,6 +485,7 @@ export class InvoiceService {
       rate?: number | null;
     }[];
     created_by: number;
+    status?: InvoiceRow['status'];
   }): Promise<number> {
     const schedule = await this.repo.getScheduleById(data.schedule_id);
     if (!schedule) throw new Error("Schedule not found");
@@ -154,25 +494,9 @@ export class InvoiceService {
     const quotationId = data.quotation_id || schedule.quotation_id;
     const invoiceType = data.invoice_type || 'combined';
 
-    // 1. Duplicate check: prevent duplicate active invoices for same schedule and type
-    const existing = await this.repo.findInvoiceByScheduleAndType(projectId, data.schedule_id, invoiceType);
-    if (existing) {
-      throw new Error(`An active ${invoiceType} invoice already exists for this billing schedule (${existing.invoice_number}).`);
-    }
-
-    // If attempting combined invoice, check if either labour or material is already invoiced
-    if (invoiceType === 'combined') {
-      const existingLabour = await this.repo.findInvoiceByScheduleAndType(projectId, data.schedule_id, 'labour');
-      const existingMaterial = await this.repo.findInvoiceByScheduleAndType(projectId, data.schedule_id, 'material');
-      if (existingLabour || existingMaterial) {
-        throw new Error(
-          `Cannot generate a Combined invoice because separate ${existingLabour ? 'Labour' : ''}${existingLabour && existingMaterial ? ' and ' : ''}${existingMaterial ? 'Material' : ''} invoices already exist for this billing schedule.`
-        );
-      }
-    }
-    
-    let customerId = data.customer_id;
     const project = await this.projectRepo.findById(projectId);
+    const currencyId = data.currency_id || (project as any)?.currency_id || 2;
+    let customerId = data.customer_id;
     if (!customerId) {
       if (project?.customer_id) {
         customerId = project.customer_id;
@@ -184,27 +508,20 @@ export class InvoiceService {
       }
     }
 
-    // 2. Currency synchronization: Quotation -> Project -> Invoice
-    // If currency_id is not passed, automatically inherit from project's currency
-    let currencyId = data.currency_id;
-    if (!currencyId && project?.currency_id) {
-      currencyId = project.currency_id;
-    }
-    if (!currencyId) {
-      currencyId = 2; // Default to base currency if not set
-    }
+    // Generate Invoice Number (e.g. INV-PRJ1-YYYYMM-01) - ensure no undefined
+    const projectCode = (project?.project_code || `PRJ${projectId}`).replace(/[^a-zA-Z0-9_-]/g, '');
+    const monthPart = (schedule.billing_month ? String(schedule.billing_month) : new Date().toISOString().slice(0, 10)).replace(/-/g, '').slice(0, 6);
+    const invoiceNumber = `INV-${projectCode}-${monthPart}-${Date.now().toString().slice(-4)}`;
 
-    // Generate Invoice Number (e.g. INV-PRJ8-LAB-328816)
-    const typeTag = invoiceType === 'labour' ? 'LAB' : (invoiceType === 'material' ? 'MAT' : 'INV');
-    const invoiceNumber = `${typeTag}-${projectId}-${Date.now().toString().slice(-6)}`;
-    
     const subtotal = data.items.reduce((sum, item) => sum + Number(item.amount), 0);
     const taxAmt = data.tax_amount !== undefined ? Number(data.tax_amount) : (data.tax_percentage ? (subtotal * data.tax_percentage) / 100 : 0);
     const totalAmt = subtotal + taxAmt;
-    
+
     const now = new Date();
     const dueDate = new Date(now);
     dueDate.setDate(now.getDate() + 30); // 30 days due
+
+    const initialStatus = data.status || 'pending_approval';
 
     const id = await this.repo.createInvoice({
       invoice_number: invoiceNumber,
@@ -224,10 +541,9 @@ export class InvoiceService {
       subtotal_amount: subtotal,
       tax_amount: taxAmt,
       total_amount: totalAmt,
-      invoice_type: invoiceType,
-      status: 'draft',
+      status: initialStatus,
       created_by: data.created_by,
-      approved_by: null
+      approved_by: initialStatus === 'approved' ? data.created_by : null
     });
 
     if (data.items && data.items.length > 0) {
@@ -367,7 +683,7 @@ export class InvoiceService {
             `Draft invoice #${draft.invoice_number} auto-updated: subtotal ₹${subtotal.toFixed(2)}, total ₹${totalAmt.toFixed(2)}${taskId ? ` (Task #${taskId} modified)` : ''}`,
             draft.invoice_id
           ]
-        ).catch(() => {});
+        ).catch(() => { });
       }
     } catch (err: any) {
       console.error('Error during syncDraftInvoicesForProject:', err);
@@ -408,6 +724,11 @@ export class InvoiceService {
       }
 
       await conn.commit();
+
+      // If attached to a schedule, ensure completed work is also approved
+      if (invoice.schedule_id) {
+        await this.repo.approveCompletedWorkByScheduleId(invoice.schedule_id, userId);
+      }
 
       await dbPool.query(
         `INSERT INTO audit_logs (user_id, action, module, description, record_id, created_at)
@@ -649,14 +970,26 @@ export class InvoiceService {
     const invoice = await this.repo.getInvoiceById(data.invoice_id);
     if (!invoice) throw new Error("Invoice not found");
     if (invoice.status === 'paid') throw new Error("Invoice is already fully paid");
+    if (invoice.status === 'cancelled') throw new Error("Cannot pay a cancelled invoice");
     if (invoice.status === 'draft' || invoice.status === 'pending_approval') {
       throw new Error("Cannot pay an unapproved invoice");
+    }
+
+    const paymentAmount = Number(data.amount);
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+      throw new Error("Payment amount must be greater than zero");
+    }
+
+    const alreadyPaid = Number(invoice.paid_amount || 0);
+    const outstanding = Math.round((Number(invoice.total_amount) - alreadyPaid) * 100) / 100;
+    if (paymentAmount > outstanding + 0.01) {
+      throw new Error(`Payment amount cannot exceed outstanding balance of ${outstanding.toFixed(2)}`);
     }
 
     const paymentId = await this.repo.addPayment({
       invoice_id: data.invoice_id,
       payment_date: data.payment_date,
-      amount: data.amount,
+      amount: paymentAmount,
       payment_method: data.payment_method || null,
       reference_number: data.reference_number || null,
       status: 'completed'
@@ -664,11 +997,13 @@ export class InvoiceService {
 
     const existingPayments = await this.repo.getPaymentsByInvoice(data.invoice_id);
     const totalPaid = existingPayments.reduce((sum, p) => sum + (p.status === 'completed' ? Number(p.amount) : 0), 0);
-    const newTotalPaid = totalPaid + data.amount;
 
-    if (newTotalPaid >= invoice.total_amount) {
+    if (totalPaid >= Number(invoice.total_amount) - 0.01) {
       await this.repo.updateInvoiceStatus(data.invoice_id, 'paid');
-    } else {
+      if (invoice.schedule_id) {
+        await this.repo.updateScheduleStatus(invoice.schedule_id, 'paid');
+      }
+    } else if (totalPaid > 0) {
       await this.repo.updateInvoiceStatus(data.invoice_id, 'partially_paid');
     }
 

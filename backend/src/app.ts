@@ -9,10 +9,18 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
-// CORS — allow configured origin(s) in production
+// CORS — allow configured origin(s) in production and development
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
 const allowedOrigins = env.CORS_ORIGIN
-  ? env.CORS_ORIGIN.split(',').map((o) => o.trim())
-  : ['http://localhost:5173'];
+  ? [...new Set([...defaultOrigins, ...env.CORS_ORIGIN.split(',').map((o) => o.trim())])]
+  : defaultOrigins;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -69,10 +77,10 @@ app.use('/api/*', (req, res) => {
 // Global Error Handler
 app.use(errorHandler);
 
-const PORT = env.PORT || 5000;
+const PORT = parseInt(String(env.PORT || 5000), 10);
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, async () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     await migrate();
     console.log(`🚀 Backend running in ${env.NODE_ENV} mode on port ${PORT}`);
     console.log(`📍 API: /api/v1  |  Health: /health`);

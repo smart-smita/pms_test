@@ -33,6 +33,26 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
+// Recursively extracts plain text from React nodes, arrays, and elements
+function extractTextFromNode(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') {
+    return '';
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node).trim();
+  }
+  if (Array.isArray(node)) {
+    return node.map(extractTextFromNode).filter(Boolean).join(' ').trim();
+  }
+  if (React.isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    if (props && props.children) {
+      return extractTextFromNode(props.children);
+    }
+  }
+  return '';
+}
+
 export function DataTable<T extends Record<string, any>>({
   columns,
   data,
@@ -147,12 +167,41 @@ export function DataTable<T extends Record<string, any>>({
   const handleExportCSV = () => {
     if (data.length === 0) return;
     const csvColumns = columns
-      .filter((c) => !c.excludeFromCSV)
-      .map((c) => ({
-        label: c.header,
-        key: typeof c.csvAccessor === 'string' ? c.csvAccessor : typeof c.accessor === 'string' ? c.accessor : undefined,
-        accessor: typeof c.csvAccessor === 'function' ? c.csvAccessor : undefined,
-      }));
+      .filter((c) => {
+        if (c.excludeFromCSV) return false;
+        const headerText = String(c.header || '').trim().toLowerCase();
+        if (headerText === 'action' || headerText === 'actions') return false;
+        return true;
+      })
+      .map((c) => {
+        let accessorFn: ((row: T) => string | number | null | undefined) | undefined = undefined;
+        let key: string | undefined = undefined;
+
+        if (typeof c.csvAccessor === 'function') {
+          accessorFn = c.csvAccessor;
+        } else if (typeof c.csvAccessor === 'string') {
+          key = c.csvAccessor;
+        } else if (typeof c.accessor === 'string') {
+          key = c.accessor as string;
+        } else if (typeof c.sortKey === 'string' && sortedData[0] && c.sortKey in sortedData[0]) {
+          key = c.sortKey;
+        } else if (typeof c.accessor === 'function') {
+          accessorFn = (row: T) => {
+            try {
+              const res = (c.accessor as Function)(row);
+              return extractTextFromNode(res);
+            } catch {
+              return '';
+            }
+          };
+        }
+
+        return {
+          label: c.header,
+          key,
+          accessor: accessorFn,
+        };
+      });
 
     exportToCSV({
       filename: exportFilename,

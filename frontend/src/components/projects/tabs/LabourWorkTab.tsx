@@ -6,8 +6,8 @@ interface LabourWorkTabProps {
   onNavigate: (page: string) => void;
 }
 
-export const LabourWorkTab: React.FC<LabourWorkTabProps> = ({ projectId }) => {
+export const LabourWorkTab: React.FC<LabourWorkTabProps> = ({ projectId, onNavigate }) => {
   return (
-    <Labours projectId={projectId} />
+    <Labours projectId={projectId} isEmbedded={true} defaultTab="work_logs" onNavigate={onNavigate} />
   );
 };

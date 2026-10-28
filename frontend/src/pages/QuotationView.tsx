@@ -101,49 +101,142 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
     }
   };
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   const handlePrint = () => {
     window.print();
   };
 
+  const handleDownloadPdf = async () => {
+    if (!quotation) return;
+    setIsExportingPdf(true);
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
+      const response = await fetch(`/api/v1/quotations/${quotationId}/pdf`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('PDF service returned ' + response.status);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${quotation.quotation_code || 'Quotation'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showSuccess('Quotation PDF downloaded successfully');
+    } catch (err) {
+      console.warn('[handleDownloadPdf] Falling back to browser print:', err);
+      window.print();
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const handleExportCsv = () => {
     if (!quotation) return;
-    const rows = [
+
+    const formatCell = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows: (string | number)[][] = [
       ['Quotation Code', quotation.quotation_code || ''],
       ['Customer', quotation.customer_name || ''],
+      ['Contact Person', quotation.contact_person || ''],
       ['Project', quotation.project_name || 'New Project'],
-      ['Project Type', quotation.project_type_name || ''],
-      ['Quotation Date', quotation.quotation_date ? quotation.quotation_date.split('T')[0] : ''],
-
+      ['Project Type', quotation.project_type_name || 'General'],
+      ['Quotation Date', quotation.quotation_date ? String(quotation.quotation_date).split('T')[0] : ''],
       ['Currency', quotation.currency_code || 'INR'],
       ['Net Subtotal', quotation.subtotal_amount || 0],
       ['Discount', quotation.discount_amount || 0],
       ['Tax Amount', quotation.tax_amount || 0],
       ['Grand Total', quotation.total_amount || 0],
-      ['Status', quotation.status || 'draft'],
+      ['Status', (quotation.status || 'draft').toUpperCase()],
+      ['Created By', quotation.created_by_name || ''],
+      ['Approved By', quotation.approved_by_name || ''],
       [''],
       ['--- WBS Line Items ---'],
-      ['Discipline / Task', 'Type', 'Description', 'Quantity / Hours', 'Rate', 'Amount'],
+      ['Discipline / Task', 'Type', 'Description', 'Quantity / Hours', 'Unit', 'Rate', 'Amount'],
     ];
 
     (quotation.disciplines || []).forEach((d: any) => {
+      const descParts: string[] = [];
+      if (d.labour_name || (d.labours && d.labours.length > 0)) {
+        const lName = d.labour_name || (d.labours || []).map((l: any) => l.labour_name).join(', ');
+        descParts.push(`Labour: ${lName}`);
+      }
+      if (d.material_name || (d.materials && d.materials.length > 0)) {
+        const mName = d.material_name || (d.materials || []).map((m: any) => m.material_name).join(', ');
+        descParts.push(`Material: ${mName}`);
+      }
+      if (descParts.length === 0 && d.description) {
+        descParts.push(d.description);
+      }
+
+      let qty = d.quantity;
+      let rate = d.rate;
+      if (d.wbs_type === 'material') {
+        qty = d.material_quantity != null ? d.material_quantity : d.quantity || 1;
+        rate = d.material_rate != null ? d.material_rate : d.rate || 0;
+      } else if (d.wbs_type === 'labour') {
+        qty = d.labour_hours != null ? d.labour_hours : d.quantity || 1;
+        rate = d.labour_rate != null ? d.labour_rate : d.rate || 0;
+      }
+
       rows.push([
         d.discipline_name || '',
         d.wbs_type || '',
-        d.labour_name || d.material_name || '',
-        d.labour_hours || d.material_quantity || d.quantity || 1,
-        d.labour_rate || d.material_rate || d.rate || 0,
+        descParts.join(' | ') || d.discipline_name || '',
+        qty,
+        d.unit || (d.wbs_type === 'material' ? 'Nos' : 'hours'),
+        rate,
         d.amount || 0,
       ]);
     });
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((e) => e.map(String).join(',')).join('\n');
-    const encodedUri = encodeURI(csvContent);
+    if ((quotation.taxes || []).length > 0) {
+      rows.push(['']);
+      rows.push(['--- Tax Breakdown ---']);
+      rows.push(['Tax Name', 'Percentage (%)', '', '', '', 'Amount']);
+      quotation.taxes.forEach((tx: any) => {
+        rows.push([
+          tx.tax_name || 'Tax',
+          `${tx.tax_percentage || 0}%`,
+          '',
+          '',
+          '',
+          tx.calculated_amount || tx.tax_amount || 0,
+        ]);
+      });
+    }
+
+    if ((quotation.terms_snapshots || []).length > 0) {
+      rows.push(['']);
+      rows.push(['--- Terms & Conditions ---']);
+      rows.push(['#', 'Title', 'Description']);
+      quotation.terms_snapshots.forEach((t: any, idx: number) => {
+        rows.push([idx + 1, t.title || '', t.description || '']);
+      });
+    }
+
+    const csvContent = '\uFEFF' + rows.map((e) => e.map(formatCell).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const encodedUri = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', `${quotation.quotation_code || 'quotation'}_export.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(encodedUri);
   };
 
   if (isLoading) {
@@ -195,6 +288,7 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
           <Button
             variant="secondary"
             onClick={onBack}
+            className="no-print"
             style={{
               padding: '0.45rem 0.8rem',
               display: 'flex',
@@ -230,11 +324,20 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div className="no-print" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <Button
+            variant="secondary"
+            onClick={handleDownloadPdf}
+            disabled={isExportingPdf}
+            title="Download Official PDF"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <Download size={15} /> {isExportingPdf ? 'Exporting...' : 'PDF'}
+          </Button>
           <Button
             variant="secondary"
             onClick={handlePrint}
-            title="Print Quotation"
+            title="Print Quotation / Save as PDF"
             style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
             <Printer size={15} /> Print
@@ -242,7 +345,7 @@ export const QuotationView: React.FC<QuotationViewProps> = ({ quotationId, onBac
           <Button
             variant="secondary"
             onClick={handleExportCsv}
-            title="Export CSV"
+            title="Export CSV / Excel"
             style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
             <FileSpreadsheet size={15} /> Export

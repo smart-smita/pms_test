@@ -136,6 +136,19 @@ export class TimesheetService {
       comment: data.comment,
     });
 
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      if (finalTaskId) {
+        await invSvc.autoGenerateInvoiceForCompletedTask(finalTaskId, data.employee_id);
+      }
+      if (projectId) {
+        await invSvc.syncDraftInvoicesForProject(projectId, finalTaskId || undefined, data.employee_id);
+      }
+    } catch (e) {
+      console.error('Invoice auto-sync on timesheet creation error:', e);
+    }
+
     return (await this.timesheetRepo.findById(id))!;
   }
 
@@ -286,6 +299,19 @@ export class TimesheetService {
         });
         materialLogId = postRes.ledger_id;
       }
+    }
+
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      if (finalTaskId) {
+        await invSvc.autoGenerateInvoiceForCompletedTask(finalTaskId, data.employee_id);
+      }
+      if (projectId) {
+        await invSvc.syncDraftInvoicesForProject(projectId, finalTaskId || undefined, data.employee_id);
+      }
+    } catch (e) {
+      console.error('Invoice auto-sync on unified log error:', e);
     }
 
     return {

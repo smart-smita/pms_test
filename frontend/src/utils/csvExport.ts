@@ -7,7 +7,20 @@ export interface CSVExportOptions {
 export function exportToCSV({ filename, columns, data }: CSVExportOptions) {
   if (!data || data.length === 0) return;
 
-  const validColumns = columns.filter((c) => c.key || c.accessor);
+  let validColumns = columns.filter((c) => c.key || c.accessor);
+
+  // Fallback: If no columns matched, auto-derive columns from data
+  if (validColumns.length === 0 && data.length > 0) {
+    validColumns = Object.keys(data[0])
+      .filter((k) => typeof data[0][k] !== 'object' || data[0][k] === null)
+      .map((k) => ({
+        label: k.replace(/_/g, ' ').toUpperCase(),
+        key: k,
+      }));
+  }
+
+  if (validColumns.length === 0) return;
+
   const headers = validColumns.map((c) => `"${c.label}"`).join(',');
 
   const rows = data.map((row) =>

@@ -53,14 +53,33 @@ export class TaskService {
       }
     }
 
-    const assignedEmployeeIds = data.assigned_employee_ids || [];
+    // Normalize date fields
+    if (data.end_date && !data.target_date) {
+      data.target_date = data.end_date;
+    }
+    delete data.end_date;
+
+    // Normalize planned_hours to estimated_hours
+    if (data.planned_hours !== undefined && data.estimated_hours === undefined) {
+      data.estimated_hours = data.planned_hours;
+    }
+    delete data.planned_hours;
+
+    if (data.start_date === '') data.start_date = null;
+    if (data.target_date === '') data.target_date = null;
+
+    const assignedEmployeeIds = (data.assigned_employee_ids || []).map(Number).filter((id: number) => id > 0);
     let requiredCount = Number(data.required_worker_count || 1);
     if (assignedEmployeeIds.length > requiredCount) {
       // Auto-adjust instead of throwing error for better UX
       requiredCount = assignedEmployeeIds.length;
       data.required_worker_count = requiredCount;
     }
-    const allocations = data.allocations || [];
+    const allocations = (data.allocations || []).filter((a: any) => a && Number(a.labour_id) > 0).map((a: any) => ({
+      ...a,
+      labour_id: Number(a.labour_id),
+      amount: Number(a.amount) || 0
+    }));
     const dependencies = data.dependencies || [];
     const usedMaterials = data.used_materials || data.materials || [];
     delete data.assigned_employee_ids;
@@ -123,7 +142,25 @@ export class TaskService {
     const task = await this.taskRepo.findById(id);
     if (!task) throw new Error('Task not found');
 
-    if (data.wbs_id) {
+    // Normalize date fields
+    if (data.end_date && !data.target_date) {
+      data.target_date = data.end_date;
+    }
+    delete data.end_date;
+    delete data.project_id;
+
+    // Normalize planned_hours to estimated_hours
+    if (data.planned_hours !== undefined && data.estimated_hours === undefined) {
+      data.estimated_hours = data.planned_hours;
+    }
+    delete data.planned_hours;
+
+    if (data.start_date === '') data.start_date = null;
+    if (data.target_date === '') data.target_date = null;
+
+    if (data.wbs_id === 0 || !data.wbs_id) {
+      delete data.wbs_id;
+    } else {
       const pw = await this.wbsRepo.findProjectWbsById(data.wbs_id);
       if (!pw) throw new Error('Selected WBS Discipline does not exist');
       if (pw.wbs_type === 'material') {
@@ -131,7 +168,10 @@ export class TaskService {
       }
     }
 
-    const assignedEmployeeIds = data.assigned_employee_ids;
+    const assignedEmployeeIds = Array.isArray(data.assigned_employee_ids)
+      ? data.assigned_employee_ids.map(Number).filter((empId: number) => empId > 0)
+      : data.assigned_employee_ids;
+
     if (assignedEmployeeIds !== undefined) {
       let requiredCount = Number(task.required_worker_count || data.required_worker_count || 1);
       if (assignedEmployeeIds.length > requiredCount) {
@@ -140,7 +180,15 @@ export class TaskService {
         data.required_worker_count = requiredCount;
       }
     }
-    const allocations = data.allocations;
+
+    const allocations = Array.isArray(data.allocations)
+      ? data.allocations.filter((a: any) => a && Number(a.labour_id) > 0).map((a: any) => ({
+        ...a,
+        labour_id: Number(a.labour_id),
+        amount: Number(a.amount) || 0
+      }))
+      : data.allocations;
+
     const dependencies = data.dependencies;
     const usedMaterials = data.used_materials || data.materials;
     delete data.assigned_employee_ids;
@@ -155,8 +203,9 @@ export class TaskService {
 
     await this.taskRepo.update(id, data);
 
+    const effectiveWbsId = data.wbs_id !== undefined ? data.wbs_id : task.wbs_id;
     if (assignedEmployeeIds !== undefined || allocations !== undefined) {
-      await this.taskRepo.assignWorkers(id, assignedEmployeeIds || [], allocations || [], task.project_id, task.wbs_id);
+      await this.taskRepo.assignWorkers(id, assignedEmployeeIds || [], allocations || [], task.project_id, effectiveWbsId);
     }
 
     if (usedMaterials !== undefined && Array.isArray(usedMaterials)) {
@@ -186,21 +235,24 @@ export class TaskService {
     if (dependencies !== undefined) {
       await this.taskRepo.updateDependencies(id, dependencies);
     }
-    
+
     // If target date changed, we recalculate dependents.
     if (data.target_date && oldTask && data.target_date !== oldTask.target_date) {
       await this.taskRepo.recalculateDependentTasks(id);
     }
 
-    // Auto-sync draft invoices when task labour allocations or materials are modified
-    if (allocations !== undefined || usedMaterials !== undefined) {
-      try {
-        const { InvoiceService } = await import('./invoice.service');
-        const invSvc = new InvoiceService();
-        await invSvc.syncDraftInvoicesForProject(task.project_id, id);
-      } catch (e) {
-        console.error('Invoice auto-sync on task update error:', e);
+    // Auto-sync or generate invoices when task labour allocations, materials, or status are modified
+    try {
+      const { InvoiceService } = await import('./invoice.service');
+      const invSvc = new InvoiceService();
+      if (data.status === 'completed' || task.status === 'completed') {
+        await invSvc.autoGenerateInvoiceForCompletedTask(id, (data as any).updated_by);
       }
+      if (allocations !== undefined || usedMaterials !== undefined) {
+        await invSvc.syncDraftInvoicesForProject(task.project_id, id);
+      }
+    } catch (e) {
+      console.error('Invoice auto-sync on task update error:', e);
     }
 
     return await this.taskRepo.findById(id);
@@ -228,13 +280,35 @@ export class TaskService {
       );
     }
 
+    // Auto-generate invoice if task is already completed
+    if (task.status === 'completed') {
+      try {
+        const { InvoiceService } = await import('./invoice.service');
+        const invSvc = new InvoiceService();
+        await invSvc.autoGenerateInvoiceForCompletedTask(taskId);
+      } catch (e) {
+        console.error('Invoice auto-generation on assignWorkers error:', e);
+      }
+    }
+
     return await this.taskRepo.findById(taskId);
   }
 
-  async updateTaskStatus(id: number, status: string) {
+  async updateTaskStatus(id: number, status: string, userId?: number) {
     const task = await this.taskRepo.findById(id);
     if (!task) throw new Error('Task not found');
     await this.taskRepo.updateStatus(id, status);
+
+    if (status === 'completed') {
+      try {
+        const { InvoiceService } = await import('./invoice.service');
+        const invSvc = new InvoiceService();
+        await invSvc.autoGenerateInvoiceForCompletedTask(id, userId);
+      } catch (e) {
+        console.error('Invoice auto-generation on task completion error:', e);
+      }
+    }
+
     return await this.taskRepo.findById(id);
   }
 

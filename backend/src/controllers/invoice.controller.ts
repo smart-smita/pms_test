@@ -165,7 +165,7 @@ export class InvoiceController {
       if (!invoice) return sendError(res, 'Invoice not found', [], 404);
       
       // Will pipe PDF directly to res
-      generateInvoicePDF(invoice, res);
+      await generateInvoicePDF(invoice, res);
     } catch (e: any) {
       return sendError(res, e.message, [], 500);
     }

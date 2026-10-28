@@ -6,7 +6,7 @@ import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
-import { apiRequest } from '../services/api';
+import { apiRequest, API_BASE_URL } from '../services/api';
 import { Invoice, BillingSchedule, MonthlyCompletedWork, Currency, Tax, Country, Project, Customer, InvoicePayment, SiteSurvey, Discipline, InvoiceItem } from '../types';
 import { Plus, FileText, RotateCcw, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
@@ -35,6 +35,9 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<number | null>(null);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [isApprovingInvoice, setIsApprovingInvoice] = useState<number | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ? String(projectId) : '');
   const [invoiceCountryId, setInvoiceCountryId] = useState<string>('');
 
@@ -306,7 +309,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
     // Currency Synchronization: Quotation -> Project -> Invoice
     const targetProj = projects.find(p => String(p.project_id) === String(projId));
     const projectCurrency = (targetProj?.currency_id ? currencies.find(c => c.currency_id === targetProj.currency_id) : null)
-      || currencies.find(c => c.is_base === 1) 
+      || currencies.find(c => c.is_base === 1)
       || currencies[0];
     const curSym = projectCurrency?.symbol || '₹';
 
@@ -524,6 +527,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
+      project_id: Number(invoiceForm.project_id || selectedProjectId || selectedCompletedWork?.project_id || 0),
       schedule_id: Number(invoiceForm.schedule_id),
       completed_work_id: Number(invoiceForm.completed_work_id),
       survey_id: invoiceForm.survey_id ? Number(invoiceForm.survey_id) : null,
@@ -538,6 +542,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
       due_date: invoiceForm.due_date,
       invoice_type: invoiceForm.invoice_type || 'combined',
       items: invoiceForm.items,
+      status: 'pending_approval',
     };
 
     const res = await apiRequest('/invoices', {
@@ -546,9 +551,11 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
     });
 
     if (res.success) {
-      showSuccess('Invoice generated successfully!');
+      showSuccess('Invoice generated successfully! Pending approval.');
       setIsInvoiceModalOpen(false);
       fetchInvoices();
+      fetchSchedules();
+      fetchCompletedWorks();
     } else {
       showError(res.message || 'Failed to generate invoice.');
     }
@@ -627,26 +634,47 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
   };
 
   const handleApproveInvoice = async (id: number) => {
-    const res = await apiRequest(`/invoices/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'approved' }),
-    });
+    try {
+      setIsApprovingInvoice(id);
+      const res = await apiRequest(`/invoices/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'approved' }),
+      });
 
-    if (res.success) {
-      showSuccess('Invoice approved!');
-      fetchInvoices();
-    } else {
-      showError(res.message || 'Failed to approve invoice.');
+      if (res.success) {
+        showSuccess('Invoice approved successfully!');
+        fetchInvoices();
+        fetchSchedules();
+        fetchCompletedWorks();
+      } else {
+        showError(res.message || 'Failed to approve invoice.');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to approve invoice.');
+    } finally {
+      setIsApprovingInvoice(null);
     }
   };
 
   const openPaymentModal = (inv: Invoice) => {
+    if (inv.status === 'draft' || inv.status === 'pending_approval') {
+      showError('Cannot pay an unapproved invoice. Please approve the invoice first.');
+      return;
+    }
+    if (inv.status === 'paid') {
+      showError('This invoice is already fully paid.');
+      return;
+    }
+    if (inv.status === 'cancelled') {
+      showError('Cannot record payment for a cancelled invoice.');
+      return;
+    }
     setSelectedInvoice(inv);
-    const remaining = Number(inv.total_amount) - Number(inv.paid_amount || 0);
+    const remaining = Math.max(0, Math.round((Number(inv.total_amount) - Number(inv.paid_amount || 0)) * 100) / 100);
     setPaymentForm({
       invoice_id: inv.invoice_id,
       payment_date: new Date().toISOString().split('T')[0],
-      amount: remaining > 0 ? remaining : 0,
+      amount: remaining,
       payment_method: 'Bank Transfer',
       reference_number: '',
     });
@@ -655,96 +683,80 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
 
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!paymentForm.amount || paymentForm.amount <= 0) {
-      showError('Please enter a valid payment amount.');
+    if (isSubmittingPayment) return;
+
+    const amt = Number(paymentForm.amount);
+    if (!amt || amt <= 0) {
+      showError('Please enter a valid positive payment amount.');
       return;
     }
 
-    const res = await apiRequest(`/invoices/${paymentForm.invoice_id}/payments`, {
-      method: 'POST',
-      body: JSON.stringify(paymentForm),
-    });
+    if (selectedInvoice) {
+      const alreadyPaid = Number(selectedInvoice.paid_amount || 0);
+      const remaining = Math.round((Number(selectedInvoice.total_amount) - alreadyPaid) * 100) / 100;
+      if (amt > remaining + 0.01) {
+        showError(`Payment amount (${amt.toFixed(2)}) exceeds remaining balance of ${remaining.toFixed(2)}.`);
+        return;
+      }
+    }
 
-    if (res.success) {
-      showSuccess('Payment recorded successfully!');
-      setIsPaymentModalOpen(false);
-      fetchInvoices();
-    } else {
-      showError(res.message || 'Failed to record payment.');
+    setIsSubmittingPayment(true);
+    try {
+      const res = await apiRequest(`/invoices/${paymentForm.invoice_id}/payments`, {
+        method: 'POST',
+        body: JSON.stringify(paymentForm),
+      });
+
+      if (res.success) {
+        showSuccess('Payment recorded successfully!');
+        setIsPaymentModalOpen(false);
+        fetchInvoices();
+        fetchSchedules();
+      } else {
+        showError(res.message || 'Failed to record payment.');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to record payment.');
+    } finally {
+      setIsSubmittingPayment(false);
     }
   };
 
   const handleDownloadPdf = async (invoiceId: number, invoiceNum: string) => {
     try {
+      setIsDownloadingPdf(invoiceId);
       const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
-      const targetUrl = `${apiBase}/invoices/${invoiceId}/pdf?token=${encodeURIComponent(token)}`;
-
-      const res = await fetch(targetUrl, {
+      const response = await fetch(`${API_BASE_URL}/invoices/${invoiceId}/pdf`, {
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
-      const contentType = res.headers.get('content-type') || '';
-      if (!res.ok || !contentType.includes('application/pdf')) {
-        let errMsg = `Download failed with HTTP ${res.status}`;
+      if (!response.ok) {
+        let errMsg = 'Failed to generate invoice PDF';
         try {
-          const errJson = await res.json();
-          errMsg = errJson.message || errMsg;
-        } catch {
-          const text = await res.text();
-          if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-            errMsg = 'Server returned HTML instead of a valid PDF document. Please check API URL.';
-          }
-        }
-        throw new Error(errMsg);
+          const errData = await response.json();
+          errMsg = errData.message || errMsg;
+        } catch (_) { }
+        showError(errMsg);
+        return;
       }
 
-      const blob = await res.blob();
-      if (!blob || blob.size === 0) {
-        throw new Error('Downloaded PDF file is empty.');
-      }
-
-      const blobUrl = window.URL.createObjectURL(blob);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `Invoice-${invoiceNum}.pdf`;
+      link.href = url;
+      const cleanNum = invoiceNum && !invoiceNum.includes('undefined') ? invoiceNum : `INV-${invoiceId}`;
+      link.download = `${cleanNum}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Delay revoking the blob URL to prevent browser download abortion / corrupt file
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-      }, 15000);
-
-      showSuccess(`Invoice ${invoiceNum} PDF downloaded successfully!`);
+      window.URL.revokeObjectURL(url);
+      showSuccess(`Invoice PDF (${cleanNum}) downloaded.`);
     } catch (err: any) {
       showError(err.message || 'Failed to download PDF.');
-    }
-  };
-
-  const handleViewInvoiceDetails = async (invoiceId: number) => {
-    setIsLoadingDetails(true);
-    setIsViewDetailsOpen(true);
-    try {
-      const [invRes, pmtRes] = await Promise.all([
-        apiRequest<Invoice>(`/invoices/${invoiceId}`),
-        apiRequest<InvoicePayment[]>(`/invoices/${invoiceId}/payments`).catch(() => ({ success: false, data: [] }))
-      ]);
-      if (invRes.success && invRes.data) {
-        setViewingInvoice(invRes.data);
-      }
-      if (pmtRes.success && pmtRes.data) {
-        setInvoicePaymentsList(pmtRes.data);
-      } else {
-        setInvoicePaymentsList([]);
-      }
-    } catch (err: any) {
-      showError(err.message || 'Failed to load invoice details');
     } finally {
-      setIsLoadingDetails(false);
+      setIsDownloadingPdf(null);
     }
   };
 
@@ -843,14 +855,15 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
 
   // Columns for Invoices Table
   const invoiceColumns: Column<Invoice>[] = [
-    { header: 'Invoice #', accessor: 'invoice_number', sortKey: 'invoice_number' },
     {
-      header: 'Type',
+      header: 'Invoice #',
       accessor: (r) => {
-        const type = (r as any).invoice_type || 'combined';
-        const variant = type === 'labour' ? 'info' : (type === 'material' ? 'warning' : 'primary');
-        return <Badge variant={variant as any}>{type.toUpperCase()}</Badge>;
+        const num = r.invoice_number?.includes('undefined')
+          ? r.invoice_number.replace('undefined', String(r.project_id || '8'))
+          : r.invoice_number;
+        return <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{num}</span>;
       },
+      sortKey: 'invoice_number'
     },
     {
       header: 'Customer / Project',
@@ -963,7 +976,36 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
       ),
     },
     {
-      header: 'Status',
+      header: 'Invoice Status',
+      accessor: (r) => {
+        if (!r.invoice_id) {
+          return <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Not Generated</span>;
+        }
+        const variantMap: Record<string, 'success' | 'warning' | 'info' | 'danger' | 'secondary'> = {
+          draft: 'secondary',
+          pending_approval: 'warning',
+          approved: 'info',
+          sent: 'info',
+          partially_paid: 'warning',
+          paid: 'success',
+          cancelled: 'danger',
+        };
+        const status = r.invoice_status || 'draft';
+        const num = r.invoice_number?.includes('undefined')
+          ? r.invoice_number.replace('undefined', String(r.project_id || '8'))
+          : r.invoice_number;
+        return (
+          <div>
+            <Badge variant={variantMap[status] || 'secondary'}>{status.replace('_', ' ').toUpperCase()}</Badge>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '0.15rem', fontFamily: 'monospace' }}>
+              {num}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Schedule Status',
       accessor: (r) => <Badge variant={r.status === 'invoiced' || r.status === 'paid' ? 'success' : 'secondary'}>{r.status.toUpperCase()}</Badge>,
       sortKey: 'status',
     },
@@ -1068,34 +1110,30 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
             isLoading={isLoading}
             actions={(row) => (
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <Button variant="secondary" onClick={() => handleViewInvoiceDetails(row.invoice_id)} style={{ padding: '0.35rem 0.55rem', fontSize: '0.78rem', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)' }} title="View Invoice Details">
-                  <Eye size={13} /> View
+                <Button
+                  variant="secondary"
+                  disabled={isDownloadingPdf === row.invoice_id}
+                  onClick={() => handleDownloadPdf(row.invoice_id, row.invoice_number)}
+                  style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}
+                >
+                  <Download size={13} /> {isDownloadingPdf === row.invoice_id ? 'Downloading...' : 'PDF'}
                 </Button>
-                <Button variant="secondary" onClick={() => handleDownloadPdf(row.invoice_id, row.invoice_number)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}>
-                  <Download size={13} /> PDF
-                </Button>
-                {isAdminOrManager && row.status === 'draft' && (
-                  <Button variant="secondary" onClick={() => handleRegenerateInvoice(row.invoice_id)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#0ea5e9', border: '1px solid rgba(14,165,233,0.3)' }} title="Regenerate Draft from Source Changes">
-                    <RefreshCw size={13} /> Regenerate
-                  </Button>
-                )}
                 {isAdminOrManager && (row.status === 'draft' || row.status === 'pending_approval') && (
-                  <Button variant="primary" onClick={() => handleApproveInvoice(row.invoice_id)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}>
-                    <CheckCircle size={13} /> Approve
+                  <Button
+                    variant="primary"
+                    disabled={isApprovingInvoice === row.invoice_id}
+                    onClick={() => handleApproveInvoice(row.invoice_id)}
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}
+                  >
+                    <CheckCircle size={13} /> {isApprovingInvoice === row.invoice_id ? 'Approving...' : 'Approve'}
                   </Button>
                 )}
-                {isAdminOrManager && (row.status === 'approved' || row.status === 'partially_paid' || row.status === 'paid') && !row.is_credit_note && (
-                  <Button variant="secondary" onClick={() => { setCreditNoteInvoice(row); setIsCreditNoteModalOpen(true); }} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }} title="Issue Credit Note">
-                    <FileText size={13} /> Credit Note
-                  </Button>
-                )}
-                {isAdminOrManager && row.status === 'approved' && !row.is_credit_note && (
-                  <Button variant="secondary" onClick={() => { setReviseInvoice(row); setIsReviseModalOpen(true); }} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }} title="Revise Invoice">
-                    <RotateCcw size={13} /> Revise
-                  </Button>
-                )}
-                {isAdminOrManager && row.status !== 'paid' && row.status !== 'cancelled' && !row.is_credit_note && (
-                  <Button variant="secondary" onClick={() => openPaymentModal(row)} style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>
+                {isAdminOrManager && (row.status === 'approved' || row.status === 'partially_paid') && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => openPaymentModal(row)}
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}
+                  >
                     <CreditCard size={13} /> Pay
                   </Button>
                 )}
@@ -1114,17 +1152,51 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
             exportFilename="billing_schedules"
             isLoading={isLoading}
             actions={(row) => (
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {row.status === 'pending' && isAdminOrManager && (
-                  <>
-                    <Button variant="primary" onClick={() => openGenerateInvoiceModal(undefined, row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
-                      <FileText size={13} /> Generate Invoice
-                    </Button>
-                    <Button variant="secondary" onClick={() => openLogCompletedWorkModal(row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
-                      <CheckCircle size={13} /> Log Work
-                    </Button>
-                  </>
+                  <Button variant="primary" onClick={() => openLogCompletedWorkModal(row)} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}>
+                    <CheckCircle size={13} /> Log Monthly Work
+                  </Button>
                 )}
+                {row.invoice_id ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      disabled={isDownloadingPdf === row.invoice_id}
+                      onClick={() => handleDownloadPdf(row.invoice_id!, row.invoice_number || '')}
+                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}
+                    >
+                      <Download size={13} /> {isDownloadingPdf === row.invoice_id ? 'Downloading...' : 'PDF'}
+                    </Button>
+                    {isAdminOrManager && (row.invoice_status === 'draft' || row.invoice_status === 'pending_approval') && (
+                      <Button
+                        variant="primary"
+                        disabled={isApprovingInvoice === row.invoice_id}
+                        onClick={() => handleApproveInvoice(row.invoice_id!)}
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', background: '#16a34a' }}
+                      >
+                        <CheckCircle size={13} /> Approve
+                      </Button>
+                    )}
+                    {isAdminOrManager && (row.invoice_status === 'approved' || row.invoice_status === 'partially_paid') && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          const inv = invoices.find(i => i.invoice_id === row.invoice_id);
+                          if (inv) openPaymentModal(inv);
+                          else {
+                            apiRequest<Invoice>(`/invoices/${row.invoice_id}`).then(res => {
+                              if (res.success && res.data) openPaymentModal(res.data);
+                            });
+                          }
+                        }}
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}
+                      >
+                        <CreditCard size={13} /> Pay
+                      </Button>
+                    )}
+                  </>
+                ) : null}
               </div>
             )}
           />
@@ -1335,9 +1407,9 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
               onChange={(val) => handleRecalculateInvoiceTax(val, invoiceForm.items)}
               options={[
                 { value: '', label: '-- No Tax (0%) --' },
-                ...(invoiceCountryId 
-                    ? taxes.filter(t => !t.country_id || String(t.country_id) === String(invoiceCountryId))
-                    : taxes
+                ...(invoiceCountryId
+                  ? taxes.filter(t => !t.country_id || String(t.country_id) === String(invoiceCountryId))
+                  : taxes
                 ).map((t) => ({ value: String(t.tax_id), label: `${t.tax_name} (${t.tax_percentage}%) ${t.country_name ? `[${t.country_name}]` : ''}` })),
               ]}
             />
@@ -1376,66 +1448,66 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
               {projectCosts && (
                 <>
                   {isMaterialEnabled && isLabourEnabled && (
-                  <button
-                    type="button"
-                    onClick={handlePopulateCombined}
-                    className="btn"
-                    style={{
-                      background: invoiceForm.invoice_type === 'combined' ? '#2563eb' : 'rgba(37, 99, 235, 0.1)',
-                      color: invoiceForm.invoice_type === 'combined' ? '#ffffff' : '#2563eb',
-                      border: '1px solid #2563eb',
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                    title="Generate combined invoice containing both labour and materials"
-                  >
-                    ⚡ Combined ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_cost || 0).toLocaleString()})
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handlePopulateCombined}
+                      className="btn"
+                      style={{
+                        background: invoiceForm.invoice_type === 'combined' ? '#2563eb' : 'rgba(37, 99, 235, 0.1)',
+                        color: invoiceForm.invoice_type === 'combined' ? '#ffffff' : '#2563eb',
+                        border: '1px solid #2563eb',
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                      title="Generate combined invoice containing both labour and materials"
+                    >
+                      ⚡ Combined ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_cost || 0).toLocaleString()})
+                    </button>
                   )}
 
                   {isLabourEnabled && (
-                  <button
-                    type="button"
-                    onClick={handlePopulateLabourOnly}
-                    className="btn"
-                    style={{
-                      background: invoiceForm.invoice_type === 'labour' ? '#059669' : 'rgba(16, 185, 129, 0.1)',
-                      color: invoiceForm.invoice_type === 'labour' ? '#ffffff' : '#059669',
-                      border: '1px solid #059669',
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                    title="Generate separate Labour Only invoice"
-                  >
-                    👷 Labour Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_labour_amount || 0).toLocaleString()})
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handlePopulateLabourOnly}
+                      className="btn"
+                      style={{
+                        background: invoiceForm.invoice_type === 'labour' ? '#059669' : 'rgba(16, 185, 129, 0.1)',
+                        color: invoiceForm.invoice_type === 'labour' ? '#ffffff' : '#059669',
+                        border: '1px solid #059669',
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                      title="Generate separate Labour Only invoice"
+                    >
+                      👷 Labour Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_labour_amount || 0).toLocaleString()})
+                    </button>
                   )}
 
                   {isMaterialEnabled && (
-                  <button
-                    type="button"
-                    onClick={handlePopulateMaterialsOnly}
-                    className="btn"
-                    style={{
-                      background: invoiceForm.invoice_type === 'material' ? '#d97706' : 'rgba(217, 119, 6, 0.1)',
-                      color: invoiceForm.invoice_type === 'material' ? '#ffffff' : '#d97706',
-                      border: '1px solid #d97706',
-                      padding: '0.4rem 0.75rem',
-                      borderRadius: '6px',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                    title="Generate separate Material Only invoice"
-                  >
-                    🧱 Materials Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_material_amount || 0).toLocaleString()})
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handlePopulateMaterialsOnly}
+                      className="btn"
+                      style={{
+                        background: invoiceForm.invoice_type === 'material' ? '#d97706' : 'rgba(217, 119, 6, 0.1)',
+                        color: invoiceForm.invoice_type === 'material' ? '#ffffff' : '#d97706',
+                        border: '1px solid #d97706',
+                        padding: '0.4rem 0.75rem',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                      title="Generate separate Material Only invoice"
+                    >
+                      🧱 Materials Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_material_amount || 0).toLocaleString()})
+                    </button>
                   )}
                 </>
               )}
@@ -1468,7 +1540,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                 <Plus size={12} /> Add Extra Work
               </Button>
             </div>
-            
+
             <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                 <thead style={{ background: 'var(--border-color)' }}>
@@ -1500,8 +1572,8 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                         />
                       </td>
                       <td style={{ padding: '0.5rem' }}>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={item.description}
                           onChange={(e) => {
                             const newItems = [...invoiceForm.items];
@@ -1514,7 +1586,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                         />
                       </td>
                       <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                        <select 
+                        <select
                           value={item.is_extra_work ? '1' : '0'}
                           onChange={(e) => {
                             const newItems = [...invoiceForm.items];
@@ -1528,8 +1600,8 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                         </select>
                       </td>
                       <td style={{ padding: '0.5rem' }}>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={item.amount}
                           onChange={(e) => {
                             const newItems = [...invoiceForm.items];
@@ -1624,8 +1696,20 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
       </Modal>
 
       {/* Record Payment Modal */}
-      <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title={`Record Payment for ${selectedInvoice?.invoice_number}`}>
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title={`Record Payment for ${selectedInvoice?.invoice_number?.includes('undefined') ? selectedInvoice.invoice_number.replace('undefined', String(selectedInvoice.project_id || '8')) : selectedInvoice?.invoice_number || ''}`}
+      >
         <form onSubmit={handleSubmitPayment}>
+          {selectedInvoice && (
+            <div style={{ padding: '0.75rem 1rem', background: 'rgba(56,189,248,0.08)', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.2)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+              <div>Total: <strong>{selectedInvoice.currency_symbol || '$'} {Number(selectedInvoice.total_amount).toLocaleString()}</strong></div>
+              <div>Paid: <strong style={{ color: '#4ade80' }}>{selectedInvoice.currency_symbol || '$'} {Number(selectedInvoice.paid_amount || 0).toLocaleString()}</strong></div>
+              <div>Outstanding: <strong style={{ color: '#f87171' }}>{selectedInvoice.currency_symbol || '$'} {Math.max(0, Number(selectedInvoice.total_amount) - Number(selectedInvoice.paid_amount || 0)).toLocaleString()}</strong></div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <FormInput
               label="Payment Date"
@@ -1637,6 +1721,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
             <FormInput
               label="Payment Amount"
               type="number"
+              step="0.01"
               value={String(paymentForm.amount)}
               onChange={(e) => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })}
               required
@@ -1662,8 +1747,10 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <Button type="button" variant="secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">Record Payment</Button>
+            <Button type="button" variant="secondary" onClick={() => setIsPaymentModalOpen(false)} disabled={isSubmittingPayment}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={isSubmittingPayment}>
+              {isSubmittingPayment ? 'Processing...' : 'Record Payment'}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -1770,8 +1857,8 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
               <>
                 <Badge variant={
                   viewingInvoice.status === 'paid' ? 'success' :
-                  viewingInvoice.status === 'approved' ? 'info' :
-                  viewingInvoice.status === 'pending_approval' ? 'warning' : 'secondary'
+                    viewingInvoice.status === 'approved' ? 'info' :
+                      viewingInvoice.status === 'pending_approval' ? 'warning' : 'secondary'
                 }>
                   {viewingInvoice.status.replace('_', ' ').toUpperCase()}
                 </Badge>

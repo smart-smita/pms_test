@@ -22,6 +22,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { DataTable, Column } from '../components/common/DataTable';
+import { Modal } from '../components/common/Modal';
 import { DocumentModal } from '../components/common/DocumentModal';
 import { LabourDetailsModal } from '../components/common/LabourDetailsModal';
 import { useAuth } from '../context/AuthContext';
@@ -264,6 +265,17 @@ export const Labours: React.FC<LaboursProps> = ({
           setModalWbsList([]);
         }
       });
+
+      apiService.get<any[]>(`/tasks?project_id=${workLogForm.project_id}`).then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          const taskList = res.data;
+          setTasks((prev) => {
+            const map = new Map(prev.map(t => [t.id, t]));
+            taskList.forEach((t: any) => map.set(t.task_id, { id: t.task_id, name: t.task_name, project_id: t.project_id, wbs_id: t.wbs_id }));
+            return Array.from(map.values());
+          });
+        }
+      }).catch(() => {});
     } else {
       setModalWbsList(wbsList);
     }
@@ -438,9 +450,9 @@ export const Labours: React.FC<LaboursProps> = ({
         work_date: workLogForm.work_date,
         in_time: workLogForm.in_time || null,
         out_time: workLogForm.out_time || null,
-        total_working_hours: Number(workLogForm.total_working_hours) || 8,
+        total_working_hours: isNaN(Number(workLogForm.total_working_hours)) ? 0 : Number(workLogForm.total_working_hours),
         rate_type: workLogForm.rate_type,
-        rate: Number(workLogForm.rate),
+        rate: isNaN(Number(workLogForm.rate)) ? 0 : Number(workLogForm.rate),
         work_description: workLogForm.work_description,
       };
 
@@ -707,6 +719,7 @@ export const Labours: React.FC<LaboursProps> = ({
         </div>
       ),
       header: 'Actions',
+      excludeFromCSV: true,
     },
   ];
 
@@ -755,33 +768,42 @@ export const Labours: React.FC<LaboursProps> = ({
       accessor: (i) => (
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => {
               setEditingWorkLog(i);
               setShowAddWorkLog(true);
+              const dateVal = i.work_date ? String(i.work_date).split('T')[0] : new Date().toISOString().split('T')[0];
               setWorkLogForm({
                 labour_id: String(i.labour_id),
                 project_id: String(i.project_id),
                 wbs_id: i.wbs_id ? String(i.wbs_id) : '',
                 task_id: String(i.task_id),
-                work_date: i.work_date,
+                work_date: dateVal,
                 in_time: i.in_time || '',
                 out_time: i.out_time || '',
-                total_working_hours: i.total_working_hours,
-                rate_type: i.rate_type,
-                rate: i.rate,
+                total_working_hours: Number(i.total_working_hours) || 0,
+                rate_type: i.rate_type || 'hourly',
+                rate: Number(i.rate) || 0,
                 work_description: i.work_description || '',
               });
             }}
             className="action-btn edit"
+            title="Edit Task Work Log"
           >
             <Edit2 size={14} />
           </button>
-          <button onClick={() => handleDeleteWorkLog(i.work_log_id)} className="action-btn delete">
+          <button
+            type="button"
+            onClick={() => handleDeleteWorkLog(i.work_log_id)}
+            className="action-btn delete"
+            title="Delete Work Log"
+          >
             <Trash2 size={14} />
           </button>
         </div>
       ),
       header: 'Actions',
+      excludeFromCSV: true,
     },
   ];
 
@@ -905,26 +927,24 @@ export const Labours: React.FC<LaboursProps> = ({
         </div>
       )}
 
-      {/* Add / Edit Labour Form Card */}
-      {showAddLabour && (
-        <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid var(--accent-primary, #6366f1)' }}>
-          <div className="flex items-center justify-between mb-3 pb-2" style={{ borderBottom: '1px solid var(--border-color, var(--border-color))' }}>
-            <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
-              <Users size={18} style={{ color: 'var(--accent-primary, #6366f1)' }} />
-              {editingLabour ? `Edit Labour / Contractor: ${editingLabour.name}` : 'Register New Labour / Contractor'}
-            </h3>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddLabour(false);
-                setEditingLabour(null);
-              }}
-              className="btn btn-outline"
-              style={{ padding: '0.3rem 0.6rem' }}
-            >
-              <X size={16} />
-            </button>
-          </div>
+      {/* Add / Edit Labour Modal */}
+      <Modal
+        isOpen={showAddLabour}
+        onClose={() => {
+          setShowAddLabour(false);
+          setEditingLabour(null);
+          setFormErrors({});
+          setFormSection('basic');
+        }}
+        title={
+          <span className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
+            <Users size={18} style={{ color: 'var(--accent-primary, #6366f1)' }} />
+            {editingLabour ? `Edit Labour / Contractor: ${editingLabour.name}` : 'Register New Labour / Contractor'}
+          </span>
+        }
+        size="xl"
+      >
+        <div>
 
           {/* Form Tabs: Basic, Identity, Visa */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)' }}>
@@ -1351,16 +1371,205 @@ export const Labours: React.FC<LaboursProps> = ({
             </div>
           </form>
         </div>
-      )}
+      </Modal>
 
-      {/* Add / Edit Work Log Form Card */}
-      {showAddWorkLog && (
-        <div className="glass-card p-4 mb-4" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-color, var(--border-color))' }}>
-            <h3 className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
-              <Clock size={18} style={{ color: '#3b82f6' }} />
-              {editingWorkLog ? 'Edit Task Work Log' : 'Add Daily Labour Task Work Log'}
-            </h3>
+      {/* Add / Edit Work Log Modal */}
+      <Modal
+        isOpen={showAddWorkLog}
+        onClose={() => {
+          setShowAddWorkLog(false);
+          setEditingWorkLog(null);
+        }}
+        title={
+          <span className="font-semibold flex items-center gap-2" style={{ fontSize: '1.1rem' }}>
+            <Clock size={18} style={{ color: '#3b82f6' }} />
+            {editingWorkLog ? 'Edit Task Work Log' : 'Add Daily Labour Task Work Log'}
+          </span>
+        }
+        size="xl"
+      >
+        <form onSubmit={handleCreateOrUpdateWorkLog}>
+          <div className="grid-3-col mb-4">
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">
+                Worker / Contractor <span className="text-danger">*</span>
+              </label>
+              <select
+                required
+                value={workLogForm.labour_id}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, labour_id: e.target.value })}
+                className="form-select"
+              >
+                <option value="">-- Select Worker --</option>
+                {labours.map((l) => (
+                  <option key={l.labour_id} value={l.labour_id}>
+                    {l.name} ({l.labour_type === 'contractor' ? 'Contractor' : 'Direct'})
+                  </option>
+                ))}
+                {editingWorkLog && editingWorkLog.labour_id && !labours.some(l => String(l.labour_id) === String(editingWorkLog.labour_id)) && (
+                  <option value={editingWorkLog.labour_id}>
+                    {editingWorkLog.labour_name || `Worker #${editingWorkLog.labour_id}`}
+                  </option>
+                )}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">
+                Project <span className="text-danger">*</span>
+              </label>
+              <select
+                required
+                value={workLogForm.project_id}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, project_id: e.target.value, wbs_id: '', task_id: '' })}
+                className="form-select"
+              >
+                <option value="">-- Select Project --</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+                {editingWorkLog && editingWorkLog.project_id && !projects.some(p => String(p.id) === String(editingWorkLog.project_id)) && (
+                  <option value={editingWorkLog.project_id}>
+                    {editingWorkLog.project_name || `Project #${editingWorkLog.project_id}`}
+                  </option>
+                )}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">WBS Discipline</label>
+              <select
+                value={workLogForm.wbs_id}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, wbs_id: e.target.value, task_id: '' })}
+                className="form-select"
+              >
+                <option value="">-- All / General WBS --</option>
+                {modalWbsList.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+                {editingWorkLog && editingWorkLog.wbs_id && !modalWbsList.some(w => String(w.id) === String(editingWorkLog.wbs_id)) && (
+                  <option value={editingWorkLog.wbs_id}>
+                    {editingWorkLog.wbs_name || `WBS #${editingWorkLog.wbs_id}`}
+                  </option>
+                )}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid-3-col mb-4">
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">
+                Task <span className="text-danger">*</span>
+              </label>
+              <select
+                required
+                value={workLogForm.task_id}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, task_id: e.target.value })}
+                className="form-select"
+              >
+                <option value="">-- Select Task --</option>
+                {filteredFormTasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+                {editingWorkLog && editingWorkLog.task_id && !filteredFormTasks.some(t => String(t.id) === String(editingWorkLog.task_id)) && (
+                  <option value={editingWorkLog.task_id}>
+                    {editingWorkLog.task_name || `Task #${editingWorkLog.task_id}`}
+                  </option>
+                )}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">
+                Work Date <span className="text-danger">*</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={workLogForm.work_date}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, work_date: e.target.value })}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">
+                Total Working Hours <span className="text-danger">*</span>
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="24"
+                required
+                value={workLogForm.total_working_hours}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, total_working_hours: parseFloat(e.target.value) || 0 })}
+                className="form-input"
+              />
+            </div>
+          </div>
+
+          <div className="grid-3-col mb-4">
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Rate Type</label>
+              <select
+                value={workLogForm.rate_type}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, rate_type: e.target.value as any })}
+                className="form-select"
+              >
+                <option value="hourly">Hourly Rate</option>
+                <option value="daily">Daily Wage</option>
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Rate (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={workLogForm.rate}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, rate: parseFloat(e.target.value) || 0 })}
+                className="form-input"
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Calculated Amount (₹)</label>
+              <input
+                type="text"
+                disabled
+                value={`₹${(
+                  workLogForm.rate_type === 'hourly'
+                    ? workLogForm.total_working_hours * workLogForm.rate
+                    : workLogForm.rate
+                ).toFixed(2)}`}
+                className="form-input"
+                style={{ background: 'var(--border-color)', fontWeight: 700, color: '#10b981' }}
+              />
+            </div>
+          </div>
+
+          <div className="form-group mb-4" style={{ width: '100%' }}>
+            <label className="form-label">Work Description / Remarks</label>
+            <textarea
+              placeholder="Specific tasks completed, site progress, notes..."
+              value={workLogForm.work_description}
+              onChange={(e) => setWorkLogForm({ ...workLogForm, work_description: e.target.value })}
+              className="form-input form-textarea"
+              rows={3}
+              style={{ width: '100%', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -1368,190 +1577,15 @@ export const Labours: React.FC<LaboursProps> = ({
                 setEditingWorkLog(null);
               }}
               className="btn btn-outline"
-              style={{ padding: '0.3rem 0.6rem' }}
             >
-              <X size={16} />
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-blue">
+              {editingWorkLog ? 'Update Work Log' : 'Save Work Log'}
             </button>
           </div>
-
-          <form onSubmit={handleCreateOrUpdateWorkLog}>
-            <div className="grid-3-col mb-4">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Worker / Contractor <span className="text-danger">*</span>
-                </label>
-                <select
-                  required
-                  value={workLogForm.labour_id}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, labour_id: e.target.value })}
-                  className="form-select"
-                >
-                  <option value="">-- Select Worker --</option>
-                  {labours.map((l) => (
-                    <option key={l.labour_id} value={l.labour_id}>
-                      {l.name} ({l.labour_type === 'contractor' ? 'Contractor' : 'Direct'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Project <span className="text-danger">*</span>
-                </label>
-                <select
-                  required
-                  value={workLogForm.project_id}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, project_id: e.target.value, wbs_id: '', task_id: '' })}
-                  className="form-select"
-                >
-                  <option value="">-- Select Project --</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">WBS Discipline</label>
-                <select
-                  value={workLogForm.wbs_id}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, wbs_id: e.target.value, task_id: '' })}
-                  className="form-select"
-                >
-                  <option value="">-- All / General WBS --</option>
-                  {modalWbsList.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid-3-col mb-4">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Task <span className="text-danger">*</span>
-                </label>
-                <select
-                  required
-                  value={workLogForm.task_id}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, task_id: e.target.value })}
-                  className="form-select"
-                >
-                  <option value="">-- Select Task --</option>
-                  {filteredFormTasks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Work Date <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={workLogForm.work_date}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, work_date: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">
-                  Total Working Hours <span className="text-danger">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  max="24"
-                  required
-                  value={workLogForm.total_working_hours}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, total_working_hours: parseFloat(e.target.value) || 0 })}
-                  className="form-input"
-                />
-              </div>
-            </div>
-
-            <div className="grid-3-col mb-4">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Rate Type</label>
-                <select
-                  value={workLogForm.rate_type}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate_type: e.target.value as any })}
-                  className="form-select"
-                >
-                  <option value="hourly">Hourly Rate</option>
-                  <option value="daily">Daily Wage</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Rate (₹)</label>
-                <input
-                  type="number"
-                  step="1"
-                  min="0"
-                  required
-                  value={workLogForm.rate}
-                  onChange={(e) => setWorkLogForm({ ...workLogForm, rate: parseFloat(e.target.value) || 0 })}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Calculated Amount (₹)</label>
-                <input
-                  type="text"
-                  disabled
-                  value={`₹${(
-                    workLogForm.rate_type === 'hourly'
-                      ? workLogForm.total_working_hours * workLogForm.rate
-                      : workLogForm.rate
-                  ).toFixed(2)}`}
-                  className="form-input"
-                  style={{ background: 'var(--border-color)', fontWeight: 700, color: '#10b981' }}
-                />
-              </div>
-            </div>
-
-            <div className="form-group mb-4">
-              <label className="form-label">Work Description / Remarks</label>
-              <textarea
-                placeholder="Specific tasks completed, site progress, notes..."
-                value={workLogForm.work_description}
-                onChange={(e) => setWorkLogForm({ ...workLogForm, work_description: e.target.value })}
-                className="form-textarea"
-                rows={2}
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddWorkLog(false);
-                  setEditingWorkLog(null);
-                }}
-                className="btn btn-outline"
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-blue">
-                {editingWorkLog ? 'Update Work Log' : 'Save Work Log'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* Tabs */}
       <div className="tabs-container mb-4">

@@ -80,7 +80,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
     { label: task.task_code || 'Task Details' },
   ];
 
-  const planned = Number(task.planned_hours) || 0;
+  const planned = Number(task.planned_hours ?? task.estimated_hours) || 0;
   const actual = Number(task.actual_hours) || 0;
   const remaining = Math.max(planned - actual, 0);
   const extra = Math.max(actual - planned, 0);
@@ -140,14 +140,21 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Assignee</div>
           <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <User size={16} color="#4ade80" />
-            <span>{task.assigned_employee_name || task.assigned_labour_name || 'Unassigned'}</span>
+            <span>
+              {task.assigned_employees && task.assigned_employees.length > 0
+                ? task.assigned_employees.map((e) => e.name).join(', ')
+                : task.assigned_employee_name ||
+                  (task.assigned_labours && task.assigned_labours.length > 0
+                    ? task.assigned_labours.map((l) => l.name).join(', ')
+                    : task.assigned_labour_name || 'Unassigned')}
+            </span>
           </div>
         </div>
 
         <div style={{ background: 'var(--bg-card)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Timeline</div>
           <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.35rem' }}>
-            {task.start_date ? new Date(task.start_date).toLocaleDateString() : 'N/A'} - {task.end_date ? new Date(task.end_date).toLocaleDateString() : 'N/A'}
+            {task.start_date ? new Date(task.start_date).toLocaleDateString() : 'N/A'} - {(task.end_date || task.target_date) ? new Date((task.end_date || task.target_date)!).toLocaleDateString() : 'N/A'}
           </div>
         </div>
 

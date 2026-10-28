@@ -9,16 +9,24 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { apiRequest, parseApiErrors, apiService } from '../services/api';
 import { Task, Project, Employee } from '../types';
-import { showSuccess, showError } from '../utils/toast';
+import { showSuccess, showError, showWarning } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, RefreshCw, Eye, Calendar, Filter, RotateCcw, Package, AlertTriangle, FileText, Clock, ExternalLink, MapPin } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { RequirePermission } from '../components/common/RequirePermission';
 import { LogHistoryModal } from '../components/common/LogHistoryModal';
 import { LabourCombobox } from '../components/common/LabourCombobox';
 import { EmployeeMultiSelect } from '../components/common/EmployeeMultiSelect';
 
-export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProjectId }) => {
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) => void }> = ({ projectId: propProjectId, onNavigate }) => {
   const { user } = useAuth();
   const isAdmin = user?.role_name === 'Admin';
   const canManage = user?.role_name === 'Admin' || user?.role_name === 'Manager';
@@ -39,6 +47,9 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
 
   // Task Create/Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [isLoadingTaskDetails, setIsLoadingTaskDetails] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
@@ -263,9 +274,10 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setDescription('');
     setWorkerCount(1);
     setWorkingHours(8);
-    setStartDate(new Date().toISOString().split('T')[0]);
+    const today = getTodayStr();
+    setStartDate(today);
     setStartTime('09:00');
-    setTargetDate(new Date().toISOString().split('T')[0]);
+    setTargetDate(today);
     setTargetTime('18:00');
     setPriority('medium');
     setProgressPercentage(0);
@@ -386,6 +398,22 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setIsHistoryModalOpen(true);
   };
 
+  const openViewDetails = async (t: Task) => {
+    setViewingTask(t);
+    setIsViewDetailsOpen(true);
+    setIsLoadingTaskDetails(true);
+    try {
+      const res = await apiRequest<Task>(`/tasks/${t.task_id}`);
+      if (res.success && res.data) {
+        setViewingTask(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load full task details:', err);
+    } finally {
+      setIsLoadingTaskDetails(false);
+    }
+  };
+
   const openLogTimesheetModal = (t: Task) => {
     setTimesheetTask(t);
     setTimesheetForm({
@@ -407,6 +435,12 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     const hrs = Number(timesheetForm.working_hours);
     if (!hrs || hrs <= 0) {
       showError('Please enter valid work hours greater than 0');
+      return;
+    }
+
+    const today = getTodayStr();
+    if (timesheetForm.log_date && timesheetForm.log_date < today) {
+      showError('Log date cannot be a past date');
       return;
     }
 
@@ -528,7 +562,20 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     setFormErrors({});
 
     // Manual frontend date/time validation
+    const today = getTodayStr();
+    if (!editingTask && startDate && startDate < today) {
+      setFormErrors({ start_date: 'Start date cannot be a past date.' });
+      return;
+    }
+    if (!editingTask && targetDate && targetDate < today) {
+      setFormErrors({ target_date: 'End date cannot be a past date.' });
+      return;
+    }
     if (startDate && targetDate) {
+      if (targetDate < startDate) {
+        setFormErrors({ target_date: 'End date cannot be earlier than start date.' });
+        return;
+      }
       const startDateTime = new Date(`${startDate}T${startTime || '00:00:00'}`);
       const endDateTime = new Date(`${targetDate}T${targetTime || '23:59:59'}`);
       if (endDateTime < startDateTime) {
@@ -874,6 +921,24 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 <Eye size={14} /> Logs
               </Button>
 
+              {/* View Details Button for Completed Tasks */}
+              {row.status === 'completed' && (
+                <Button
+                  variant="secondary"
+                  onClick={() => openViewDetails(row)}
+                  style={{
+                    padding: '0.35rem 0.6rem',
+                    color: '#0284c7',
+                    borderColor: 'rgba(2, 132, 199, 0.35)',
+                    background: 'rgba(2, 132, 199, 0.08)',
+                    fontWeight: 600,
+                  }}
+                  title="View Completed Task Details"
+                >
+                  <FileText size={14} /> View details
+                </Button>
+              )}
+
               {/* Log Timesheet Button (Calendar Icon) */}
               {row.status !== 'completed' && row.status !== 'cancelled' && (
                 <Button
@@ -911,6 +976,224 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
           )}
         />
       </div>
+
+      {/* View Task Details Modal */}
+      <Modal
+        isOpen={isViewDetailsOpen}
+        onClose={() => {
+          setIsViewDetailsOpen(false);
+          setViewingTask(null);
+        }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span>Task Details: {viewingTask?.task_name || 'Loading...'}</span>
+            {viewingTask && (
+              <>
+                <Badge variant={viewingTask.status === 'completed' ? 'success' : viewingTask.status === 'in-progress' ? 'info' : 'warning'}>
+                  {viewingTask.status.toUpperCase()}
+                </Badge>
+                {viewingTask.task_code && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    #{viewingTask.task_code}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        }
+        size="2xl"
+      >
+        {isLoadingTaskDetails ? (
+          <div style={{ padding: '3rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <LoadingSpinner />
+            <span style={{ color: 'var(--text-secondary)' }}>Loading task details...</span>
+          </div>
+        ) : !viewingTask ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>
+            Task not found or could not be loaded.
+          </div>
+        ) : (() => {
+          const planned = Number(viewingTask.planned_hours ?? viewingTask.estimated_hours) || 0;
+          const actual = Number(viewingTask.actual_hours) || 0;
+          const remaining = Math.max(planned - actual, 0);
+          const extra = Math.max(actual - planned, 0);
+          const compPct = viewingTask.progress_percentage ?? (viewingTask.status === 'completed' ? 100 : 0);
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Top Metrics Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
+                {/* Project & WBS */}
+                <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    Project & Discipline
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{viewingTask.project_name || 'N/A'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#6366f1', fontWeight: 600, marginTop: '2px' }}>
+                    WBS: {viewingTask.wbs_name || 'General Discipline'}
+                  </div>
+                </div>
+
+                {/* Assigned Workforce */}
+                <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    Assigned Workforce
+                  </div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {viewingTask.assigned_employees && viewingTask.assigned_employees.length > 0
+                      ? viewingTask.assigned_employees.map(e => e.name).join(', ')
+                      : (viewingTask.assigned_employee_name || 'No employee assigned')}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    Labours: {viewingTask.assigned_labours && viewingTask.assigned_labours.length > 0
+                      ? viewingTask.assigned_labours.map(l => l.name).join(', ')
+                      : (viewingTask.assigned_labour_name || 'None')}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Worker Count: {viewingTask.required_worker_count || 1}
+                  </div>
+                </div>
+
+                {/* Timeline */}
+                <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    Execution Timeline
+                  </div>
+                  <div style={{ fontSize: '0.8rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Start: </span>
+                    <strong>{formatDateTime(viewingTask.start_date, viewingTask.start_time)}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', marginTop: '2px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>End: </span>
+                    <strong style={{ color: '#059669' }}>{formatDateTime(viewingTask.target_date, viewingTask.target_time)}</strong>
+                  </div>
+                </div>
+
+                {/* Progress Card */}
+                <div style={{ padding: '0.85rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    Task Progress
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <span style={{ fontSize: '1rem', fontWeight: 750, color: '#16a34a' }}>{compPct}%</span>
+                    <Badge variant="success">Completed</Badge>
+                  </div>
+                  <div style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${compPct}%`, height: '100%', background: '#16a34a', borderRadius: '3px' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Hours Breakdown */}
+              <div style={{ padding: '1rem', borderRadius: '8px', background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Clock size={15} color="#6366f1" /> Hours Breakdown
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                  <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>PLANNED</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>{planned.toFixed(2)}h</div>
+                  </div>
+                  <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 600 }}>LOGGED ACTUAL</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0284c7', marginTop: '2px' }}>{actual.toFixed(2)}h</div>
+                  </div>
+                  <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#6366f1', fontWeight: 600 }}>REMAINING</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#6366f1', marginTop: '2px' }}>{remaining.toFixed(2)}h</div>
+                  </div>
+                  <div style={{ padding: '0.65rem 0.85rem', borderRadius: '6px', background: extra > 0 ? 'rgba(239, 68, 68, 0.08)' : 'var(--bg-secondary)', border: extra > 0 ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid var(--border-color)' }}>
+                    <div style={{ fontSize: '0.7rem', color: extra > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: 600 }}>EXTRA / OVERTIME</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: extra > 0 ? '#ef4444' : 'var(--text-primary)', marginTop: '2px' }}>{extra.toFixed(2)}h</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description & Work Scope */}
+              <div style={{ padding: '1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                  Description & Scope of Work
+                </div>
+                <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {viewingTask.description || 'No detailed scope of work provided for this task.'}
+                </div>
+                {(viewingTask as any).task_address && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <MapPin size={14} color="#ef4444" />
+                    <span>{(viewingTask as any).task_address}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Used Materials if any */}
+              {viewingTask.used_materials && viewingTask.used_materials.length > 0 && (
+                <div style={{ padding: '1rem', borderRadius: '8px', background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Package size={15} color="#d97706" /> Used Materials ({viewingTask.used_materials.length})
+                  </div>
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                      <thead style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                        <tr>
+                          <th style={{ padding: '0.5rem 0.65rem', textAlign: 'left' }}>#</th>
+                          <th style={{ padding: '0.5rem 0.65rem', textAlign: 'left' }}>Material Name</th>
+                          <th style={{ padding: '0.5rem 0.65rem', textAlign: 'center' }}>Date Used</th>
+                          <th style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>Qty</th>
+                          <th style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>Rate</th>
+                          <th style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewingTask.used_materials.map((m: any, idx: number) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '0.5rem 0.65rem', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                            <td style={{ padding: '0.5rem 0.65rem', fontWeight: 600 }}>{m.material_name}</td>
+                            <td style={{ padding: '0.5rem 0.65rem', textAlign: 'center' }}>{m.used_date || 'N/A'}</td>
+                            <td style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>{m.quantity} {m.unit || 'Nos'}</td>
+                            <td style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>₹{Number(m.rate || 0).toFixed(2)}</td>
+                            <td style={{ padding: '0.5rem 0.65rem', textAlign: 'right', fontWeight: 700 }}>₹{Number(m.amount || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal Footer Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setIsViewDetailsOpen(false);
+                    openViewLogs(viewingTask);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#6366f1', borderColor: 'rgba(99, 102, 241, 0.3)' }}
+                >
+                  <Eye size={14} /> View Task Logs
+                </Button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {onNavigate && (
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setIsViewDetailsOpen(false);
+                        onNavigate(`project/workspace/${viewingTask.project_id}/tasks/${viewingTask.task_id}`);
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      <ExternalLink size={14} /> Open Full Page
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={() => setIsViewDetailsOpen(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
 
       {/* Log History Modal Component */}
       <LogHistoryModal
@@ -960,7 +1243,16 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 label="Log Date *"
                 type="date"
                 value={timesheetForm.log_date}
-                onChange={(e) => setTimesheetForm({ ...timesheetForm, log_date: e.target.value })}
+                min={getTodayStr()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (val && val < today) {
+                    showError('Log date cannot be a past date');
+                    return;
+                  }
+                  setTimesheetForm({ ...timesheetForm, log_date: val });
+                }}
                 required
               />
               <FormInput
@@ -1076,9 +1368,20 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 label="Start Date *"
                 type="date"
                 value={startDate}
+                min={editingTask && editingTask.start_date ? editingTask.start_date.split('T')[0] : getTodayStr()}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (!editingTask && val && val < today) {
+                    setFormErrors((prev) => ({ ...prev, start_date: 'Start date cannot be a past date.' }));
+                    return;
+                  }
+                  setStartDate(val);
                   setFormErrors((prev) => ({ ...prev, start_date: '' }));
+                  if (targetDate && targetDate < val) {
+                    setTargetDate(val);
+                    setFormErrors((prev) => ({ ...prev, target_date: '' }));
+                  }
                 }}
                 required
                 error={formErrors.start_date}
@@ -1087,8 +1390,19 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
                 label="End Date *"
                 type="date"
                 value={targetDate}
+                min={startDate ? startDate : (editingTask ? undefined : getTodayStr())}
                 onChange={(e) => {
-                  setTargetDate(e.target.value);
+                  const val = e.target.value;
+                  const today = getTodayStr();
+                  if (!editingTask && val && val < today) {
+                    setFormErrors((prev) => ({ ...prev, target_date: 'End date cannot be a past date.' }));
+                    return;
+                  }
+                  if (startDate && val && val < startDate) {
+                    setFormErrors((prev) => ({ ...prev, target_date: 'End date cannot be earlier than start date.' }));
+                    return;
+                  }
+                  setTargetDate(val);
                   setFormErrors((prev) => ({ ...prev, target_date: '' }));
                 }}
                 required
@@ -1914,3 +2228,5 @@ export const Tasks: React.FC<{ projectId?: number }> = ({ projectId: propProject
     </div>
   );
 };
+
+export default Tasks;
