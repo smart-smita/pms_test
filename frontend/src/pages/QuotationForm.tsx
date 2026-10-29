@@ -41,6 +41,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { showSuccess, showError, showWarning } from '../utils/toast';
+import { useConfirm } from '../context/ConfirmationContext';
 import { useAuth } from '../context/AuthContext';
 
 interface CurrencyMaster {
@@ -528,9 +529,17 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
     }
   };
 
-  const handleProjectTypeChange = (newTypeId: string) => {
+  const { confirm } = useConfirm();
+
+  const handleProjectTypeChange = async (newTypeId: string) => {
     if (selectedWbsTemplateIds.length > 0 || wbsItems.length > 0) {
-      if (!window.confirm("Changing the Project Type will reset your selected WBS Templates and tasks. Are you sure?")) {
+      const isConfirmed = await confirm({
+        title: 'Change Project Type',
+        message: 'Changing the Project Type will reset your selected WBS Templates and tasks. Are you sure?',
+        confirmText: 'Reset & Change',
+        type: 'warning',
+      });
+      if (!isConfirmed) {
         return;
       }
       setSelectedWbsTemplateIds([]);
@@ -549,7 +558,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
     if (removedIds.length > 0) {
       const itemsToRemove = wbsItems.filter((item) => removedIds.includes(item.wbs_template_id as number));
       if (itemsToRemove.length > 0) {
-        if (!window.confirm(`You are about to remove a WBS Template that has ${itemsToRemove.length} WBS task(s) currently added to this quotation. Removing it will delete these tasks from the quotation. Are you sure?`)) {
+        const isConfirmed = await confirm({
+          title: 'Remove WBS Template',
+          message: `You are about to remove a WBS Template that has ${itemsToRemove.length} WBS task(s) currently added to this quotation. Removing it will delete these tasks from the quotation. Are you sure?`,
+          confirmText: 'Remove & Delete Tasks',
+          type: 'danger',
+        });
+        if (!isConfirmed) {
           return; // Abort the change
         }
       }

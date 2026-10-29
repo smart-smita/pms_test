@@ -14,6 +14,7 @@ import {
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface PlanningTermsTabProps {
   planning: any;
@@ -57,9 +58,17 @@ export const PlanningTermsTab: React.FC<PlanningTermsTabProps> = ({
     setEditingTermId(null);
   };
 
-  const handleDeleteTerm = (index: number) => {
+  const { confirm } = useConfirm();
+
+  const handleDeleteTerm = async (index: number) => {
     if (isReadOnly) return;
-    if (confirm('Are you sure you want to remove this condition?')) {
+    const isConfirmed = await confirm({
+      title: 'Remove Term / Condition',
+      message: 'Are you sure you want to remove this condition?',
+      confirmText: 'Remove Condition',
+      type: 'danger',
+    });
+    if (isConfirmed) {
       const updated = termsList.filter((_: any, i: number) => i !== index);
       onUpdateTermsList(updated);
     }

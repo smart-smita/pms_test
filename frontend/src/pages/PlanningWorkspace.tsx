@@ -5,6 +5,7 @@ import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/common/Modal';
 import { Button } from '../components/common/Button';
+import { useConfirm } from '../context/ConfirmationContext';
 
 // Planning Components
 import { PlanningListTab } from '../components/planning/PlanningListTab';
@@ -185,12 +186,18 @@ export const PlanningWorkspace: React.FC<PlanningWorkspaceProps> = ({
     setIsSaving(false);
   };
 
+  const { confirm } = useConfirm();
+
   // ── APPROVE PLANNING (CREATES / UPDATES PROJECT) ──────────────────
   const handleApprovePlanning = async () => {
     if (!selectedPlanningId) return;
-    if (!confirm('Are you sure you want to approve this plan? This will finalize dates and create or update the Project execution records.')) {
-      return;
-    }
+    const isConfirmed = await confirm({
+      title: 'Approve Planning & Execution',
+      message: 'Are you sure you want to approve this plan? This will finalize dates and create or update the Project execution records.',
+      confirmText: 'Approve Plan',
+      type: 'success',
+    });
+    if (!isConfirmed) return;
 
     setIsSaving(true);
     try {

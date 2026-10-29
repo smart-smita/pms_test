@@ -5,6 +5,7 @@ import { DataTable, Column } from '../components/common/DataTable';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
+import { useConfirm } from '../context/ConfirmationContext';
 import { TaskCombobox } from '../components/common/TaskCombobox';
 
 export interface Timesheet {
@@ -238,8 +239,16 @@ export const Timesheets: React.FC<{ projectId?: number, onNavigate?: (page: stri
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this timesheet entry?')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete Timesheet',
+      message: 'Are you sure you want to delete this timesheet entry?',
+      confirmText: 'Delete Entry',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
     try {
       const res = await apiService.delete(`/timesheets/${id}`);
       if (res.success) {

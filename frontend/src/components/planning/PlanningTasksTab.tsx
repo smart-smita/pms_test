@@ -17,6 +17,7 @@ import {
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface PlanningTasksTabProps {
   planning: any;
@@ -73,9 +74,17 @@ export const PlanningTasksTab: React.FC<PlanningTasksTabProps> = ({
     setEditingTaskId(null);
   };
 
-  const handleDeleteTask = (id: number) => {
+  const { confirm } = useConfirm();
+
+  const handleDeleteTask = async (id: number) => {
     if (isReadOnly) return;
-    if (confirm('Are you sure you want to delete this task?')) {
+    const isConfirmed = await confirm({
+      title: 'Delete Planning Task',
+      message: 'Are you sure you want to delete this task?',
+      confirmText: 'Delete Task',
+      type: 'danger',
+    });
+    if (isConfirmed) {
       const updated = tasksList.filter((t: any) => t.id !== id);
       onUpdateTasksList(updated);
     }

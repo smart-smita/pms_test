@@ -7,6 +7,7 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { showSuccess, showError } from '../utils/toast';
+import { useConfirm } from '../context/ConfirmationContext';
 import { Project, ProjectWBS, ProjectMaterial, ProjectMaterialLog } from '../types';
 
 interface MaterialMaster {
@@ -278,8 +279,16 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDeleteProjectMaterial = async (id: number) => {
-    if (!window.confirm('Are you sure you want to remove this material from the project WBS?')) return;
+    const isConfirmed = await confirm({
+      title: 'Remove Project Material',
+      message: 'Are you sure you want to remove this material from the project WBS?',
+      confirmText: 'Remove Material',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
     const res = await apiRequest(`/materials/project-materials/${id}`, { method: 'DELETE' });
     if (res.success) {
       showSuccess('Material removed from project WBS.');
@@ -414,7 +423,13 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
   };
 
   const handleDeleteMaster = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this master material?')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete Master Material',
+      message: 'Are you sure you want to delete this master material?',
+      confirmText: 'Delete Material',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
     const res = await apiRequest(`/materials/master/${id}`, { method: 'DELETE' });
     if (res.success) {
       showSuccess('Master material deleted successfully.');

@@ -27,17 +27,21 @@ import {
   Filter,
   Calendar,
   Check,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { apiRequest } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/common/Modal';
 import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
+import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { showSuccess, showError } from '../utils/toast';
 import { ProcurementReportsTab } from '../components/procurement/ProcurementReportsTab';
 import { DataTable, Column } from '../components/common/DataTable';
+import { useConfirm } from '../context/ConfirmationContext';
 
 export interface ProcurementHubProps {
   initialTab?: 'stock' | 'po' | 'grn' | 'issues' | 'reports';
@@ -45,6 +49,7 @@ export interface ProcurementHubProps {
 
 export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'stock' }) => {
   const { hasPermission, user } = useAuth();
+  const { confirm, promptModal } = useConfirm();
 
   // Active tab state
   const [activeTab, setActiveTab] = useState<'stock' | 'po' | 'grn' | 'issues' | 'reports'>(initialTab);
@@ -142,13 +147,18 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
   const [isLoadingPo, setIsLoadingPo] = useState<boolean>(false);
   const [isPoModalOpen, setIsPoModalOpen] = useState<boolean>(false);
   const [selectedPo, setSelectedPo] = useState<any | null>(null);
+  const [isSubmittingPo, setIsSubmittingPo] = useState<boolean>(false);
+  const [isApprovingPo, setIsApprovingPo] = useState<number | null>(null);
+  const [isCancellingPo, setIsCancellingPo] = useState<number | null>(null);
+  const [viewingPoDetails, setViewingPoDetails] = useState<any | null>(null);
+  const [isLoadingPoDetails, setIsLoadingPoDetails] = useState<boolean>(false);
   const [poForm, setPoForm] = useState({
     project_id: '',
     wbs_id: '',
     vendor_id: '',
     po_date: new Date().toISOString().split('T')[0],
     expected_delivery_date: '',
-    payment_terms: '',
+    payment_terms: 'Net 30',
     delivery_address: '',
     terms_conditions: '',
     items: [
@@ -158,6 +168,7 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
         unit_rate: 0,
         tax_percentage: 18,
         discount_amount: 0,
+        remarks: '',
       },
     ],
   });
@@ -440,9 +451,14 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
 
   // ── Post GRN (Transactional Stock Write) ───────────────────────────────
   const handlePostGrn = async (grnId: number) => {
-    if (!window.confirm('Post this GRN into inventory? This locks PO lines, posts accepted quantity to the stock ledger, and transitions PO status.')) {
-      return;
-    }
+    const isConfirmed = await confirm({
+      title: 'Post GRN to Stock Ledger',
+      message: 'Post this GRN into inventory? This locks PO lines, posts accepted quantity to the stock ledger, and transitions PO status.',
+      confirmText: 'Post GRN',
+      type: 'warning',
+    });
+    if (!isConfirmed) return;
+
     setIsPostingGrn(grnId);
     try {
       await apiRequest(`/procurement/grn/${grnId}/post`, { method: 'POST' });
@@ -486,9 +502,14 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
 
   // ── Phase 4: Create Vendor Invoice from Posted GRN ──────────────────────
   const handleCreateVendorInvoice = async (grnId: number) => {
-    if (!window.confirm('Generate a vendor invoice matching this posted GRN?')) {
-      return;
-    }
+    const isConfirmed = await confirm({
+      title: 'Generate Vendor Invoice',
+      message: 'Generate a vendor invoice matching this posted GRN?',
+      confirmText: 'Generate Invoice',
+      type: 'info',
+    });
+    if (!isConfirmed) return;
+
     setIsCreatingInvoice(grnId);
     try {
       const res = await apiRequest<any>(`/procurement/vendor-invoices/from-grn/${grnId}`, {
@@ -500,6 +521,171 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
       showError(e.message || 'Failed to create vendor invoice');
     } finally {
       setIsCreatingInvoice(null);
+    }
+  };
+
+  // ── Phase 3: Create Purchase Order ─────────────────────────────────────
+  const handleCreatePo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!poForm.project_id) {
+      showError('Please select a project');
+      return;
+    }
+    if (!poForm.vendor_id) {
+      showError('Please select a vendor');
+      return;
+    }
+
+    const validItems = poForm.items.filter((i) => i.material_id && Number(i.quantity) > 0);
+    if (validItems.length === 0) {
+      showError('Please add at least one line item with material and quantity > 0');
+      return;
+    }
+
+    const selectedVendor = vendors.find((v) => String(v.vendor_id) === String(poForm.vendor_id));
+
+    setIsSubmittingPo(true);
+    try {
+      const payload = {
+        project_id: Number(poForm.project_id),
+        wbs_id: poForm.wbs_id ? Number(poForm.wbs_id) : null,
+        vendor_id: Number(poForm.vendor_id),
+        vendor_name: selectedVendor?.vendor_name || 'Vendor',
+        po_date: poForm.po_date,
+        expected_delivery_date: poForm.expected_delivery_date || null,
+        payment_terms: poForm.payment_terms || 'Net 30',
+        delivery_address: poForm.delivery_address || null,
+        terms_conditions: poForm.terms_conditions || null,
+        items: validItems.map((item) => {
+          const mat = materials.find((m) => String(m.material_id) === String(item.material_id));
+          return {
+            material_id: Number(item.material_id),
+            material_name: mat?.material_name || 'Material',
+            unit: mat?.unit || 'Nos',
+            quantity: Number(item.quantity),
+            unit_rate: Number(item.unit_rate),
+            tax_percentage: Number(item.tax_percentage || 0),
+            discount_amount: Number(item.discount_amount || 0),
+            remarks: item.remarks || null,
+          };
+        }),
+      };
+
+      const res = await apiRequest<any>('/procurement/purchase-orders', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (res.success || res.data) {
+        showSuccess('Purchase Order created successfully in Draft status');
+        setIsPoModalOpen(false);
+        // Reset form
+        setPoForm({
+          project_id: '',
+          wbs_id: '',
+          vendor_id: '',
+          po_date: new Date().toISOString().split('T')[0],
+          expected_delivery_date: '',
+          payment_terms: 'Net 30',
+          delivery_address: '',
+          terms_conditions: '',
+          items: [
+            {
+              material_id: '',
+              quantity: 10,
+              unit_rate: 0,
+              tax_percentage: 18,
+              discount_amount: 0,
+              remarks: '',
+            },
+          ],
+        });
+        fetchPos();
+      } else {
+        showError(res.message || 'Failed to create Purchase Order');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to create Purchase Order');
+    } finally {
+      setIsSubmittingPo(false);
+    }
+  };
+
+  const handleApprovePo = async (po: any) => {
+    const isConfirmed = await confirm({
+      title: 'Approve & Issue Purchase Order',
+      message: (
+        <div>
+          <p style={{ margin: 0, fontWeight: 500 }}>
+            Approve and issue Purchase Order <strong>#{po.po_number}</strong> to <strong>{po.vendor_name || 'Vendor'}</strong>?
+          </p>
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            This will transition the PO to ISSUED status and make items receivable in Goods Receipt Notes (GRN).
+          </p>
+        </div>
+      ),
+      confirmText: 'Approve & Issue',
+      type: 'success',
+    });
+
+    if (!isConfirmed) return;
+
+    setIsApprovingPo(po.po_id);
+    try {
+      await apiRequest(`/procurement/purchase-orders/${po.po_id}/approve`, {
+        method: 'PATCH',
+      });
+      showSuccess(`PO #${po.po_number} approved and issued successfully`);
+      fetchPos();
+    } catch (err: any) {
+      showError(err.message || 'Failed to approve Purchase Order');
+    } finally {
+      setIsApprovingPo(null);
+    }
+  };
+
+  const handleCancelPo = async (po: any) => {
+    const reason = await promptModal({
+      title: 'Cancel Purchase Order',
+      message: `Please specify the mandatory reason for cancelling PO #${po.po_number}. This will be logged in the audit trail.`,
+      confirmText: 'Confirm Cancellation',
+      type: 'danger',
+      promptInput: {
+        label: 'Cancellation Reason',
+        placeholder: 'Enter reason (minimum 5 characters)...',
+        minLength: 5,
+        required: true,
+      },
+    });
+
+    if (!reason) return;
+
+    setIsCancellingPo(po.po_id);
+    try {
+      await apiRequest(`/procurement/purchase-orders/${po.po_id}/cancel`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      showSuccess(`PO #${po.po_number} cancelled`);
+      fetchPos();
+    } catch (err: any) {
+      showError(err.message || 'Failed to cancel Purchase Order');
+    } finally {
+      setIsCancellingPo(null);
+    }
+  };
+
+  const handleViewPoDetails = async (poId: number) => {
+    setIsLoadingPoDetails(true);
+    try {
+      const res = await apiRequest<any>(`/procurement/purchase-orders/${poId}`);
+      if (res.data) {
+        setViewingPoDetails(res.data);
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to load PO details');
+    } finally {
+      setIsLoadingPoDetails(false);
     }
   };
 
@@ -874,6 +1060,54 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
       accessor: 'total_amount',
       sortable: true,
       render: (p) => <strong style={{ color: 'var(--text-primary)' }}>₹{Number(p.total_amount || 0).toLocaleString()}</strong>,
+    },
+    {
+      header: 'Actions',
+      accessor: (p) => p.po_id,
+      render: (p) => (
+        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          <Button
+            variant="secondary"
+            onClick={() => handleViewPoDetails(p.po_id)}
+            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+            title="View PO Details & Line Items"
+          >
+            <Eye size={13} /> View
+          </Button>
+
+          {p.status === 'draft' && hasPermission('purchase_orders', 'approve') && (
+            <Button
+              variant="primary"
+              onClick={() => handleApprovePo(p)}
+              disabled={isApprovingPo === p.po_id}
+              style={{
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.75rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                background: '#10b981',
+                borderColor: '#10b981'
+              }}
+              title="Approve & Issue to Vendor"
+            >
+              <Check size={13} /> {isApprovingPo === p.po_id ? '...' : 'Approve'}
+            </Button>
+          )}
+
+          {p.status === 'draft' && hasPermission('purchase_orders', 'update') && (
+            <Button
+              variant="danger"
+              onClick={() => handleCancelPo(p)}
+              disabled={isCancellingPo === p.po_id}
+              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+              title="Cancel Purchase Order"
+            >
+              <XCircle size={13} /> {isCancellingPo === p.po_id ? '...' : 'Cancel'}
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -1582,6 +1816,430 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
           vendors={vendors}
         />
       )}
+
+      {/* ─────────────────────────────────────────────────────────────────
+          MODAL: Create Purchase Order (Phase 3)
+      ─────────────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={isPoModalOpen}
+        onClose={() => setIsPoModalOpen(false)}
+        title="Create Purchase Order"
+        size="xl"
+      >
+        <form onSubmit={handleCreatePo} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1rem',
+            background: 'var(--bg-primary)',
+            padding: '1.25rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)'
+          }}>
+            <SearchableSelect
+              label="Project *"
+              value={poForm.project_id}
+              onChange={(val) => {
+                setPoForm((prev) => ({ ...prev, project_id: val, wbs_id: '' }));
+                handleFetchProjectWbs(val);
+                const proj = projects.find((p) => String(p.project_id) === val);
+                if (proj && proj.project_address) {
+                  setPoForm((prev) => ({ ...prev, delivery_address: proj.project_address }));
+                }
+              }}
+              options={projects.map((p) => ({
+                value: String(p.project_id),
+                label: `${p.project_code || 'PRJ'} - ${p.project_name}`,
+              }))}
+              required
+            />
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                WBS / Work Package (Optional)
+              </label>
+              <select
+                value={poForm.wbs_id}
+                onChange={(e) => setPoForm((prev) => ({ ...prev, wbs_id: e.target.value }))}
+                className="form-control"
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)' }}
+              >
+                <option value="">-- General / Whole Project --</option>
+                {projectWbsList.map((w) => (
+                  <option key={w.id || w.wbs_id} value={String(w.id || w.wbs_id)}>
+                    {w.wbs_name || `WBS #${w.id || w.wbs_id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <SearchableSelect
+              label="Vendor *"
+              value={poForm.vendor_id}
+              onChange={(val) => setPoForm((prev) => ({ ...prev, vendor_id: val }))}
+              options={vendors.map((v) => ({
+                value: String(v.vendor_id),
+                label: `${v.vendor_name} (${v.contact_person || v.phone || 'Vendor'})`,
+              }))}
+              required
+            />
+
+            <FormInput
+              label="PO Date *"
+              type="date"
+              value={poForm.po_date}
+              onChange={(e) => setPoForm((prev) => ({ ...prev, po_date: e.target.value }))}
+              required
+            />
+
+            <FormInput
+              label="Expected Delivery Date"
+              type="date"
+              value={poForm.expected_delivery_date}
+              onChange={(e) => setPoForm((prev) => ({ ...prev, expected_delivery_date: e.target.value }))}
+            />
+
+            <FormInput
+              label="Payment Terms"
+              value={poForm.payment_terms}
+              onChange={(e) => setPoForm((prev) => ({ ...prev, payment_terms: e.target.value }))}
+              placeholder="e.g. Net 30, 50% Advance"
+            />
+
+            <div style={{ gridColumn: '1 / -1' }}>
+              <FormInput
+                label="Delivery Address"
+                value={poForm.delivery_address}
+                onChange={(e) => setPoForm((prev) => ({ ...prev, delivery_address: e.target.value }))}
+                placeholder="Site location or delivery address"
+              />
+            </div>
+          </div>
+
+          {/* Line Items Section */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Ordered Materials ({poForm.items.length})
+              </h4>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setPoForm((prev) => ({
+                    ...prev,
+                    items: [
+                      ...prev.items,
+                      {
+                        material_id: '',
+                        quantity: 1,
+                        unit_rate: 0,
+                        tax_percentage: 18,
+                        discount_amount: 0,
+                        remarks: '',
+                      },
+                    ],
+                  }));
+                }}
+                style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Plus size={14} /> Add Line Item
+              </Button>
+            </div>
+
+            <div style={{
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              overflowX: 'auto',
+              background: 'var(--bg-card)',
+              WebkitOverflowScrolling: 'touch',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead style={{ background: 'var(--bg-primary)', borderBottom: '2px solid var(--border-color)' }}>
+                  <tr>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', width: '28%', fontWeight: 600, color: 'var(--text-secondary)' }}>Material *</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '12%', fontWeight: 600, color: 'var(--text-secondary)' }}>Qty *</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '8%', fontWeight: 600, color: 'var(--text-secondary)' }}>Unit</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '15%', fontWeight: 600, color: 'var(--text-secondary)' }}>Rate (₹) *</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '10%', fontWeight: 600, color: 'var(--text-secondary)' }}>Tax %</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '10%', fontWeight: 600, color: 'var(--text-secondary)' }}>Discount (₹)</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '12%', fontWeight: 600, color: 'var(--text-secondary)' }}>Total (₹)</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '5%', fontWeight: 600, color: 'var(--text-secondary)' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {poForm.items.map((item, idx) => {
+                    const selectedMat = materials.find((m) => String(m.material_id) === String(item.material_id));
+                    const lineGross = Math.max(0, Number(item.quantity || 0) * Number(item.unit_rate || 0) - Number(item.discount_amount || 0));
+                    const lineTax = (lineGross * Number(item.tax_percentage || 0)) / 100;
+                    const lineTotal = lineGross + lineTax;
+
+                    return (
+                      <tr key={idx} style={{ borderTop: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.5rem 0.75rem' }}>
+                          <select
+                            value={item.material_id}
+                            onChange={(e) => {
+                              const mId = e.target.value;
+                              const mat = materials.find((m) => String(m.material_id) === mId);
+                              const newItems = [...poForm.items];
+                              newItems[idx] = {
+                                ...newItems[idx],
+                                material_id: mId,
+                                unit_rate: mat ? Number(mat.purchase_rate || mat.rate || 0) : newItems[idx].unit_rate,
+                                tax_percentage: mat && mat.tax_percentage !== undefined ? Number(mat.tax_percentage) : 18,
+                              };
+                              setPoForm((prev) => ({ ...prev, items: newItems }));
+                            }}
+                            className="form-control"
+                            style={{ width: '100%', padding: '0.45rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                            required
+                          >
+                            <option value="">-- Select Material --</option>
+                            {materials.map((m) => (
+                              <option key={m.material_id} value={String(m.material_id)}>
+                                {m.material_name} {m.material_code ? `(${m.material_code})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem' }}>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="any"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const newItems = [...poForm.items];
+                              newItems[idx].quantity = Number(e.target.value);
+                              setPoForm((prev) => ({ ...prev, items: newItems }));
+                            }}
+                            style={{ width: '100%', padding: '0.45rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', textAlign: 'right', fontWeight: 600, fontSize: '0.82rem' }}
+                            required
+                          />
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                          {selectedMat?.unit || 'Nos'}
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unit_rate}
+                            onChange={(e) => {
+                              const newItems = [...poForm.items];
+                              newItems[idx].unit_rate = Number(e.target.value);
+                              setPoForm((prev) => ({ ...prev, items: newItems }));
+                            }}
+                            style={{ width: '100%', padding: '0.45rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', textAlign: 'right', fontWeight: 600, fontSize: '0.82rem' }}
+                            required
+                          />
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={item.tax_percentage}
+                            onChange={(e) => {
+                              const newItems = [...poForm.items];
+                              newItems[idx].tax_percentage = Number(e.target.value);
+                              setPoForm((prev) => ({ ...prev, items: newItems }));
+                            }}
+                            style={{ width: '100%', padding: '0.45rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', textAlign: 'right', fontSize: '0.82rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.discount_amount}
+                            onChange={(e) => {
+                              const newItems = [...poForm.items];
+                              newItems[idx].discount_amount = Number(e.target.value);
+                              setPoForm((prev) => ({ ...prev, items: newItems }));
+                            }}
+                            style={{ width: '100%', padding: '0.45rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', textAlign: 'right', fontSize: '0.82rem' }}
+                          />
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          ₹{lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                          {poForm.items.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => {
+                                const newItems = poForm.items.filter((_, i) => i !== idx);
+                                setPoForm((prev) => ({ ...prev, items: newItems }));
+                              }}
+                              style={{ padding: '0.35rem', color: '#ef4444', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                              title="Remove Line"
+                            >
+                              <Trash2 size={13} />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Calculation Summary Card */}
+          {(() => {
+            let gross = 0;
+            let tax = 0;
+            let discount = 0;
+            poForm.items.forEach((item) => {
+              const g = Math.max(0, Number(item.quantity || 0) * Number(item.unit_rate || 0) - Number(item.discount_amount || 0));
+              const t = (g * Number(item.tax_percentage || 0)) / 100;
+              gross += g;
+              tax += t;
+              discount += Number(item.discount_amount || 0);
+            });
+            const grandTotal = gross + tax;
+
+            return (
+              <div style={{
+                padding: '1.25rem',
+                background: 'var(--bg-primary)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  <span>Subtotal Amount:</span>
+                  <strong style={{ fontWeight: 600 }}>₹{gross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                </div>
+                {discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#d97706', fontSize: '0.88rem' }}>
+                    <span>Total Discount:</span>
+                    <strong style={{ fontWeight: 600 }}>- ₹{discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#0284c7', fontSize: '0.88rem' }}>
+                  <span>Total Tax (GST):</span>
+                  <strong style={{ fontWeight: 600 }}>+ ₹{tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '1.2rem',
+                  color: 'var(--success, #16a34a)',
+                  paddingTop: '0.75rem',
+                  borderTop: '2px solid var(--border-color)',
+                  fontWeight: 700
+                }}>
+                  <span>Total PO Amount:</span>
+                  <span>₹{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Terms & Notes */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.35rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Terms & Conditions / Special Instructions (Optional)
+            </label>
+            <textarea
+              value={poForm.terms_conditions}
+              onChange={(e) => setPoForm((prev) => ({ ...prev, terms_conditions: e.target.value }))}
+              placeholder="e.g. All materials must meet IS standards. Mill test certificates required."
+              rows={2}
+              style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+            <Button type="button" variant="secondary" onClick={() => setIsPoModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isSubmittingPo}>
+              {isSubmittingPo ? 'Creating PO...' : 'Create Purchase Order (Draft)'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────
+          MODAL: View Purchase Order Details (Phase 3)
+      ─────────────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={!!viewingPoDetails}
+        onClose={() => setViewingPoDetails(null)}
+        title={`Purchase Order Details - ${viewingPoDetails?.po_number || ''}`}
+        size="lg"
+      >
+        {viewingPoDetails && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '0.75rem',
+              background: 'var(--bg-primary)',
+              padding: '1rem',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              fontSize: '0.85rem'
+            }}>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Vendor:</span> <strong>{viewingPoDetails.vendor_name || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Project:</span> <strong>{viewingPoDetails.project_name || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>WBS:</span> <strong>{viewingPoDetails.wbs_name || 'General'}</strong></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Date:</span> <strong>{viewingPoDetails.po_date || '-'}</strong></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Status:</span> <Badge variant={viewingPoDetails.status === 'completed' ? 'success' : viewingPoDetails.status === 'cancelled' ? 'danger' : 'warning'}>{String(viewingPoDetails.status).toUpperCase()}</Badge></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Total:</span> <strong style={{ color: '#10b981' }}>₹{Number(viewingPoDetails.total_amount || 0).toLocaleString()}</strong></div>
+            </div>
+
+            {viewingPoDetails.items && viewingPoDetails.items.length > 0 && (
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                  <thead style={{ background: 'var(--bg-primary)', borderBottom: '2px solid var(--border-color)' }}>
+                    <tr>
+                      <th style={{ padding: '0.6rem', textAlign: 'left' }}>Material</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Ordered</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Received</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Pending</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Rate (₹)</th>
+                      <th style={{ padding: '0.6rem', textAlign: 'right' }}>Total (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewingPoDetails.items.map((it: any, i: number) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '0.6rem' }}><strong>{it.material_name}</strong> {it.material_code ? `(${it.material_code})` : ''}</td>
+                        <td style={{ padding: '0.6rem', textAlign: 'right' }}>{it.quantity} {it.unit}</td>
+                        <td style={{ padding: '0.6rem', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>{it.received_qty || 0} {it.unit}</td>
+                        <td style={{ padding: '0.6rem', textAlign: 'right', color: '#f59e0b', fontWeight: 600 }}>{Math.max(0, Number(it.quantity) - Number(it.received_qty || 0))} {it.unit}</td>
+                        <td style={{ padding: '0.6rem', textAlign: 'right' }}>₹{Number(it.unit_rate || 0).toLocaleString()}</td>
+                        <td style={{ padding: '0.6rem', textAlign: 'right', fontWeight: 600 }}>₹{Number(it.total_amount || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <Button variant="secondary" onClick={() => setViewingPoDetails(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ─────────────────────────────────────────────────────────────────
           MODAL: Create Draft GRN (Phase 4 PO Receivable Lines Integration)

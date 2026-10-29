@@ -17,6 +17,7 @@ import {
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface PlanningWbsTabProps {
   planning: any;
@@ -69,9 +70,17 @@ export const PlanningWbsTab: React.FC<PlanningWbsTabProps> = ({
     setEditingWbsId(null);
   };
 
-  const handleDeleteWbs = (id: number) => {
+  const { confirm } = useConfirm();
+
+  const handleDeleteWbs = async (id: number) => {
     if (isReadOnly) return;
-    if (confirm('Are you sure you want to remove this WBS discipline? Its child tasks will also be removed.')) {
+    const isConfirmed = await confirm({
+      title: 'Remove WBS Discipline',
+      message: 'Are you sure you want to remove this WBS discipline? Its child tasks will also be removed.',
+      confirmText: 'Remove Discipline',
+      type: 'danger',
+    });
+    if (isConfirmed) {
       const updated = wbsList.filter((w: any) => w.id !== id);
       onUpdateWbsList(updated);
     }

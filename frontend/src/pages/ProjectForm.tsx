@@ -14,6 +14,7 @@ import {
 import { apiRequest, parseApiErrors } from '../services/api';
 import { Project, Customer, ProjectType, EntityDocument } from '../types';
 import { showSuccess, showError, showWarning } from '../utils/toast';
+import { useConfirm } from '../context/ConfirmationContext';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
@@ -493,8 +494,16 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ projectId, onBack, isW
     reader.readAsDataURL(uploadFile);
   };
 
+  const { confirm } = useConfirm();
+
   const handleDeleteDocument = async (docId: number) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete Document',
+      message: 'Are you sure you want to delete this document?',
+      confirmText: 'Delete Document',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
     const res = await apiRequest(`/documents/${docId}`, { method: 'DELETE' });
     if (res.success) {
       showSuccess('Document deleted');

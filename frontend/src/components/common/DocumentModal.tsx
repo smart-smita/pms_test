@@ -9,6 +9,7 @@ import { EntityDocument, DocumentType } from '../../types';
 import { FileText, Upload, Trash2, Calendar, AlertTriangle, CheckCircle, ExternalLink, Plus } from 'lucide-react';
 import { showSuccess, showError } from '../../utils/toast';
 import { getDocumentUrl } from '../../utils/documentHelper';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface DocumentModalProps {
   isOpen: boolean;
@@ -149,8 +150,16 @@ export const DocumentModal: React.FC<DocumentModalProps> = ({
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDelete = async (docId: number) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete Document',
+      message: 'Are you sure you want to delete this document?',
+      confirmText: 'Delete Document',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
     const res = await apiRequest(`/documents/${docId}`, { method: 'DELETE' });
     if (res.success) {
       showSuccess('Document deleted.');

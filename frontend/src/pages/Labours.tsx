@@ -28,6 +28,7 @@ import { LabourDetailsModal } from '../components/common/LabourDetailsModal';
 import { useAuth } from '../context/AuthContext';
 import { apiService, apiRequest } from '../services/api';
 import { showSuccess, showError } from '../utils/toast';
+import { useConfirm } from '../context/ConfirmationContext';
 import { calculateExpiryStatus } from '../utils/documentHelper';
 
 export interface Labour {
@@ -516,8 +517,16 @@ export const Labours: React.FC<LaboursProps> = ({
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDeleteWorkLog = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this work log?')) return;
+    const isConfirmed = await confirm({
+      title: 'Delete Work Log',
+      message: 'Are you sure you want to delete this work log?',
+      confirmText: 'Delete Log',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
     try {
       const res = await apiService.delete(`/labour-work-logs/${id}`);
       if (res.success) {

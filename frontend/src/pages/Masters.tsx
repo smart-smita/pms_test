@@ -14,6 +14,7 @@ import {
   Wrench, Warehouse
 } from 'lucide-react';
 import { showSuccess, showError, showWarning } from '../utils/toast';
+import { useConfirm } from '../context/ConfirmationContext';
 import { WbsTemplates } from './WbsTemplates';
 import { Employees } from './Employees';
 import { Labours } from './Labours';
@@ -319,8 +320,16 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDelete = async (item: any) => {
-    if (!window.confirm(`Are you sure you want to delete this ${activeTab.replace('_', ' ')}?`)) return;
+    const isConfirmed = await confirm({
+      title: `Delete ${activeTab.replace('_', ' ')}`,
+      message: `Are you sure you want to delete this ${activeTab.replace('_', ' ')}?`,
+      confirmText: 'Delete Record',
+      type: 'danger',
+    });
+    if (!isConfirmed) return;
 
     let endpoint = '';
     if (activeTab === 'terms_templates') endpoint = `/terms-templates/${item.template_id}`;

@@ -7,6 +7,7 @@ import { FormSelect } from '../components/forms/FormSelect';
 import { Button } from '../components/common/Button';
 import { showSuccess, showError } from '../utils/toast';
 import { Badge } from '../components/common/Badge';
+import { useConfirm } from '../context/ConfirmationContext';
 
 interface MaterialQuotation {
   quotation_id: number;
@@ -129,8 +130,16 @@ export const MaterialQuotations: React.FC = () => {
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleApprove = async (id: number) => {
-    if (!window.confirm('Approve this material quotation?')) return;
+    const isConfirmed = await confirm({
+      title: 'Approve Material Quotation',
+      message: 'Are you sure you want to approve this material quotation?',
+      confirmText: 'Approve Quotation',
+      type: 'success',
+    });
+    if (!isConfirmed) return;
     const res = await apiRequest(`/materials/quotations/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status: 'approved' })

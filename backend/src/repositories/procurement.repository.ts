@@ -171,7 +171,7 @@ export class ProcurementRepository {
         (SELECT COALESCE(SUM(received_qty), 0) FROM purchase_order_items WHERE po_id = po.po_id) AS total_received_qty
       FROM purchase_orders po
       LEFT JOIN projects p ON po.project_id = p.project_id
-      LEFT JOIN project_wbs pw ON po.wbs_id = pw.id
+      LEFT JOIN project_wbs pw ON (po.wbs_id = pw.id OR po.wbs_id = pw.wbs_id)
       LEFT JOIN vendors v ON po.vendor_id = v.vendor_id
       WHERE 1=1
     `;
@@ -198,7 +198,7 @@ export class ProcurementRepository {
       `SELECT po.*, p.project_name, pw.wbs_name, v.vendor_name, v.contact_person, v.email, v.phone
        FROM purchase_orders po
        LEFT JOIN projects p ON po.project_id = p.project_id
-       LEFT JOIN project_wbs pw ON po.wbs_id = pw.id
+       LEFT JOIN project_wbs pw ON (po.wbs_id = pw.id OR po.wbs_id = pw.wbs_id)
        LEFT JOIN vendors v ON po.vendor_id = v.vendor_id
        WHERE po.po_id = ?`,
       [poId]

@@ -2964,6 +2964,27 @@ textarea.form-control:disabled {
   gap: 0.15rem;
 }
 
+/* Procurement Reports & Analytics Scrollable Table Wrapper */
+.procurement-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.procurement-table-scroll table {
+  min-width: 900px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .procurement-table-scroll table {
+    min-width: 1050px;
+  }
+}
+
 /* ── PRINT & PDF EXPORT STYLES ────────────────────────────────────────────── */
 @media print {
   body {

@@ -16,6 +16,7 @@ import {
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface PlanningLabourTabProps {
   planning: any;
@@ -81,9 +82,17 @@ export const PlanningLabourTab: React.FC<PlanningLabourTabProps> = ({
     setEditingLabourId(null);
   };
 
-  const handleDeleteLabour = (index: number) => {
+  const { confirm } = useConfirm();
+
+  const handleDeleteLabour = async (index: number) => {
     if (isReadOnly) return;
-    if (confirm('Are you sure you want to remove this labour assignment?')) {
+    const isConfirmed = await confirm({
+      title: 'Remove Labour Assignment',
+      message: 'Are you sure you want to remove this labour assignment?',
+      confirmText: 'Remove Labour',
+      type: 'danger',
+    });
+    if (isConfirmed) {
       const updated = labourList.filter((_: any, i: number) => i !== index);
       onUpdateLabourList(updated);
     }

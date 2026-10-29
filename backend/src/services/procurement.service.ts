@@ -146,8 +146,20 @@ export class ProcurementService {
   }
 
   async createPurchaseOrder(data: any, userId?: number, reqIp?: string) {
-    if (!data.project_id || !data.wbs_id || !data.vendor_id || !data.items || data.items.length === 0) {
-      throw new Error('project_id, wbs_id, vendor_id, and items are required');
+    if (!data.project_id || !data.vendor_id || !data.items || data.items.length === 0) {
+      throw new Error('project_id, vendor_id, and items are required');
+    }
+
+    if (!data.wbs_id && data.project_id) {
+      const [wRows]: any = await dbPool.query(
+        `SELECT wbs_id FROM project_wbs WHERE project_id = ? ORDER BY wbs_id ASC LIMIT 1`,
+        [data.project_id]
+      );
+      if (wRows && wRows.length > 0) {
+        data.wbs_id = wRows[0].wbs_id;
+      } else {
+        data.wbs_id = null;
+      }
     }
 
     // Recommendation verification

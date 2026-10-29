@@ -443,13 +443,17 @@ const AppContent: React.FC = () => {
   );
 };
 
+import { ConfirmationProvider } from './context/ConfirmationContext';
+
 export const App: React.FC = () => {
   return (
     <AuthProvider>
       <WorkCategoryProvider>
-        <ToastContainer />
-        <AppContent />
-        <PWAInstallPrompt />
+        <ConfirmationProvider>
+          <ToastContainer />
+          <AppContent />
+          <PWAInstallPrompt />
+        </ConfirmationProvider>
       </WorkCategoryProvider>
     </AuthProvider>
   );

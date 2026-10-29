@@ -335,12 +335,16 @@ export const ProcurementReportsTab: React.FC<ProcurementReportsTabProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* ── Report Type Selector Strip ────────────────────────────────────── */}
       <div
+        className="procurement-report-tabs-strip"
         style={{
           display: 'flex',
           gap: '0.5rem',
           overflowX: 'auto',
-          paddingBottom: '0.5rem',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'thin',
+          paddingBottom: '0.625rem',
           borderBottom: '1px solid var(--border-color)',
+          width: '100%',
         }}
       >
         {reportOptions.map((opt) => {
@@ -855,8 +859,25 @@ export const ProcurementReportsTab: React.FC<ProcurementReportsTabProps> = ({
         </div>
 
         {/* ── Data Table ──────────────────────────────────────────────────── */}
-        <div className="procurement-table-scroll">
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+        <div
+          className="procurement-table-scroll"
+          style={{
+            width: '100%',
+            maxWidth: '100%',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            display: 'block',
+          }}
+        >
+          <table
+            className="data-table"
+            style={{
+              width: '100%',
+              minWidth: '1050px',
+              borderCollapse: 'collapse',
+              fontSize: '0.85rem',
+            }}
+          >
             <thead>
               <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
                 {reportType === 'purchased-vs-ordered' && (

@@ -14,6 +14,7 @@ import {
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { useConfirm } from '../../context/ConfirmationContext';
 
 interface PlanningMaterialsTabProps {
   planning: any;
@@ -77,9 +78,17 @@ export const PlanningMaterialsTab: React.FC<PlanningMaterialsTabProps> = ({
     setEditingMaterialId(null);
   };
 
-  const handleDeleteMaterial = (index: number) => {
+  const { confirm } = useConfirm();
+
+  const handleDeleteMaterial = async (index: number) => {
     if (isReadOnly) return;
-    if (confirm('Are you sure you want to remove this material requirement?')) {
+    const isConfirmed = await confirm({
+      title: 'Remove Material Requirement',
+      message: 'Are you sure you want to remove this material requirement?',
+      confirmText: 'Remove Requirement',
+      type: 'danger',
+    });
+    if (isConfirmed) {
       const updated = materialsList.filter((_: any, i: number) => i !== index);
       onUpdateMaterialsList(updated);
     }
