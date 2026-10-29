@@ -67,10 +67,14 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        return cache.match(OFFLINE_URL);
+        try {
+          const cache = await caches.open(CACHE_NAME);
+          const cached = await cache.match(request);
+          if (cached) return cached;
+          const offline = await cache.match(OFFLINE_URL);
+          if (offline) return offline;
+        } catch {}
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
       })
     );
     return;
@@ -81,7 +85,11 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cachedResponse) => {
       const fetchPromise = fetch(request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
+          if (
+            networkResponse &&
+            networkResponse.status === 200 &&
+            (networkResponse.type === 'basic' || networkResponse.type === 'cors')
+          ) {
             const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(request, responseClone).catch(() => {});
@@ -89,7 +97,9 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => cachedResponse);
+        .catch(() => {
+          return cachedResponse || new Response('', { status: 408, statusText: 'Request Timeout' });
+        });
 
       return cachedResponse || fetchPromise;
     })

@@ -40,9 +40,7 @@ export async function apiRequest<T = any>(
       localStorage.removeItem('user');
       
       // Dispatch global event for the app to handle logout state & UI
-      window.dispatchEvent(new CustomEvent('auth-expired', { 
-        detail: { message: 'Your session has expired. Please log in again.' } 
-      }));
+      window.dispatchEvent(new CustomEvent('auth-expired'));
     }
 
     if (!res.ok && json.errors && Array.isArray(json.errors)) {

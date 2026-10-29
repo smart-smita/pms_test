@@ -34,11 +34,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
 
     // Global session expiry listener
-    const handleAuthExpired = (e: Event) => {
-      const customEvent = e as CustomEvent;
+    const handleAuthExpired = () => {
       setUser(null);
       setToken(null);
-      setError(customEvent.detail?.message || 'Your session has expired. Please log in again.');
+      setError(null);
     };
     
     window.addEventListener('auth-expired', handleAuthExpired);
