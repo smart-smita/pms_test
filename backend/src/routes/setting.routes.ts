@@ -14,6 +14,8 @@ router.get('/work-category', ctrl.getWorkCategory);
 // Only Admin can check impact and update work category
 router.get('/work-category/impact', requireAdmin(), ctrl.getWorkCategoryImpact);
 router.put('/work-category', requireAdmin(), ctrl.updateWorkCategory);
-router.post('/work-category', requireAdmin(), ctrl.updateWorkCategory);
+// Company Profile settings
+router.get('/company', ctrl.getCompanyProfile);
+router.put('/company', requireAdmin(), ctrl.updateCompanyProfile);
 
 export default router;

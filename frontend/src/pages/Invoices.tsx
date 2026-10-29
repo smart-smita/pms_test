@@ -8,7 +8,7 @@ import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 import { apiRequest, API_BASE_URL } from '../services/api';
 import { Invoice, BillingSchedule, MonthlyCompletedWork, Currency, Tax, Country, Project, Customer, InvoicePayment, SiteSurvey, Discipline, InvoiceItem } from '../types';
-import { Plus, FileText, RotateCcw, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power } from 'lucide-react';
+import { Plus, FileText, RotateCcw, CheckCircle, CreditCard, DollarSign, Percent, Calendar, Download, RefreshCw, Eye, AlertCircle, ClipboardCheck, Trash2, Edit2, Power, Mail, Send } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
@@ -76,6 +76,16 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [invoicePaymentsList, setInvoicePaymentsList] = useState<InvoicePayment[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  // Email Invoice Modal State
+  const [isEmailInvoiceModalOpen, setIsEmailInvoiceModalOpen] = useState(false);
+  const [emailingInvoice, setEmailingInvoice] = useState<Invoice | null>(null);
+  const [invoiceRecipientEmail, setInvoiceRecipientEmail] = useState('');
+  const [invoiceEmailSubject, setInvoiceEmailSubject] = useState('');
+  const [invoiceEmailMessage, setInvoiceEmailMessage] = useState('');
+  const [includeSurveyReport, setIncludeSurveyReport] = useState(true);
+  const [selectedSurveyIdForEmail, setSelectedSurveyIdForEmail] = useState<string>('');
+  const [isSendingInvoiceEmail, setIsSendingInvoiceEmail] = useState(false);
 
   // Form states
   const [invoiceForm, setInvoiceForm] = useState({
@@ -253,8 +263,8 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
     }
   };
 
-  const openGenerateInvoiceModal = async (cw?: MonthlyCompletedWork, directSchedule?: BillingSchedule) => {
-    const projId = cw ? cw.project_id : (directSchedule ? directSchedule.project_id : (Number(selectedProjectId) || projects[0]?.project_id));
+  const openGenerateInvoiceModal = async (cw?: MonthlyCompletedWork, directSchedule?: BillingSchedule, overrideProjectId?: number) => {
+    const projId = overrideProjectId || (cw ? cw.project_id : (directSchedule ? directSchedule.project_id : (Number(selectedProjectId) || projects[0]?.project_id)));
     if (!projId) {
       showError('Please select a project first');
       return;
@@ -271,19 +281,22 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
     }
 
     if (!targetSchedule) {
-      const sRes = await apiRequest<BillingSchedule[]>(`/invoices/schedules?project_id=${projId}`);
-      if (sRes.success && sRes.data && sRes.data.length > 0) {
-        setSchedules(sRes.data);
-        targetSchedule = sRes.data.find(s => s.status !== 'invoiced' && s.status !== 'paid') || sRes.data[0];
+      try {
+        const sRes = await apiRequest<BillingSchedule[]>(`/invoices/schedules?project_id=${projId}`);
+        if (sRes.success && sRes.data && sRes.data.length > 0) {
+          setSchedules(prev => {
+            const map = new Map(prev.map(s => [s.schedule_id, s]));
+            sRes.data!.forEach(s => map.set(s.schedule_id, s));
+            return Array.from(map.values());
+          });
+          targetSchedule = sRes.data.find(s => s.status !== 'invoiced' && s.status !== 'paid') || sRes.data[0];
+        }
+      } catch (err) {
+        console.error('Failed to load project schedules:', err);
       }
     }
 
-    if (!targetSchedule) {
-      showError('No billing schedule found for this project. Please generate billing schedules first.');
-      return;
-    }
-
-    setSelectedSchedule(targetSchedule);
+    setSelectedSchedule(targetSchedule || null);
     setSelectedCompletedWork(cw || null);
 
     // Fetch site surveys
@@ -346,10 +359,12 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
         })),
       ];
     } else {
-      const sub = Number(cw ? cw.approved_amount : targetSchedule.expected_amount);
+      const sub = Number(cw ? cw.approved_amount : (targetSchedule?.expected_amount || 0));
       items = [
         {
-          description: `Monthly Billing Schedule #${targetSchedule.schedule_id} - Milestone Work`,
+          description: targetSchedule
+            ? `Monthly Billing Schedule #${targetSchedule.schedule_id} - Milestone Work`
+            : `Monthly Progress Invoice - Milestone Work`,
           amount: sub,
           is_extra_work: false,
         }
@@ -366,7 +381,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
       customer_id: '',
       project_id: String(projId),
       quotation_id: '',
-      schedule_id: String(targetSchedule.schedule_id),
+      schedule_id: targetSchedule ? String(targetSchedule.schedule_id) : '',
       completed_work_id: cw ? String(cw.completed_work_id) : '',
       survey_id: '',
       currency_id: projectCurrency ? String(projectCurrency.currency_id) : '',
@@ -459,15 +474,164 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
 
   const handlePopulateScheduledAmount = () => {
     const amt = Number(selectedCompletedWork ? selectedCompletedWork.approved_amount : (selectedSchedule?.expected_amount || 0));
+    const schId = invoiceForm.schedule_id || selectedSchedule?.schedule_id;
     const newItems: InvoiceItem[] = [
       {
-        description: `Monthly Billing Schedule #${invoiceForm.schedule_id || selectedSchedule?.schedule_id || ''} - Milestone Work`,
+        description: schId
+          ? `Monthly Billing Schedule #${schId} - Milestone Work`
+          : `Monthly Progress Invoice - Milestone Work`,
         amount: amt,
         is_extra_work: false,
       }
     ];
     setInvoiceForm(prev => ({ ...prev, invoice_type: 'combined' }));
     updateInvoiceItems(newItems);
+  };
+
+  const handlePopulateWbsWise = async () => {
+    const cur = currencies.find(c => String(c.currency_id) === invoiceForm.currency_id) || currencies[0];
+    const sym = cur?.symbol || '₹';
+
+    if (projectCosts && (projectCosts.labour_items?.length > 0 || projectCosts.material_items?.length > 0)) {
+      const wbsMap = new Map<number | string, { name: string; labourTotal: number; materialTotal: number; tasks: Set<string> }>();
+
+      projectCosts.labour_items.forEach((l: any) => {
+        const key = l.wbs_id || 'General';
+        const name = l.wbs_name || 'General Work Package';
+        if (!wbsMap.has(key)) {
+          wbsMap.set(key, { name, labourTotal: 0, materialTotal: 0, tasks: new Set() });
+        }
+        const entry = wbsMap.get(key)!;
+        entry.labourTotal += Number(l.amount || 0);
+        if (l.task_name) entry.tasks.add(l.task_name);
+      });
+
+      projectCosts.material_items.forEach((m: any) => {
+        const key = m.project_wbs_id || m.wbs_id || 'General';
+        const name = m.wbs_name || 'General Work Package';
+        if (!wbsMap.has(key)) {
+          wbsMap.set(key, { name, labourTotal: 0, materialTotal: 0, tasks: new Set() });
+        }
+        const entry = wbsMap.get(key)!;
+        entry.materialTotal += Number(m.amount || 0);
+        if (m.task_name) entry.tasks.add(m.task_name);
+      });
+
+      const newItems: InvoiceItem[] = [];
+      wbsMap.forEach((data, key) => {
+        const wbsId = typeof key === 'number' ? key : null;
+        const taskSummary = data.tasks.size > 0 ? ` [${Array.from(data.tasks).slice(0, 2).join(', ')}]` : '';
+
+        if (data.labourTotal > 0 && isLabourEnabled) {
+          newItems.push({
+            project_wbs_id: wbsId,
+            discipline_id: wbsId,
+            description: `WBS Milestone: ${data.name} - Labour Execution${taskSummary}`,
+            amount: Number(data.labourTotal.toFixed(2)),
+            is_extra_work: false,
+            item_type: 'labour' as const,
+          });
+        }
+        if (data.materialTotal > 0 && isMaterialEnabled) {
+          newItems.push({
+            project_wbs_id: wbsId,
+            discipline_id: wbsId,
+            description: `WBS Milestone: ${data.name} - Material Incurred`,
+            amount: Number(data.materialTotal.toFixed(2)),
+            is_extra_work: false,
+            item_type: 'material' as const,
+          });
+        }
+      });
+
+      if (newItems.length > 0) {
+        setInvoiceForm(prev => ({ ...prev, invoice_type: 'combined' }));
+        updateInvoiceItems(newItems);
+        showSuccess(`Generated ${newItems.length} WBS milestone item(s)`);
+        return;
+      }
+    }
+
+    // Fallback: Fetch project WBS from API
+    try {
+      const pid = invoiceForm.project_id;
+      if (pid) {
+        const wbsRes = await apiRequest<any[]>(`/projects/${pid}/wbs`);
+        if (wbsRes.success && wbsRes.data && wbsRes.data.length > 0) {
+          const scheduleAmt = Number(selectedCompletedWork ? selectedCompletedWork.approved_amount : (selectedSchedule?.expected_amount || 0));
+          const perWbs = scheduleAmt > 0 ? Number((scheduleAmt / wbsRes.data.length).toFixed(2)) : 0;
+
+          const newItems: InvoiceItem[] = wbsRes.data.map((w: any) => ({
+            project_wbs_id: w.id || w.wbs_id,
+            discipline_id: w.id || w.wbs_id,
+            description: `WBS Milestone: ${w.wbs_name || 'Work Breakdown Milestone'} (Budget: ${sym}${Number(w.budget_amount || 0).toLocaleString()})`,
+            amount: perWbs || Number(w.budget_amount || 0),
+            is_extra_work: false,
+            item_type: 'other' as const,
+          }));
+          setInvoiceForm(prev => ({ ...prev, invoice_type: 'combined' }));
+          updateInvoiceItems(newItems);
+          showSuccess(`Generated ${newItems.length} WBS milestone item(s) from project WBS`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    handlePopulateScheduledAmount();
+  };
+
+  const openEmailInvoiceModal = (inv: Invoice) => {
+    setEmailingInvoice(inv);
+    const email = inv.customer_email || '';
+    setInvoiceRecipientEmail(email);
+    const sym = inv.currency_symbol || '₹';
+    setInvoiceEmailSubject(`Tax Invoice #${inv.invoice_number} - ${inv.project_name || 'Project Billing'}`);
+    setInvoiceEmailMessage(
+      `Dear ${inv.customer_name || 'Valued Client'},\n\n` +
+      `Please find attached Tax Invoice #${inv.invoice_number} for project ${inv.project_name || 'Project'}.\n\n` +
+      `Invoice Date: ${inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString() : 'N/A'}\n` +
+      `Total Due: ${sym} ${Number(inv.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `Due Date: ${inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}\n\n` +
+      `Thank you for your business.\n\n` +
+      `Best regards,\n` +
+      `Project Finance & Control Team`
+    );
+    setIncludeSurveyReport(Boolean(inv.survey_id));
+    setIsEmailInvoiceModalOpen(true);
+  };
+
+  const handleSendInvoiceEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailingInvoice) return;
+    if (!invoiceRecipientEmail) {
+      showError('Please enter recipient email address.');
+      return;
+    }
+
+    setIsSendingInvoiceEmail(true);
+    const res = await apiRequest<{ success: boolean; message: string }>(`/invoices/${emailingInvoice.invoice_id}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify({
+        recipient_email: invoiceRecipientEmail,
+        include_survey_report: includeSurveyReport,
+        subject: invoiceEmailSubject,
+        message: invoiceEmailMessage,
+      }),
+    });
+    setIsSendingInvoiceEmail(false);
+
+    if (res.success) {
+      showSuccess(res.message || `Invoice sent to ${invoiceRecipientEmail} successfully!`);
+      setIsEmailInvoiceModalOpen(false);
+      fetchInvoices();
+      if (viewingInvoice && viewingInvoice.invoice_id === emailingInvoice.invoice_id) {
+        setViewingInvoice(prev => prev ? { ...prev, status: 'sent' } : null);
+      }
+    } else {
+      showError(res.message || 'Failed to dispatch invoice email.');
+    }
   };
 
   const handleRecalculateInvoiceTax = (taxIdStr: string, currentItems: InvoiceItem[]) => {
@@ -526,12 +690,17 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
 
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!invoiceForm.items || invoiceForm.items.length === 0) {
+      showError('Please add at least one line item to the invoice.');
+      return;
+    }
+
     const payload = {
       project_id: Number(invoiceForm.project_id || selectedProjectId || selectedCompletedWork?.project_id || 0),
-      schedule_id: Number(invoiceForm.schedule_id),
-      completed_work_id: Number(invoiceForm.completed_work_id),
+      schedule_id: invoiceForm.schedule_id ? Number(invoiceForm.schedule_id) : null,
+      completed_work_id: invoiceForm.completed_work_id ? Number(invoiceForm.completed_work_id) : null,
       survey_id: invoiceForm.survey_id ? Number(invoiceForm.survey_id) : null,
-      currency_id: Number(invoiceForm.currency_id),
+      currency_id: Number(invoiceForm.currency_id) || 1,
       tax_id: invoiceForm.tax_id ? Number(invoiceForm.tax_id) : null,
       tax_type: invoiceForm.tax_type || null,
       cgst_amount: invoiceForm.cgst_amount || 0,
@@ -1118,6 +1287,23 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                 >
                   <Download size={13} /> {isDownloadingPdf === row.invoice_id ? 'Downloading...' : 'PDF'}
                 </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => openEmailInvoiceModal(row)}
+                  style={{
+                    padding: '0.35rem 0.5rem',
+                    fontSize: '0.78rem',
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    color: '#6366f1',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                  }}
+                  title="Send Tax Invoice and Photographic Report to customer email"
+                >
+                  <Mail size={13} /> Email
+                </Button>
                 {isAdminOrManager && (row.status === 'draft' || row.status === 'pending_approval') && (
                   <Button
                     variant="primary"
@@ -1353,9 +1539,18 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
       </Modal>
 
       {/* Generate Invoice Modal */}
-      <Modal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} title="Generate Monthly Invoice">
+      <Modal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} title="Generate Monthly Invoice" size="xl">
         <form onSubmit={handleSubmitInvoice}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '1rem',
+            background: 'var(--bg-primary)',
+            padding: '1.25rem',
+            borderRadius: '8px',
+            border: '1px solid var(--border-color)',
+            marginBottom: '1.25rem'
+          }}>
             <SearchableSelect
               label="Select Project *"
               value={invoiceForm.project_id}
@@ -1363,27 +1558,30 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                 const pid = Number(val);
                 setInvoiceForm(prev => ({ ...prev, project_id: val, schedule_id: '' }));
                 if (pid) {
-                  openGenerateInvoiceModal(undefined, undefined);
+                  openGenerateInvoiceModal(undefined, undefined, pid);
                 }
               }}
               options={projects.map((p) => ({ value: String(p.project_id), label: `${p.project_code} - ${p.project_name}` }))}
               required
             />
             <SearchableSelect
-              label="Target Billing Schedule *"
+              label="Target Billing Schedule (Optional)"
               value={invoiceForm.schedule_id}
               onChange={(val) => {
                 const sch = schedules.find(s => String(s.schedule_id) === val);
                 if (sch) setSelectedSchedule(sch);
+                else setSelectedSchedule(null);
                 setInvoiceForm(prev => ({ ...prev, schedule_id: val }));
               }}
-              options={schedules
-                .filter(s => String(s.project_id) === String(invoiceForm.project_id) && s.status !== 'invoiced' && s.status !== 'paid')
-                .map((s) => ({
-                  value: String(s.schedule_id),
-                  label: `Schedule #${s.schedule_id} - ${s.billing_month ? s.billing_month.split('T')[0] : ''} (Expected: ${s.currency_symbol || '₹'}${Number(s.expected_amount).toLocaleString()})`
-                }))}
-              required
+              options={[
+                { value: '', label: '-- Ad-hoc / Monthly Milestone (No Schedule) --' },
+                ...schedules
+                  .filter(s => String(s.project_id) === String(invoiceForm.project_id) && s.status !== 'invoiced' && s.status !== 'paid')
+                  .map((s) => ({
+                    value: String(s.schedule_id),
+                    label: `Schedule #${s.schedule_id} - ${s.billing_month ? s.billing_month.split('T')[0] : ''} (Expected: ${s.currency_symbol || '₹'}${Number(s.expected_amount).toLocaleString()})`
+                  }))
+              ]}
             />
             <SearchableSelect
               label="Select Currency"
@@ -1441,121 +1639,157 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
             />
           </div>
 
-          <div style={{ marginTop: '1.5rem' }}>
-            {/* Quick Populate & Invoice Type Selection Buttons */}
-            <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Invoice Type:</span>
-              {projectCosts && (
-                <>
-                  {isMaterialEnabled && isLabourEnabled && (
-                    <button
-                      type="button"
-                      onClick={handlePopulateCombined}
-                      className="btn"
-                      style={{
-                        background: invoiceForm.invoice_type === 'combined' ? '#2563eb' : 'rgba(37, 99, 235, 0.1)',
-                        color: invoiceForm.invoice_type === 'combined' ? '#ffffff' : '#2563eb',
-                        border: '1px solid #2563eb',
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: '6px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      title="Generate combined invoice containing both labour and materials"
-                    >
-                      ⚡ Combined ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_cost || 0).toLocaleString()})
-                    </button>
-                  )}
+          <div style={{ marginTop: '0.5rem' }}>
+            {/* Quick Populate & Invoice Type Selection Bar */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '0.75rem',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              background: 'var(--bg-primary)',
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)'
+            }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Presets:</span>
+                {projectCosts && (
+                  <>
+                    {isMaterialEnabled && isLabourEnabled && (
+                      <button
+                        type="button"
+                        onClick={handlePopulateCombined}
+                        className="btn"
+                        style={{
+                          background: invoiceForm.invoice_type === 'combined' ? '#2563eb' : 'rgba(37, 99, 235, 0.1)',
+                          color: invoiceForm.invoice_type === 'combined' ? '#ffffff' : '#2563eb',
+                          border: '1px solid #2563eb',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        title="Generate combined invoice containing both labour and materials"
+                      >
+                        ⚡ Combined ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_cost || 0).toLocaleString()})
+                      </button>
+                    )}
 
-                  {isLabourEnabled && (
-                    <button
-                      type="button"
-                      onClick={handlePopulateLabourOnly}
-                      className="btn"
-                      style={{
-                        background: invoiceForm.invoice_type === 'labour' ? '#059669' : 'rgba(16, 185, 129, 0.1)',
-                        color: invoiceForm.invoice_type === 'labour' ? '#ffffff' : '#059669',
-                        border: '1px solid #059669',
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: '6px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      title="Generate separate Labour Only invoice"
-                    >
-                      👷 Labour Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_labour_amount || 0).toLocaleString()})
-                    </button>
-                  )}
+                    {isLabourEnabled && (
+                      <button
+                        type="button"
+                        onClick={handlePopulateLabourOnly}
+                        className="btn"
+                        style={{
+                          background: invoiceForm.invoice_type === 'labour' ? '#059669' : 'rgba(16, 185, 129, 0.1)',
+                          color: invoiceForm.invoice_type === 'labour' ? '#ffffff' : '#059669',
+                          border: '1px solid #059669',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        title="Generate separate Labour Only invoice"
+                      >
+                        👷 Labour Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_labour_amount || 0).toLocaleString()})
+                      </button>
+                    )}
 
-                  {isMaterialEnabled && (
-                    <button
-                      type="button"
-                      onClick={handlePopulateMaterialsOnly}
-                      className="btn"
-                      style={{
-                        background: invoiceForm.invoice_type === 'material' ? '#d97706' : 'rgba(217, 119, 6, 0.1)',
-                        color: invoiceForm.invoice_type === 'material' ? '#ffffff' : '#d97706',
-                        border: '1px solid #d97706',
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: '6px',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      title="Generate separate Material Only invoice"
-                    >
-                      🧱 Materials Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_material_amount || 0).toLocaleString()})
-                    </button>
-                  )}
-                </>
-              )}
-              <button
-                type="button"
-                onClick={handlePopulateScheduledAmount}
-                className="btn"
-                style={{
-                  background: 'rgba(99, 102, 241, 0.1)',
-                  color: '#4f46e5',
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
-                  padding: '0.4rem 0.75rem',
-                  borderRadius: '6px',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-                title="Reset line items to milestone scheduled amount"
-              >
-                📋 Milestone Schedule ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(selectedCompletedWork ? selectedCompletedWork.approved_amount : (selectedSchedule?.expected_amount || 0)).toLocaleString()})
-              </button>
-            </div>
+                    {isMaterialEnabled && (
+                      <button
+                        type="button"
+                        onClick={handlePopulateMaterialsOnly}
+                        className="btn"
+                        style={{
+                          background: invoiceForm.invoice_type === 'material' ? '#d97706' : 'rgba(217, 119, 6, 0.1)',
+                          color: invoiceForm.invoice_type === 'material' ? '#ffffff' : '#d97706',
+                          border: '1px solid #d97706',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                        title="Generate separate Material Only invoice"
+                      >
+                        🧱 Materials Only ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(projectCosts.total_material_amount || 0).toLocaleString()})
+                      </button>
+                    )}
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePopulateWbsWise}
+                  className="btn"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    color: '#059669',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Generate invoice items grouped by WBS milestone package"
+                >
+                  📑 Group by WBS
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePopulateScheduledAmount}
+                  className="btn"
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    color: '#4f46e5',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Reset line items to milestone scheduled amount"
+                >
+                  📋 Milestone ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}{Number(selectedCompletedWork ? selectedCompletedWork.approved_amount : (selectedSchedule?.expected_amount || 0)).toLocaleString()})
+                </button>
+              </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Invoice Line Items ({invoiceForm.items.length})</h4>
               <Button type="button" variant="secondary" onClick={() => {
                 const newItems = [...invoiceForm.items, { discipline_id: null, description: '', amount: 0, is_extra_work: true }];
                 updateInvoiceItems(newItems);
-              }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                <Plus size={12} /> Add Extra Work
+              }} style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Plus size={14} /> Add Extra Work
               </Button>
             </div>
 
-            <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                <thead style={{ background: 'var(--border-color)' }}>
+            {/* Line Items Table with Dedicated Horizontal Scroll Container */}
+            <div style={{
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              overflowX: 'auto',
+              background: 'var(--bg-card)',
+              WebkitOverflowScrolling: 'touch',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <table style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead style={{ background: 'var(--bg-primary)', borderBottom: '2px solid var(--border-color)' }}>
                   <tr>
-                    <th style={{ padding: '0.5rem', textAlign: 'left', width: '25%' }}>Discipline</th>
-                    <th style={{ padding: '0.5rem', textAlign: 'left', width: '40%' }}>Description</th>
-                    <th style={{ padding: '0.5rem', textAlign: 'center', width: '10%' }}>Type</th>
-                    <th style={{ padding: '0.5rem', textAlign: 'right', width: '20%' }}>Amount</th>
-                    <th style={{ padding: '0.5rem', textAlign: 'center', width: '5%' }}></th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', width: '22%', fontWeight: 600, color: 'var(--text-secondary)' }}>Discipline</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'left', width: '40%', fontWeight: 600, color: 'var(--text-secondary)' }}>Description *</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '12%', fontWeight: 600, color: 'var(--text-secondary)' }}>Work Type</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'right', width: '20%', fontWeight: 600, color: 'var(--text-secondary)' }}>Amount ({currencies.find(c => String(c.currency_id) === invoiceForm.currency_id)?.symbol || '₹'}) *</th>
+                    <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center', width: '6%', fontWeight: 600, color: 'var(--text-secondary)' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoiceForm.items.map((item, idx) => (
                     <tr key={idx} style={{ borderTop: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '0.5rem' }}>
+                      <td style={{ padding: '0.5rem 0.75rem' }}>
                         <SearchableSelect
                           label=""
                           value={item.discipline_id ? String(item.discipline_id) : ''}
@@ -1571,7 +1805,7 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                           placeholder="Select Discipline"
                         />
                       </td>
-                      <td style={{ padding: '0.5rem' }}>
+                      <td style={{ padding: '0.5rem 0.75rem' }}>
                         <input
                           type="text"
                           value={item.description}
@@ -1580,12 +1814,12 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                             newItems[idx].description = e.target.value;
                             updateInvoiceItems(newItems);
                           }}
-                          style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                          style={{ width: '100%', padding: '0.45rem 0.6rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', fontSize: '0.82rem' }}
                           placeholder="Line item description"
                           required
                         />
                       </td>
-                      <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
                         <select
                           value={item.is_extra_work ? '1' : '0'}
                           onChange={(e) => {
@@ -1593,32 +1827,33 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                             newItems[idx].is_extra_work = e.target.value === '1';
                             updateInvoiceItems(newItems);
                           }}
-                          style={{ padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                          style={{ width: '100%', padding: '0.45rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', fontSize: '0.82rem' }}
                         >
                           <option value="0">Normal</option>
                           <option value="1">Extra Work</option>
                         </select>
                       </td>
-                      <td style={{ padding: '0.5rem' }}>
+                      <td style={{ padding: '0.5rem 0.75rem' }}>
                         <input
                           type="number"
+                          step="0.01"
                           value={item.amount}
                           onChange={(e) => {
                             const newItems = [...invoiceForm.items];
                             newItems[idx].amount = Number(e.target.value);
                             updateInvoiceItems(newItems);
                           }}
-                          style={{ width: '100%', padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', textAlign: 'right' }}
+                          style={{ width: '100%', padding: '0.45rem 0.6rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--input-bg-solid, var(--bg-card))', color: 'var(--text-primary)', textAlign: 'right', fontWeight: 600, fontSize: '0.82rem' }}
                           required
                           min="0"
                         />
                       </td>
-                      <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
                         {idx > 0 && (
                           <Button type="button" variant="secondary" onClick={() => {
                             const newItems = invoiceForm.items.filter((_, i) => i !== idx);
                             updateInvoiceItems(newItems);
-                          }} style={{ padding: '0.3rem', color: '#ef4444' }}>
+                          }} style={{ padding: '0.35rem', color: '#ef4444', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title="Remove Line Item">
                             <Trash2 size={14} />
                           </Button>
                         )}
@@ -1641,54 +1876,81 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
               .reduce((s, it) => s + Number(it.amount || 0), 0);
 
             return (
-              <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--border-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '1.25rem',
+                background: 'var(--bg-primary)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
                 {labourSum > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', color: '#059669', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#059669', fontSize: '0.88rem' }}>
                     <span>👷 Labour Subtotal:</span>
-                    <strong>{sym} {labourSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    <strong style={{ fontWeight: 600 }}>{sym} {labourSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                   </div>
                 )}
                 {materialSum > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem', color: '#d97706', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#d97706', fontSize: '0.88rem' }}>
                     <span>🧱 Material Subtotal:</span>
-                    <strong>{sym} {materialSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    <strong style={{ fontWeight: 600 }}>{sym} {materialSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', borderTop: (labourSum > 0 || materialSum > 0) ? '1px dashed var(--input-border)' : 'none', paddingTop: (labourSum > 0 || materialSum > 0) ? '0.35rem' : '0' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderTop: (labourSum > 0 || materialSum > 0) ? '1px dashed var(--border-color)' : 'none',
+                  paddingTop: (labourSum > 0 || materialSum > 0) ? '0.45rem' : '0',
+                  fontSize: '0.9rem',
+                  color: 'var(--text-primary)'
+                }}>
                   <span>Gross Subtotal:</span>
-                  <strong>{sym} {invoiceForm.subtotal_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  <strong style={{ fontWeight: 600 }}>{sym} {invoiceForm.subtotal_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                 </div>
                 {invoiceForm.cgst_amount > 0 || invoiceForm.sgst_amount > 0 ? (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#0284c7', fontSize: '0.88rem' }}>
                       <span>CGST Amount:</span>
-                      <strong>+ {sym} {invoiceForm.cgst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      <strong style={{ fontWeight: 600 }}>+ {sym} {invoiceForm.cgst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#0284c7', fontSize: '0.88rem' }}>
                       <span>SGST Amount:</span>
-                      <strong>+ {sym} {invoiceForm.sgst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      <strong style={{ fontWeight: 600 }}>+ {sym} {invoiceForm.sgst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                     </div>
                   </>
                 ) : invoiceForm.igst_amount > 0 ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#38bdf8' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#0284c7', fontSize: '0.88rem' }}>
                     <span>IGST Amount:</span>
-                    <strong>+ {sym} {invoiceForm.igst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    <strong style={{ fontWeight: 600 }}>+ {sym} {invoiceForm.igst_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: '#a855f7' }}>
-                    <span>Tax Amount ({taxes.find(t => String(t.tax_id) === invoiceForm.tax_id)?.tax_name || 'Tax'}):</span>
-                    <strong>+ {sym} {invoiceForm.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#9333ea', fontSize: '0.88rem' }}>
+                    <span>Tax ({taxes.find(t => String(t.tax_id) === invoiceForm.tax_id)?.tax_name || 'Standard'}):</span>
+                    <strong style={{ fontWeight: 600 }}>+ {sym} {invoiceForm.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', color: '#4ade80', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontWeight: 700 }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '1.25rem',
+                  color: 'var(--success, #16a34a)',
+                  paddingTop: '0.75rem',
+                  borderTop: '2px solid var(--border-color)',
+                  fontWeight: 700
+                }}>
                   <span>Grand Total ({cur?.currency_code || 'INR'}):</span>
-                  <strong>{sym} {invoiceForm.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  <span>{sym} {invoiceForm.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
             );
           })()}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
             <Button type="button" variant="secondary" onClick={() => setIsInvoiceModalOpen(false)}>Cancel</Button>
             <Button type="submit" variant="primary">Generate & Save Invoice</Button>
           </div>
@@ -1898,6 +2160,13 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
                 Billing Month: <strong>{viewingInvoice.billing_month ? new Date(viewingInvoice.billing_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}</strong>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Button
+                  variant="primary"
+                  onClick={() => openEmailInvoiceModal(viewingInvoice)}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', background: '#4f46e5', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Mail size={14} /> Send to Customer Email
+                </Button>
                 <Button variant="secondary" onClick={() => handleDownloadPdf(viewingInvoice.invoice_id, viewingInvoice.invoice_number)} style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem' }}>
                   <Download size={14} /> Download PDF
                 </Button>
@@ -2157,6 +2426,121 @@ export const Invoices: React.FC<{ projectId?: number; hideHeader?: boolean }> = 
           </div>
         )}
       </Modal>
+
+      {/* Email Invoice & Site Survey Report Dispatch Modal */}
+      {isEmailInvoiceModalOpen && emailingInvoice && (
+        <Modal
+          isOpen={isEmailInvoiceModalOpen}
+          onClose={() => setIsEmailInvoiceModalOpen(false)}
+          title={`Email Tax Invoice: #${emailingInvoice.invoice_number}`}
+        >
+          <form onSubmit={handleSendInvoiceEmail} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ padding: '0.85rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)', fontSize: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div><strong>Client:</strong> {emailingInvoice.customer_name || 'Valued Client'}</div>
+                <div><strong>Project:</strong> {emailingInvoice.project_name} ({emailingInvoice.project_code || 'PRJ-' + emailingInvoice.project_id})</div>
+                <div><strong>Invoice Total:</strong> {emailingInvoice.currency_symbol || '₹'} {Number(emailingInvoice.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div><strong>Due Date:</strong> {emailingInvoice.due_date ? new Date(emailingInvoice.due_date).toLocaleDateString() : 'N/A'}</div>
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#6366f1', borderTop: '1px dashed rgba(99, 102, 241, 0.2)', paddingTop: '0.4rem' }}>
+                📎 <strong>Attachments:</strong> Tax-Invoice-{emailingInvoice.invoice_number}.pdf
+                {includeSurveyReport && (emailingInvoice.survey_id || selectedSurveyIdForEmail) && (
+                  <span> + Photographic-Report-{emailingInvoice.survey_code || 'PLN-03-F04'}.pdf</span>
+                )}
+              </div>
+            </div>
+
+            <FormInput
+              label="Recipient Email Address *"
+              type="email"
+              placeholder="e.g. client@example.com"
+              value={invoiceRecipientEmail}
+              onChange={(e) => setInvoiceRecipientEmail(e.target.value)}
+              required
+            />
+
+            <FormInput
+              label="Email Subject *"
+              placeholder="Email subject line..."
+              value={invoiceEmailSubject}
+              onChange={(e) => setInvoiceEmailSubject(e.target.value)}
+              required
+            />
+
+            {/* Photographic Report Attachment Toggle */}
+            <div style={{ padding: '0.85rem', background: 'rgba(56, 189, 248, 0.05)', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                <input
+                  type="checkbox"
+                  checked={includeSurveyReport}
+                  onChange={(e) => setIncludeSurveyReport(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: '#0284c7', cursor: 'pointer' }}
+                />
+                📷 Attach Site Photographic Progress Report (PLN-03-F04 Multi-Page PDF)
+              </label>
+
+              {includeSurveyReport && (
+                <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {emailingInvoice.survey_id ? (
+                    <div style={{ color: '#0369a1', fontWeight: 600 }}>
+                      ✓ Linked Survey: {emailingInvoice.survey_code ? `Ref ${emailingInvoice.survey_code}` : `Survey #${emailingInvoice.survey_id}`} will be compiled and attached.
+                    </div>
+                  ) : projectSurveys.length > 0 ? (
+                    <div>
+                      <span style={{ display: 'block', marginBottom: '0.3rem' }}>Select which completed site survey report to attach:</span>
+                      <SearchableSelect
+                        label=""
+                        value={selectedSurveyIdForEmail}
+                        onChange={(val) => setSelectedSurveyIdForEmail(val)}
+                        options={projectSurveys.map((s) => ({
+                          value: String(s.survey_id),
+                          label: `${s.report_number || s.survey_code} (${s.survey_date}) - ${s.discipline_name || 'General Site'}`,
+                        }))}
+                        placeholder="Choose Site Survey Report"
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ color: '#d97706', fontSize: '0.78rem' }}>
+                      ℹ️ Note: No survey report is currently linked to this invoice. A general project photographic report will be included if available.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Email Message Body
+              </label>
+              <textarea
+                value={invoiceEmailMessage}
+                onChange={(e) => setInvoiceEmailMessage(e.target.value)}
+                rows={5}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.5',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <Button type="button" variant="secondary" onClick={() => setIsEmailInvoiceModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={isSendingInvoiceEmail} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Send size={15} /> {isSendingInvoiceEmail ? 'Dispatching...' : 'Send Invoice via Email'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };

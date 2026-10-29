@@ -53,9 +53,9 @@ export interface InvoiceRow {
   project_name?: string;
   project_code?: string;
   project_address?: string;
-  quotation_id: number;
+  quotation_id?: number | null;
   quotation_code?: string;
-  schedule_id: number;
+  schedule_id?: number | null;
   billing_month?: string;
   survey_id?: number | null;
   currency_id: number;
@@ -339,12 +339,12 @@ export class InvoiceRepository {
   async createInvoice(data: Omit<InvoiceRow, 'invoice_id' | 'created_at'>): Promise<number> {
     const [result] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO invoices (
-        invoice_number, customer_id, project_id, task_id, quotation_id, schedule_id, survey_id,
+        invoice_number, customer_id, project_id, quotation_id, schedule_id, survey_id,
         currency_id, tax_id, tax_type, cgst_amount, sgst_amount, igst_amount,
         invoice_date, due_date, subtotal_amount, tax_amount, total_amount, invoice_type, status, created_by, approved_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        data.invoice_number, data.customer_id, data.project_id, data.task_id || null, data.quotation_id || null, data.schedule_id || null, data.survey_id || null,
+        data.invoice_number, data.customer_id, data.project_id, data.quotation_id || null, data.schedule_id || null, data.survey_id || null,
         data.currency_id, data.tax_id || null, data.tax_type || null, data.cgst_amount || 0, data.sgst_amount || 0, data.igst_amount || 0,
         data.invoice_date, data.due_date, data.subtotal_amount, data.tax_amount, data.total_amount, data.invoice_type || 'combined', data.status, data.created_by || null, data.approved_by || null
       ]

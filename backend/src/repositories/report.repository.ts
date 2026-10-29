@@ -817,11 +817,18 @@ export class ReportRepository {
         c.customer_name,
         COALESCE(p.budget_amount, 0) AS budget,
         COALESCE((SELECT SUM(total_amount) FROM quotations WHERE (project_id = p.project_id OR quotation_id = p.source_quotation_id) AND status='approved'), p.budget_amount, 0) AS contract_value,
-        COALESCE((SELECT SUM(total_amount) FROM invoices WHERE project_id = p.project_id), 0) AS invoice_value,
-        COALESCE((SELECT SUM(total_amount) FROM invoices WHERE project_id = p.project_id AND status IN ('paid', 'partially_paid')), 0) AS collected_value,
+        COALESCE((SELECT SUM(total_amount) FROM invoices WHERE project_id = p.project_id AND status != 'cancelled'), 0) AS invoice_value,
+        COALESCE((
+          SELECT SUM(ip.amount) 
+          FROM invoice_payments ip 
+          JOIN invoices inv ON ip.invoice_id = inv.invoice_id 
+          WHERE inv.project_id = p.project_id AND ip.status = 'completed'
+        ), 0) AS collected_value,
         COALESCE(p.budget_amount, (SELECT SUM(budget_amount) FROM tasks WHERE project_id = p.project_id), 0) AS planned_cost,
         COALESCE((SELECT SUM(amount) FROM labour_work_logs WHERE project_id = p.project_id AND (is_deleted = 0 OR is_deleted IS NULL)), 0) AS actual_labour_cost,
-        COALESCE((SELECT SUM(actual_cost) FROM project_materials WHERE project_id = p.project_id), 0) AS actual_material_cost
+        COALESCE((SELECT SUM(amount) FROM task_used_materials WHERE project_id = p.project_id), 0) AS actual_material_cost,
+        COALESCE((SELECT SUM(total_cost) FROM equipment_usage_logs WHERE project_id = p.project_id), 0) AS actual_equipment_cost,
+        COALESCE((SELECT SUM(payable_amount) FROM vendor_invoices WHERE project_id = p.project_id), 0) AS actual_vendor_cost
       FROM projects p
       LEFT JOIN customers c ON p.customer_id = c.customer_id
       WHERE (p.is_deleted = 0 OR p.is_deleted IS NULL)
@@ -853,7 +860,11 @@ export class ReportRepository {
       const contractRev = Number(r.contract_value || 0);
       const budgetRev = Number(r.budget || 0);
       const revenue = invoiceRev > 0 ? invoiceRev : (contractRev > 0 ? contractRev : budgetRev);
-      const actualCost = Number(r.actual_labour_cost || 0) + Number(r.actual_material_cost || 0);
+      const labour = Number(r.actual_labour_cost || 0);
+      const material = Number(r.actual_material_cost || 0);
+      const equipment = Number(r.actual_equipment_cost || 0);
+      const vendor = Number(r.actual_vendor_cost || 0);
+      const actualCost = labour + material + equipment + vendor;
       const profitLoss = revenue - actualCost;
       const profitMargin = revenue > 0 ? (profitLoss / revenue) * 100 : 0;
 
@@ -863,9 +874,11 @@ export class ReportRepository {
         invoice_value: invoiceRev,
         collected_value: Number(r.collected_value),
         planned_cost: Number(r.planned_cost),
-        actual_labour_cost: Number(r.actual_labour_cost),
-        actual_material_cost: Number(r.actual_material_cost),
-        other_cost: 0,
+        actual_labour_cost: labour,
+        actual_material_cost: material,
+        actual_equipment_cost: equipment,
+        actual_vendor_cost: vendor,
+        other_cost: equipment + vendor,
         total_actual_cost: actualCost,
         profit_loss: profitLoss,
         profit_margin_percentage: Math.round(profitMargin * 100) / 100,

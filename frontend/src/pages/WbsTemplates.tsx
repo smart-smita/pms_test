@@ -74,6 +74,55 @@ export const WbsTemplates: React.FC<WbsTemplatesProps> = ({ isEmbedded, initialA
   // Expanded Nodes
   const [expandedNodes, setExpandedNodes] = useState<Set<string | number>>(new Set());
 
+  // Expandable Table Details Row state
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
+  const [rowDetailsCache, setRowDetailsCache] = useState<Record<number, WbsTemplate>>({});
+  const [loadingRowId, setLoadingRowId] = useState<number | null>(null);
+  const [selectedDetailPtId, setSelectedDetailPtId] = useState<Record<number, number>>({});
+
+  const getUniqueProjectTypes = (projectTypes?: WbsTemplateProjectType[]) => {
+    if (!projectTypes || projectTypes.length === 0) return [];
+    const seen = new Set<number>();
+    return projectTypes.filter(pt => {
+      if (seen.has(pt.project_type_id)) return false;
+      seen.add(pt.project_type_id);
+      return true;
+    });
+  };
+
+  const toggleRowDetails = async (t: WbsTemplate) => {
+    if (expandedRowId === t.id) {
+      setExpandedRowId(null);
+      return;
+    }
+    setExpandedRowId(t.id);
+
+    if (!rowDetailsCache[t.id]) {
+      setLoadingRowId(t.id);
+      try {
+        const res = await apiRequest<WbsTemplate>(`/wbs-templates/${t.id}`);
+        if (res.success && res.data) {
+          const tmpl = res.data;
+          setRowDetailsCache(prev => ({ ...prev, [t.id]: tmpl }));
+          const uniquePts = getUniqueProjectTypes(tmpl.project_types);
+          if (uniquePts.length > 0) {
+            setSelectedDetailPtId(prev => ({ ...prev, [t.id]: uniquePts[0].project_type_id }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load template details:', err);
+      } finally {
+        setLoadingRowId(null);
+      }
+    } else {
+      const tmpl = rowDetailsCache[t.id];
+      const uniquePts = getUniqueProjectTypes(tmpl.project_types);
+      if (uniquePts.length > 0 && !selectedDetailPtId[t.id]) {
+        setSelectedDetailPtId(prev => ({ ...prev, [t.id]: uniquePts[0].project_type_id }));
+      }
+    }
+  };
+
   const fetchAll = useCallback(async () => {
     setIsLoading(true);
     const [tRes, ptRes, wbsRes] = await Promise.all([
@@ -870,96 +919,461 @@ export const WbsTemplates: React.FC<WbsTemplatesProps> = ({ isEmbedded, initialA
           No WBS templates found matching criteria. {canManage && 'Create a new template to get started.'}
         </div>
       ) : (
-        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-          <div className="table-responsive">
-            <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="wbs-table-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <style>{`
+            .wbs-main-row {
+              transition: background 0.15s ease;
+              border-bottom: 1px solid var(--border-color);
+            }
+            .wbs-main-row:hover {
+              background: rgba(99, 102, 241, 0.04);
+            }
+            .wbs-main-row.is-expanded {
+              background: rgba(99, 102, 241, 0.07);
+              border-bottom: none;
+            }
+            .wbs-detail-drawer {
+              background: var(--bg-primary);
+              border-bottom: 2px solid var(--border-color);
+              padding: 1.25rem 1.5rem;
+              animation: wbsSlideDown 0.2s ease-out;
+            }
+            @keyframes wbsSlideDown {
+              from { opacity: 0; transform: translateY(-6px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .wbs-pt-tab-btn {
+              display: inline-flex;
+              align-items: center;
+              gap: 0.35rem;
+              padding: 0.35rem 0.75rem;
+              border-radius: 6px;
+              font-size: 0.8rem;
+              font-weight: 600;
+              border: 1px solid var(--border-color);
+              background: var(--bg-card);
+              color: var(--text-secondary);
+              cursor: pointer;
+              transition: all 0.15s ease;
+            }
+            .wbs-pt-tab-btn.active {
+              background: #6366f1;
+              color: #ffffff;
+              border-color: #6366f1;
+              box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+            }
+            @media (max-width: 900px) {
+              .wbs-table-responsive {
+                overflow-x: auto;
+              }
+            }
+          `}</style>
+          
+          <div className="wbs-table-responsive" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '820px', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
               <thead>
-                <tr>
-                  <th style={{ width: '130px' }}>Template Code</th>
-                  <th style={{ width: '250px' }}>Template Name</th>
-                  <th>Included Project Types</th>
-                  <th style={{ width: '130px', textAlign: 'center' }}>Total Nodes</th>
-                  <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
-                  <th style={{ width: '180px', textAlign: 'right' }}>Actions</th>
+                <tr style={{ borderBottom: '2px solid var(--border-color)', background: 'var(--bg-primary)' }}>
+                  <th style={{ width: '48px', textAlign: 'center', padding: '0.8rem 0.5rem' }}></th>
+                  <th style={{ width: '140px', padding: '0.8rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)' }}>Template Code</th>
+                  <th style={{ minWidth: '220px', padding: '0.8rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)' }}>Template Name & Scope</th>
+                  <th style={{ minWidth: '240px', padding: '0.8rem 0.75rem', textAlign: 'left', color: 'var(--text-secondary)' }}>Included Project Types</th>
+                  <th style={{ width: '120px', padding: '0.8rem 0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Total Nodes</th>
+                  <th style={{ width: '100px', padding: '0.8rem 0.75rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Status</th>
+                  <th style={{ width: '160px', padding: '0.8rem 0.75rem', textAlign: 'right', color: 'var(--text-secondary)' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTemplates.map(t => (
-                  <tr key={t.id}>
-                    <td style={{ fontWeight: 600, color: '#818cf8', fontFamily: 'monospace' }}>
-                      {t.template_code}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.template_name}</div>
-                      {t.description && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {t.description}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                        {t.project_types && t.project_types.length > 0 ? (
-                          t.project_types.map(pt => (
-                            <span
-                              key={pt.project_type_id}
+                {filteredTemplates.map(t => {
+                  const isExpanded = expandedRowId === t.id;
+                  const uniquePts = getUniqueProjectTypes(t.project_types);
+                  const cachedDetails = rowDetailsCache[t.id];
+                  const isLoadingThis = loadingRowId === t.id;
+                  const activePtId = selectedDetailPtId[t.id] || (uniquePts.length > 0 ? uniquePts[0].project_type_id : null);
+                  const activePtDetails = cachedDetails?.details || [];
+                  const activePtTree = activePtId ? buildTreeForProjectType(activePtDetails, activePtId, null) : [];
+
+                  return (
+                    <React.Fragment key={t.id}>
+                      {/* Main Template Row */}
+                      <tr
+                        className={`wbs-main-row ${isExpanded ? 'is-expanded' : ''}`}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('button')) return;
+                          toggleRowDetails(t);
+                        }}
+                      >
+                        {/* 1. Expand Chevron Toggle */}
+                        <td style={{ textAlign: 'center', padding: '0.75rem 0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRowDetails(t);
+                            }}
+                            style={{
+                              background: isExpanded ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                              border: 'none',
+                              color: isExpanded ? '#6366f1' : 'var(--text-secondary)',
+                              cursor: 'pointer',
+                              borderRadius: '6px',
+                              width: '28px',
+                              height: '28px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.15s ease',
+                            }}
+                            title={isExpanded ? 'Collapse template details' : 'Click to inspect WBS hierarchy & details'}
+                          >
+                            {isExpanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
+                          </button>
+                        </td>
+
+                        {/* 2. Template Code */}
+                        <td style={{ padding: '0.75rem 0.75rem' }}>
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              color: '#6366f1',
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '5px',
+                              border: '1px solid rgba(99, 102, 241, 0.25)',
+                              display: 'inline-block',
+                            }}
+                          >
+                            {t.template_code}
+                          </span>
+                        </td>
+
+                        {/* 3. Template Name & Scope */}
+                        <td style={{ padding: '0.75rem 0.75rem' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                            {t.template_name}
+                          </div>
+                          {t.description && (
+                            <div
                               style={{
-                                fontSize: '0.72rem',
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '4px',
-                                background: 'rgba(99, 102, 241, 0.12)',
-                                color: 'var(--text-primary)',
-                                border: '1px solid rgba(99, 102, 241, 0.25)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)',
+                                marginTop: '2px',
+                                maxWidth: '320px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                               }}
+                              title={t.description}
                             >
-                              <Building2 size={11} color="#818cf8" />
-                              {pt.project_type_name}
-                              <span style={{ fontSize: '0.68rem', color: '#6366f1', fontWeight: 600 }}>
-                                ({pt.wbs_count || 0})
+                              {t.description}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 4. Included Project Types (Deduplicated & Compact) */}
+                        <td style={{ padding: '0.75rem 0.75rem' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                            {uniquePts.length > 0 ? (
+                              <>
+                                {uniquePts.slice(0, 2).map((pt) => (
+                                  <span
+                                    key={pt.project_type_id}
+                                    style={{
+                                      fontSize: '0.73rem',
+                                      padding: '0.2rem 0.55rem',
+                                      borderRadius: '6px',
+                                      background: 'rgba(99, 102, 241, 0.1)',
+                                      color: 'var(--text-primary)',
+                                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    <Building2 size={12} style={{ color: '#6366f1' }} />
+                                    <span>{pt.project_type_name}</span>
+                                    <span style={{ fontSize: '0.68rem', color: '#6366f1', fontWeight: 700 }}>
+                                      ({pt.wbs_count || 0})
+                                    </span>
+                                  </span>
+                                ))}
+                                {uniquePts.length > 2 && (
+                                  <span
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleRowDetails(t);
+                                    }}
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      padding: '0.2rem 0.45rem',
+                                      borderRadius: '6px',
+                                      background: 'var(--bg-primary)',
+                                      color: '#6366f1',
+                                      border: '1px dashed #6366f1',
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    title={`Click to view all ${uniquePts.length} project types in details`}
+                                  >
+                                    +{uniquePts.length - 2} more
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                No project types assigned
                               </span>
-                            </span>
-                          ))
-                        ) : (
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>No project types</span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <Badge variant="info">{t.detail_count || 0} items</Badge>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {t.status === 1 ? <Badge variant="success">Active</Badge> : <Badge variant="warning">Inactive</Badge>}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
-                        <Button variant="secondary" onClick={() => openView(t)} style={{ padding: '0.35rem 0.5rem' }} title="View Structure">
-                          <Eye size={14} />
-                        </Button>
-                        {canManage && (
-                          <>
-                            <Button variant="secondary" onClick={() => openEdit(t)} style={{ padding: '0.35rem 0.5rem' }} title="Edit Template">
-                              <Edit size={14} />
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleDuplicate(t)} style={{ padding: '0.35rem 0.5rem' }} title="Duplicate Template">
-                              <Copy size={14} />
-                            </Button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 5. Total Nodes */}
+                        <td style={{ textAlign: 'center', padding: '0.75rem 0.75rem' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '999px',
+                              background: 'rgba(6, 182, 212, 0.12)',
+                              color: '#06b6d4',
+                              border: '1px solid rgba(6, 182, 212, 0.25)',
+                            }}
+                          >
+                            <Layers size={12} />
+                            {t.detail_count || 0} nodes
+                          </span>
+                        </td>
+
+                        {/* 6. Status */}
+                        <td style={{ textAlign: 'center', padding: '0.75rem 0.75rem' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              background: t.status === 1 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                              color: t.status === 1 ? '#10b981' : '#f59e0b',
+                            }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.status === 1 ? '#10b981' : '#f59e0b' }} />
+                            {t.status === 1 ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+
+                        {/* 7. Action Icons */}
+                        <td style={{ textAlign: 'right', padding: '0.75rem 0.75rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                             <Button
-                              variant="danger"
-                              onClick={() => { setDeleteTarget({ id: t.id, name: t.template_name }); setIsDeleteModalOpen(true); }}
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openView(t);
+                              }}
                               style={{ padding: '0.35rem 0.5rem' }}
-                              title="Delete Template"
+                              title="View Full Hierarchy Modal"
                             >
-                              <Trash2 size={14} />
+                              <Eye size={14} />
                             </Button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            {canManage && (
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEdit(t);
+                                  }}
+                                  style={{ padding: '0.35rem 0.5rem' }}
+                                  title="Edit Template"
+                                >
+                                  <Edit size={14} />
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDuplicate(t);
+                                  }}
+                                  style={{ padding: '0.35rem 0.5rem' }}
+                                  title="Duplicate Template"
+                                >
+                                  <Copy size={14} />
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteTarget({ id: t.id, name: t.template_name });
+                                    setIsDeleteModalOpen(true);
+                                  }}
+                                  style={{ padding: '0.35rem 0.5rem' }}
+                                  title="Delete Template"
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Responsive Details Drawer Row */}
+                      {isExpanded && (
+                        <tr className="wbs-details-row">
+                          <td colSpan={7} style={{ padding: 0 }}>
+                            <div className="wbs-detail-drawer">
+                              {isLoadingThis ? (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: '#6366f1' }}>
+                                  Loading detailed WBS breakdown structure...
+                                </div>
+                              ) : (
+                                <div>
+                                  {/* Detail Header & Action Toolbar */}
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'flex-start',
+                                      flexWrap: 'wrap',
+                                      gap: '1rem',
+                                      marginBottom: '1rem',
+                                      paddingBottom: '0.85rem',
+                                      borderBottom: '1px solid var(--border-color)',
+                                    }}
+                                  >
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                          {t.template_name}
+                                        </h4>
+                                        <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                                          {t.template_code}
+                                        </span>
+                                        <Badge variant={t.status === 1 ? 'success' : 'warning'}>
+                                          {t.status === 1 ? 'Active Template' : 'Inactive'}
+                                        </Badge>
+                                      </div>
+                                      <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                        {t.description || 'Configured delivery structure across multi-discipline project types.'}
+                                      </p>
+                                    </div>
+
+                                    {/* Quick Actions in Detail View */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                      {canManage && (
+                                        <Button
+                                          variant="primary"
+                                          size="sm"
+                                          onClick={() => openEdit(t)}
+                                          icon={Edit}
+                                        >
+                                          Edit in Builder
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openView(t)}
+                                        icon={Eye}
+                                      >
+                                        Fullscreen Tree
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Project Types Tab Selector */}
+                                  {uniquePts.length > 0 ? (
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                          Included Project Types:
+                                        </span>
+                                        {uniquePts.map((pt) => {
+                                          const isPtSelected = Number(activePtId) === Number(pt.project_type_id);
+                                          return (
+                                            <button
+                                              key={pt.project_type_id}
+                                              type="button"
+                                              className={`wbs-pt-tab-btn ${isPtSelected ? 'active' : ''}`}
+                                              onClick={() => setSelectedDetailPtId(prev => ({ ...prev, [t.id]: pt.project_type_id }))}
+                                            >
+                                              <Building2 size={13} />
+                                              <span>{pt.project_type_name}</span>
+                                              <span style={{ fontSize: '0.7rem', opacity: isPtSelected ? 0.9 : 0.7 }}>
+                                                ({pt.wbs_count || 0})
+                                              </span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+
+                                      {/* Tree Breakdown for Selected Project Type */}
+                                      <div
+                                        style={{
+                                          background: 'var(--bg-card)',
+                                          border: '1px solid var(--border-color)',
+                                          borderRadius: '8px',
+                                          padding: '1rem',
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <FolderTree size={16} style={{ color: '#6366f1' }} />
+                                            <span>
+                                              WBS Hierarchy for {uniquePts.find(p => Number(p.project_type_id) === Number(activePtId))?.project_type_name || 'Selected Type'}
+                                            </span>
+                                          </div>
+                                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                            {activePtTree.length} root disciplines
+                                          </span>
+                                        </div>
+
+                                        {activePtTree.length === 0 ? (
+                                          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                                            No WBS nodes defined under this project type yet.
+                                            {canManage && (
+                                              <div style={{ marginTop: '0.5rem' }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openEdit(t)}
+                                                  style={{ background: 'none', border: 'none', color: '#6366f1', fontWeight: 600, cursor: 'pointer', fontSize: '0.82rem' }}
+                                                >
+                                                  + Add nodes in template builder
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                            {activePtTree.map(node => renderTreeNode(node, 0, true))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                      No Project Types assigned to this template.
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

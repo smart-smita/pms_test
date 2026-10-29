@@ -79,8 +79,21 @@ export class SiteSurveyController {
       if (!survey) {
         return res.status(404).json({ success: false, message: 'Site Survey not found' });
       }
-      const { generateSiteSurveyPDF } = await import('../utils/pdfGenerator');
-      generateSiteSurveyPDF(survey, res);
+      const { generatePhotographicReportPDF } = await import('../utils/pdfGenerator');
+      generatePhotographicReportPDF(survey, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async sendEmail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id;
+      const ipAddress = req.ip;
+      const { EmailService } = await import('../services/email.service');
+      const result = await EmailService.sendSurveyReportEmail(id, req.body, userId, ipAddress);
+      res.json({ success: true, message: 'Photographic report emailed successfully', data: result });
     } catch (err) {
       next(err);
     }

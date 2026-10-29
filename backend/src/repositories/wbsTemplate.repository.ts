@@ -198,14 +198,15 @@ export class WbsTemplateRepository {
   // -----------------------------------------------------------------------
   async findTemplateProjectTypes(templateId: number): Promise<WbsTemplateProjectTypeRow[]> {
     const [rows] = await dbPool.execute<RowDataPacket[]>(
-      `SELECT wtpt.*,
+      `SELECT wtpt.template_id, wtpt.project_type_id, MIN(wtpt.id) AS id, MIN(wtpt.sort_order) AS sort_order,
               pt.type_name AS project_type_name,
               pt.type_code AS project_type_code,
               (SELECT COUNT(*) FROM wbs_template_details d WHERE d.template_id = wtpt.template_id AND d.project_type_id = wtpt.project_type_id) AS wbs_count
        FROM wbs_template_project_types wtpt
        JOIN project_types pt ON wtpt.project_type_id = pt.type_id
        WHERE wtpt.template_id = ?
-       ORDER BY wtpt.sort_order ASC, wtpt.id ASC`,
+       GROUP BY wtpt.template_id, wtpt.project_type_id, pt.type_name, pt.type_code
+       ORDER BY MIN(wtpt.sort_order) ASC, MIN(wtpt.id) ASC`,
       [templateId]
     );
     return rows as WbsTemplateProjectTypeRow[];

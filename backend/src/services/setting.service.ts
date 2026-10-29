@@ -71,4 +71,24 @@ export class SettingService {
   async getWorkCategoryImpact(target: WorkCategoryType) {
     return this.repo.getWorkCategoryImpact(target);
   }
+
+  async getCompanyProfile(): Promise<Record<string, string>> {
+    const [rows]: any = await dbPool.query(
+      `SELECT setting_key, setting_value FROM system_settings WHERE setting_group = 'company_profile'`
+    );
+    const result: Record<string, string> = {};
+    for (const r of rows) {
+      result[r.setting_key] = r.setting_value;
+    }
+    return result;
+  }
+
+  async updateCompanyProfile(data: Record<string, string>, userId?: number): Promise<Record<string, string>> {
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined && v !== null) {
+        await this.repo.setSetting(k, String(v), 'company_profile', `Company Profile: ${k}`, userId);
+      }
+    }
+    return this.getCompanyProfile();
+  }
 }

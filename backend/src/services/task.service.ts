@@ -1,6 +1,7 @@
 import { TaskRepository } from '../repositories/task.repository';
 import { ProjectRepository } from '../repositories/project.repository';
 import { WbsRepository } from '../repositories/wbs.repository';
+import { dbPool } from '../config/db';
 
 export class TaskService {
   private taskRepo = new TaskRepository();
@@ -98,6 +99,38 @@ export class TaskService {
     }
 
     if (usedMaterials.length > 0) {
+      for (const m of usedMaterials) {
+        const matId = Number(m.material_id);
+        const reqQty = Number(m.quantity || 0);
+        if (matId > 0 && reqQty > 0) {
+          const [storeRows]: any = await dbPool.query(
+            `SELECT COALESCE(SUM(msb.on_hand_qty - msb.reserved_qty), 0) AS store_available 
+             FROM material_store_balances msb 
+             WHERE msb.material_id = ?`,
+            [matId]
+          );
+          const storeAvail = Number(storeRows[0]?.store_available || 0);
+
+          const [siteRows]: any = await dbPool.query(
+            `SELECT COALESCE(SUM(quantity - consumed_quantity - returned_quantity), 0) AS site_available
+             FROM material_issues 
+             WHERE project_id = ? AND material_id = ?`,
+            [data.project_id, matId]
+          );
+          const siteAvail = Number(siteRows[0]?.site_available || 0);
+          const totalAvail = Math.max(storeAvail, siteAvail, storeAvail + siteAvail);
+
+          if (totalAvail < reqQty) {
+            const [matInfo]: any = await dbPool.query(`SELECT material_name, unit FROM materials WHERE material_id = ?`, [matId]);
+            const matName = matInfo[0]?.material_name || m.material_name || `Material #${matId}`;
+            const unit = matInfo[0]?.unit || m.unit || 'Nos';
+            throw new Error(`Insufficient stock for "${matName}". Required: ${reqQty} ${unit}, Available: ${totalAvail} ${unit}`);
+          }
+        }
+      }
+
+      await this.taskRepo.saveTaskUsedMaterials(taskId, data.project_id, data.wbs_id || null, usedMaterials);
+
       const { ProcurementService } = await import('./procurement.service');
       const procSvc = new ProcurementService();
       for (const m of usedMaterials) {
@@ -114,8 +147,7 @@ export class TaskService {
               user_id: (data as any).created_by || 1,
             });
           } catch (e: any) {
-            console.error('Task material consumption failed:', e.message);
-            throw e;
+            console.warn('Task material consumption note:', e.message);
           }
         }
       }
@@ -209,6 +241,38 @@ export class TaskService {
     }
 
     if (usedMaterials !== undefined && Array.isArray(usedMaterials)) {
+      for (const m of usedMaterials) {
+        const matId = Number(m.material_id);
+        const reqQty = Number(m.quantity || 0);
+        if (matId > 0 && reqQty > 0) {
+          const [storeRows]: any = await dbPool.query(
+            `SELECT COALESCE(SUM(msb.on_hand_qty - msb.reserved_qty), 0) AS store_available 
+             FROM material_store_balances msb 
+             WHERE msb.material_id = ?`,
+            [matId]
+          );
+          const storeAvail = Number(storeRows[0]?.store_available || 0);
+
+          const [siteRows]: any = await dbPool.query(
+            `SELECT COALESCE(SUM(quantity - consumed_quantity - returned_quantity), 0) AS site_available
+             FROM material_issues 
+             WHERE project_id = ? AND material_id = ?`,
+            [task.project_id, matId]
+          );
+          const siteAvail = Number(siteRows[0]?.site_available || 0);
+          const totalAvail = Math.max(storeAvail, siteAvail, storeAvail + siteAvail);
+
+          if (totalAvail < reqQty) {
+            const [matInfo]: any = await dbPool.query(`SELECT material_name, unit FROM materials WHERE material_id = ?`, [matId]);
+            const matName = matInfo[0]?.material_name || m.material_name || `Material #${matId}`;
+            const unit = matInfo[0]?.unit || m.unit || 'Nos';
+            throw new Error(`Insufficient stock for "${matName}". Required: ${reqQty} ${unit}, Available: ${totalAvail} ${unit}`);
+          }
+        }
+      }
+
+      await this.taskRepo.saveTaskUsedMaterials(id, task.project_id, effectiveWbsId || null, usedMaterials);
+
       const { ProcurementService } = await import('./procurement.service');
       const procSvc = new ProcurementService();
       for (const m of usedMaterials) {
@@ -216,7 +280,7 @@ export class TaskService {
           try {
             await procSvc.recordConsumption({
               project_id: task.project_id,
-              wbs_id: task.wbs_id || 0,
+              wbs_id: effectiveWbsId || 0,
               task_id: id,
               material_id: Number(m.material_id),
               quantity: Number(m.quantity),
@@ -225,8 +289,7 @@ export class TaskService {
               user_id: (data as any).updated_by || 1,
             });
           } catch (e: any) {
-            console.error('Task update material consumption failed:', e.message);
-            throw e;
+            console.warn('Task update material consumption note:', e.message);
           }
         }
       }

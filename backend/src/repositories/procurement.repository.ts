@@ -3,14 +3,22 @@ import { dbPool } from '../config/db';
 
 export class ProcurementRepository {
   // ── Stores ─────────────────────────────────────────────────────────────
-  async getStores(projectId?: number): Promise<any[]> {
-    let sql = `SELECT * FROM stores WHERE is_active = 1`;
+  async getStores(projectId?: number, all?: boolean): Promise<any[]> {
+    let sql = `
+      SELECT s.*, p.project_name, p.project_code
+      FROM stores s
+      LEFT JOIN projects p ON s.project_id = p.project_id
+      WHERE 1=1
+    `;
     const params: any[] = [];
+    if (!all) {
+      sql += ` AND s.is_active = 1`;
+    }
     if (projectId) {
-      sql += ` AND (project_id = ? OR project_id IS NULL)`;
+      sql += ` AND (s.project_id = ? OR s.project_id IS NULL)`;
       params.push(projectId);
     }
-    sql += ` ORDER BY store_id ASC`;
+    sql += ` ORDER BY s.store_id ASC`;
     const [rows]: [RowDataPacket[], any] = await dbPool.query(sql, params);
     return rows;
   }
@@ -22,6 +30,23 @@ export class ProcurementRepository {
       [data.store_code, data.store_name, data.project_id || null, data.location || null]
     );
     return res.insertId;
+  }
+
+  async updateStore(id: number, data: { store_code?: string; store_name?: string; project_id?: number | null; location?: string; is_active?: number }): Promise<boolean> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    if (data.store_code !== undefined) { fields.push('store_code = ?'); values.push(data.store_code); }
+    if (data.store_name !== undefined) { fields.push('store_name = ?'); values.push(data.store_name); }
+    if (data.project_id !== undefined) { fields.push('project_id = ?'); values.push(data.project_id || null); }
+    if (data.location !== undefined) { fields.push('location = ?'); values.push(data.location); }
+    if (data.is_active !== undefined) { fields.push('is_active = ?'); values.push(data.is_active); }
+    if (fields.length === 0) return true;
+    values.push(id);
+    const [res]: [ResultSetHeader, any] = await dbPool.query(
+      `UPDATE stores SET ${fields.join(', ')} WHERE store_id = ?`,
+      values
+    );
+    return res.affectedRows > 0;
   }
 
   // ── Indents ────────────────────────────────────────────────────────────

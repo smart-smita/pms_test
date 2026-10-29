@@ -4,7 +4,12 @@ import { dbPool } from '../config/db';
 export class MaterialRepository {
   // ── 1. Material Master ───────────────────────────────────────────────────
   async getMaterials(filters: { category?: string; status?: string; search?: string } = {}): Promise<any[]> {
-    let sql = `SELECT m.* FROM materials m WHERE 1=1`;
+    let sql = `
+      SELECT m.*,
+        COALESCE((SELECT SUM(msb.on_hand_qty - msb.reserved_qty) FROM material_store_balances msb WHERE msb.material_id = m.material_id), 0) AS available_stock,
+        COALESCE((SELECT SUM(msb.on_hand_qty) FROM material_store_balances msb WHERE msb.material_id = m.material_id), 0) AS on_hand_stock
+      FROM materials m 
+      WHERE 1=1`;
     const params: any[] = [];
 
     if (filters.category) {
@@ -27,7 +32,10 @@ export class MaterialRepository {
 
   async getMaterialById(id: number): Promise<any | null> {
     const [rows] = await dbPool.query<RowDataPacket[]>(
-      `SELECT m.* FROM materials m WHERE m.material_id = ?`,
+      `SELECT m.*,
+         COALESCE((SELECT SUM(msb.on_hand_qty - msb.reserved_qty) FROM material_store_balances msb WHERE msb.material_id = m.material_id), 0) AS available_stock,
+         COALESCE((SELECT SUM(msb.on_hand_qty) FROM material_store_balances msb WHERE msb.material_id = m.material_id), 0) AS on_hand_stock
+       FROM materials m WHERE m.material_id = ?`,
       [id]
     );
     return rows[0] || null;
@@ -35,13 +43,25 @@ export class MaterialRepository {
 
   async createMaterial(data: any): Promise<number> {
     const code = data.material_code || `MAT-${Date.now().toString().slice(-4)}`;
+    const purchaseRate = data.purchase_rate !== undefined ? Number(data.purchase_rate) : (data.rate !== undefined ? Number(data.rate) : 0);
+    const billingRate = data.billing_rate !== undefined ? Number(data.billing_rate) : purchaseRate;
+
     const [res] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO materials (
-        material_code, material_name, category, description, unit, brand_spec, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        material_code, material_name, category, description, unit, brand_spec,
+        rate, purchase_rate, billing_rate, hsn_sac_code, tax_percentage,
+        min_stock_level, reorder_level, vendor_id, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         code, data.material_name, data.category || null, data.description || null,
-        data.unit || 'Nos', data.brand_spec || null, data.status || 'active'
+        data.unit || 'Nos', data.brand_spec || null,
+        purchaseRate, purchaseRate, billingRate,
+        data.hsn_sac_code || null,
+        data.tax_percentage !== undefined ? Number(data.tax_percentage) : 18.00,
+        data.min_stock_level !== undefined ? Number(data.min_stock_level) : 0.00,
+        data.reorder_level !== undefined ? Number(data.reorder_level) : 0.00,
+        data.vendor_id ? Number(data.vendor_id) : null,
+        data.status || 'active'
       ]
     );
     return res.insertId;
@@ -50,7 +70,11 @@ export class MaterialRepository {
   async updateMaterial(id: number, data: any): Promise<boolean> {
     const fields: string[] = [];
     const params: any[] = [];
-    const editable = ['material_name', 'category', 'description', 'unit', 'brand_spec', 'status'];
+    const editable = [
+      'material_name', 'category', 'description', 'unit', 'brand_spec',
+      'rate', 'purchase_rate', 'billing_rate', 'hsn_sac_code', 'tax_percentage',
+      'min_stock_level', 'reorder_level', 'vendor_id', 'status'
+    ];
 
     for (const key of editable) {
       if (data[key] !== undefined) {

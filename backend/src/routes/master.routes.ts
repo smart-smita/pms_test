@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { MasterController } from '../controllers/master.controller';
+import { VendorController } from '../controllers/vendor.controller';
 import { authenticateJwt } from '../middleware/auth';
 import { requirePermission } from '../middleware/permission.middleware';
 
 const router = Router();
 const ctrl = new MasterController();
+const vendorCtrl = new VendorController();
 
 // All master routes require JWT authentication
 router.use(authenticateJwt);
@@ -47,5 +49,20 @@ router.put('/calendars/:id', requirePermission('masters', 'manage'), ctrl.update
 router.get('/holidays', ctrl.getHolidays);
 router.post('/holidays', requirePermission('masters', 'manage'), ctrl.createHoliday);
 router.delete('/holidays/:id', requirePermission('masters', 'manage'), ctrl.deleteHoliday);
+
+// Number Series
+router.get('/number-series', requirePermission('number_series', 'view'), ctrl.getNumberSeries);
+router.put('/number-series/:id', requirePermission('number_series', 'manage'), ctrl.updateNumberSeries);
+router.get('/number-series/next/:seriesCode', requirePermission('number_series', 'view'), ctrl.getNextNumber);
+
+// Measurement Units
+router.get('/units', ctrl.getUnits);
+router.post('/units', requirePermission('units', 'manage'), ctrl.createUnit);
+router.put('/units/:id', requirePermission('units', 'manage'), ctrl.updateUnit);
+
+// Contractors & Vendors
+router.get('/contractors', requirePermission('contractors', 'view'), ctrl.getContractors);
+router.post('/contractors', requirePermission('contractors', 'create'), ctrl.createContractor);
+router.get('/vendors', (req, res) => vendorCtrl.getAll(req, res));
 
 export default router;

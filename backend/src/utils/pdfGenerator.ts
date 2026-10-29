@@ -1119,3 +1119,323 @@ export function renderSiteSurveyContent(doc: any, survey: any, startPageIndex: n
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PHOTOGRAPHIC REPORT RENDERER (Matches Reference Document PLN-03-F04)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const generateInvoicePDFBuffer = async (invoice: InvoiceRow): Promise<Buffer> => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 35, bottom: 20, left: 40, right: 40 },
+    });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', (err) => reject(err));
+
+    renderInvoiceContent(doc, invoice);
+    doc.end();
+  });
+};
+
+export const generateSiteSurveyPDFBuffer = async (survey: any): Promise<Buffer> => {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 25, bottom: 25, left: 25, right: 25 },
+      bufferPages: true,
+    });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', (err) => reject(err));
+
+    renderPhotographicReport(doc, survey);
+    doc.end();
+  });
+};
+
+export const generatePhotographicReportPDF = (survey: any, res: Response) => {
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: 25, bottom: 25, left: 25, right: 25 },
+    bufferPages: true,
+  });
+
+  const filename = `Photographic-Report-${survey.report_number || survey.survey_code || 'Report'}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  doc.pipe(res);
+
+  renderPhotographicReport(doc, survey);
+  doc.end();
+};
+
+export function renderPhotographicReport(doc: any, survey: any) {
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 25;
+  const frameWidth = pageWidth - margin * 2;   // 545.28 pt
+  const frameHeight = pageHeight - margin * 2; // 791.89 pt
+  const footerHeight = 45;
+
+  const formatDateStr = (rawDate: any): string => {
+    if (!rawDate) return '15/06/2026';
+    try {
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return String(rawDate);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return String(rawDate);
+    }
+  };
+
+  const drawDocumentFooter = (pageIdx: number, totalPages: number) => {
+    const footerY = pageHeight - margin - footerHeight;
+
+    // Divider line
+    doc.rect(margin, footerY, frameWidth, 0.75).fill('#0f172a');
+
+    const col1W = 140;
+    const col2W = 100;
+    const col3W = 110;
+    const col4W = 195;
+
+    // Row 1: Metadata
+    doc.fillColor('#0f172a').font('Helvetica').fontSize(8.5);
+    doc.text(`Doc.No: ${survey.document_number || 'PLN-03-F04'}`, margin + 8, footerY + 8);
+    doc.text(`Rev. No: ${survey.revision_number || 'R1'}`, margin + col1W + 8, footerY + 8);
+
+    doc.font('Helvetica-Bold').fontSize(8.5).text('Prepared By', margin + col1W + col2W + col3W - 35, footerY + 8);
+    doc.fillColor('#1e40af').fontSize(11).text('PLANEDGE', margin + col1W + col2W + col3W + 35, footerY + 6);
+    doc.fillColor('#64748b').fontSize(6.5).font('Helvetica-Oblique').text('We Build Better', margin + col1W + col2W + col3W + 36, footerY + 18);
+
+    // Row 2: Title & Date & Page
+    doc.fillColor('#0f172a').font('Helvetica').fontSize(8.5);
+    doc.text('Title : Photographic Report', margin + 8, footerY + 22);
+    doc.text(`${formatDateStr(survey.survey_date || survey.period_to)}`, margin + col1W + 8, footerY + 22);
+    doc.text(`Page ${pageIdx + 1} of ${totalPages}`, margin + col1W + col2W + 20, footerY + 22);
+  };
+
+  const photos: any[] = survey.photos || [];
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // PAGE 1: COVER PAGE
+  // ═════════════════════════════════════════════════════════════════════════════
+  // Outer Border Frame
+  doc.rect(margin, margin, frameWidth, frameHeight).strokeColor('#0f172a').lineWidth(1).stroke();
+
+  // Top Title Bar
+  doc
+    .fillColor('#0f172a')
+    .font('Helvetica-Bold')
+    .fontSize(16)
+    .text('PHOTOGRAPHIC REPORT', margin, margin + 14, { width: frameWidth, align: 'center', characterSpacing: 0.5 });
+
+  doc.rect(margin, margin + 36, frameWidth, 0.75).fill('#0f172a');
+
+  // Metadata Table Box
+  const metaY = margin + 44;
+  const metaLineH = 15;
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a');
+  doc.text('Project Name', margin + 12, metaY);
+  doc.text('Project Code', margin + 12, metaY + metaLineH);
+  doc.text('Period From', margin + 12, metaY + metaLineH * 2);
+  doc.text('Photographic Report No', margin + 12, metaY + metaLineH * 3);
+
+  doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
+  doc.text(`: ${survey.project_name || '24 Wallstreet'}`, margin + 140, metaY);
+  doc.text(`: ${survey.project_code || 'PL1348'}`, margin + 140, metaY + metaLineH);
+  const pFrom = formatDateStr(survey.period_from || '2026-06-01');
+  const pTo = formatDateStr(survey.period_to || '2026-06-15');
+  doc.text(`: ${pFrom}    To    ${pTo}`, margin + 140, metaY + metaLineH * 2);
+  doc.text(`: ${survey.report_number || survey.survey_code || 'PL1348PR55'}`, margin + 140, metaY + metaLineH * 3);
+
+  // Gray Sub-Header Bar
+  const subBarY = metaY + metaLineH * 4 + 8;
+  doc.rect(margin, subBarY, frameWidth, 24).fill('#e2e8f0');
+  doc
+    .fillColor('#0f172a')
+    .font('Helvetica-Bold')
+    .fontSize(13)
+    .text(survey.project_name || '24 Wallstreet', margin, subBarY + 6, { width: frameWidth, align: 'center' });
+
+  // Center Visual (Cover Photo / Main Elevation)
+  const coverImgBoxY = subBarY + 30;
+  const coverImgBoxH = 430;
+  let coverRendered = false;
+
+  // Check for cover image path or first photo
+  const candidateCover = survey.cover_image_path || (photos.length > 0 ? photos[0].file_path : null);
+  if (candidateCover) {
+    const cleanPath = candidateCover.startsWith('/') ? candidateCover.slice(1) : candidateCover;
+    const fullPath = path.join(process.cwd(), cleanPath);
+    if (fs.existsSync(fullPath)) {
+      try {
+        doc.image(fullPath, margin + 15, coverImgBoxY, {
+          fit: [frameWidth - 30, coverImgBoxH],
+          align: 'center',
+          valign: 'center',
+        });
+        coverRendered = true;
+      } catch (e) {
+        coverRendered = false;
+      }
+    }
+  }
+
+  if (!coverRendered) {
+    doc.rect(margin + 15, coverImgBoxY, frameWidth - 30, coverImgBoxH).fill('#f1f5f9');
+    doc
+      .fillColor('#64748b')
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text('[Cover Visual — 3D Elevation / Project Render]', margin, coverImgBoxY + coverImgBoxH / 2 - 10, {
+        width: frameWidth,
+        align: 'center',
+      });
+  }
+
+  // Signatory Hierarchy Table (3 Columns)
+  const sigTableY = coverImgBoxY + coverImgBoxH + 12;
+  const sigTableH = 65;
+  const colW = frameWidth / 3;
+
+  doc.rect(margin, sigTableY, frameWidth, sigTableH).strokeColor('#0f172a').lineWidth(0.75).stroke();
+  doc.rect(margin + colW, sigTableY, 0.75, sigTableH).fill('#0f172a');
+  doc.rect(margin + colW * 2, sigTableY, 0.75, sigTableH).fill('#0f172a');
+
+  // Signatory 1
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
+  doc.text('Prepared By:', margin, sigTableY + 8, { width: colW, align: 'center' });
+  doc.font('Helvetica').fontSize(8.5).fillColor('#1e293b');
+  doc.text(survey.prepared_by_name || survey.conducted_by_name || 'Senior Er./ Site Er.', margin, sigTableY + 26, { width: colW, align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
+  doc.text('Senior Er./ Site Er.', margin, sigTableY + 44, { width: colW, align: 'center' });
+
+  // Signatory 2
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
+  doc.text('Verified By:', margin + colW, sigTableY + 8, { width: colW, align: 'center' });
+  doc.font('Helvetica').fontSize(8.5).fillColor('#1e293b');
+  doc.text(survey.verified_by_name || 'Prashant Jadhav', margin + colW, sigTableY + 26, { width: colW, align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
+  doc.text('Project Manager', margin + colW, sigTableY + 44, { width: colW, align: 'center' });
+
+  // Signatory 3
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
+  doc.text('Endorsed By:', margin + colW * 2, sigTableY + 8, { width: colW, align: 'center' });
+  doc.font('Helvetica').fontSize(8.5).fillColor('#1e293b');
+  doc.text(survey.endorsed_by_name || 'Sagar Patil', margin + colW * 2, sigTableY + 26, { width: colW, align: 'center' });
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0f172a');
+  doc.text('AGM/GM', margin + colW * 2, sigTableY + 44, { width: colW, align: 'center' });
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // SUBSEQUENT PAGES: 2 PHOTOS PER PAGE (Numbered with Caption Bar)
+  // ═════════════════════════════════════════════════════════════════════════════
+  const photoCardH = 345;
+  const photoGap = 16;
+  const photoMarginTop = margin + 12;
+
+  for (let i = 0; i < photos.length; i += 2) {
+    doc.addPage();
+
+    // Outer Border Frame
+    doc.rect(margin, margin, frameWidth, frameHeight).strokeColor('#0f172a').lineWidth(1).stroke();
+
+    // Slot 1
+    const p1 = photos[i];
+    const slot1Y = photoMarginTop;
+    renderPhotoSlot(doc, p1, i + 1, margin + 10, slot1Y, frameWidth - 20, photoCardH);
+
+    // Slot 2 (if present)
+    if (i + 1 < photos.length) {
+      const p2 = photos[i + 1];
+      const slot2Y = slot1Y + photoCardH + photoGap;
+      renderPhotoSlot(doc, p2, i + 2, margin + 10, slot2Y, frameWidth - 20, photoCardH);
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // GLOBAL FOOTER (Page X of Y on all pages via bufferPages)
+  // ═════════════════════════════════════════════════════════════════════════════
+  const range = doc.bufferedPageRange();
+  for (let pIdx = 0; pIdx < range.count; pIdx++) {
+    doc.switchToPage(pIdx);
+    drawDocumentFooter(pIdx, range.count);
+  }
+}
+
+function renderPhotoSlot(
+  doc: any,
+  photo: any,
+  seqNumber: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  // Border around the photo card
+  doc.rect(x, y, width, height).strokeColor('#94a3b8').lineWidth(0.75).stroke();
+
+  // Top Caption Bar
+  const captionBarH = 22;
+  const numBoxW = 24;
+
+  // Number Box
+  doc.rect(x, y, numBoxW, captionBarH).strokeColor('#94a3b8').lineWidth(0.75).stroke();
+  doc
+    .fillColor('#0f172a')
+    .font('Helvetica-Bold')
+    .fontSize(9)
+    .text(String(seqNumber), x, y + 6, { width: numBoxW, align: 'center' });
+
+  // Caption Text
+  const captionStr = photo.caption || photo.photo_name || `Site Photo #${seqNumber}`;
+  doc.rect(x + numBoxW, y, width - numBoxW, captionBarH).strokeColor('#94a3b8').lineWidth(0.75).stroke();
+  doc
+    .fillColor('#0f172a')
+    .font('Helvetica-Bold')
+    .fontSize(8.5)
+    .text(captionStr, x + numBoxW + 8, y + 6, { width: width - numBoxW - 16, ellipsis: true });
+
+  // Image Frame
+  const imgBoxX = x + 4;
+  const imgBoxY = y + captionBarH + 4;
+  const imgBoxW = width - 8;
+  const imgBoxH = height - captionBarH - 8;
+
+  let imgRendered = false;
+  if (photo.file_path) {
+    const cleanPath = photo.file_path.startsWith('/') ? photo.file_path.slice(1) : photo.file_path;
+    const fullPath = path.join(process.cwd(), cleanPath);
+    if (fs.existsSync(fullPath)) {
+      try {
+        doc.image(fullPath, imgBoxX, imgBoxY, {
+          fit: [imgBoxW, imgBoxH],
+          align: 'center',
+          valign: 'center',
+        });
+        imgRendered = true;
+      } catch (e) {
+        imgRendered = false;
+      }
+    }
+  }
+
+  if (!imgRendered) {
+    doc.rect(imgBoxX, imgBoxY, imgBoxW, imgBoxH).fill('#f8fafc');
+    doc
+      .fillColor('#94a3b8')
+      .font('Helvetica')
+      .fontSize(9)
+      .text('[Image file preview not available on server]', imgBoxX, imgBoxY + imgBoxH / 2 - 8, {
+        width: imgBoxW,
+        align: 'center',
+      });
+  }
+}
+

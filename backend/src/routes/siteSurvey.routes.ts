@@ -13,5 +13,6 @@ router.post('/', requirePermission('site_surveys', 'create'), SiteSurveyControll
 router.put('/:id', requirePermission('site_surveys', 'update'), SiteSurveyController.update);
 router.delete('/:id', requirePermission('site_surveys', 'delete'), SiteSurveyController.delete);
 router.get('/:id/pdf', requirePermission('site_surveys', 'view'), SiteSurveyController.downloadPDF);
+router.post('/:id/send-email', requirePermission('site_surveys', 'view'), SiteSurveyController.sendEmail);
 
 export default router;

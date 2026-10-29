@@ -274,5 +274,105 @@ export class MasterController {
       return sendError(res, e.message, [], 400);
     }
   };
+
+  // ── Number Series ──────────────────────────────────────────────────────────
+  getNumberSeries = async (_req: Request, res: Response) => {
+    try {
+      const { NumberSeriesService } = await import('../services/numberSeries.service');
+      const data = await NumberSeriesService.getAllSeries();
+      return sendSuccess(res, 'Number series retrieved', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  updateNumberSeries = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { NumberSeriesService } = await import('../services/numberSeries.service');
+      const success = await NumberSeriesService.updateSeries(id, req.body);
+      return sendSuccess(res, 'Number series updated', { success });
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  getNextNumber = async (req: Request, res: Response) => {
+    try {
+      const code = req.params.seriesCode;
+      const { NumberSeriesService } = await import('../services/numberSeries.service');
+      const nextNumber = await NumberSeriesService.getNextNumber(code);
+      return sendSuccess(res, 'Next number generated', { next_number: nextNumber });
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  // ── Measurement Units ──────────────────────────────────────────────────────
+  getUnits = async (_req: Request, res: Response) => {
+    try {
+      const { MeasurementUnitRepository } = await import('../repositories/measurementUnit.repository');
+      const repo = new MeasurementUnitRepository();
+      const data = await repo.getAll();
+      return sendSuccess(res, 'Measurement units retrieved', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  createUnit = async (req: Request, res: Response) => {
+    try {
+      const { MeasurementUnitRepository } = await import('../repositories/measurementUnit.repository');
+      const repo = new MeasurementUnitRepository();
+      const data = await repo.create(req.body);
+      return sendSuccess(res, 'Measurement unit created', data, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  updateUnit = async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { MeasurementUnitRepository } = await import('../repositories/measurementUnit.repository');
+      const repo = new MeasurementUnitRepository();
+      const success = await repo.update(id, req.body);
+      return sendSuccess(res, 'Measurement unit updated', { success });
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  // ── Contractors Master ─────────────────────────────────────────────────────
+  getContractors = async (_req: Request, res: Response) => {
+    try {
+      const { dbPool } = await import('../config/db');
+      const [rows] = await dbPool.query(
+        `SELECT * FROM vendors WHERE vendor_type = 'contractor' AND (is_deleted = 0 OR is_deleted IS NULL) ORDER BY vendor_name ASC`
+      );
+      return sendSuccess(res, 'Contractors retrieved', rows);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  createContractor = async (req: Request, res: Response) => {
+    try {
+      const { dbPool } = await import('../config/db');
+      const { vendor_code, vendor_name, contact_person, email, phone, address, gst_number, pan_number } = req.body;
+      if (!vendor_name?.trim()) return sendError(res, 'Contractor name is required', [], 400);
+
+      const code = vendor_code?.trim() || `CONT-${Date.now().toString().slice(-4)}`;
+      const [resHeader]: any = await dbPool.query(
+        `INSERT INTO vendors (vendor_code, vendor_name, vendor_type, contact_person, email, phone, address, gst_number, pan_number, status)
+         VALUES (?, ?, 'contractor', ?, ?, ?, ?, ?, ?, 'active')`,
+        [code, vendor_name.trim(), contact_person || null, email || null, phone || null, address || null, gst_number || null, pan_number || null]
+      );
+      return sendSuccess(res, 'Contractor created successfully', { vendor_id: resHeader.insertId }, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
 }
+
 

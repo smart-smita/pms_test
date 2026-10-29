@@ -15,6 +15,7 @@ router.use(requireWorkCategory('material'));
 // ── Stores ─────────────────────────────────────────────────────────────
 router.get('/stores', requirePermission('stock', 'view'), ctrl.getStores);
 router.post('/stores', requirePermission('stock', 'adjust'), ctrl.createStore);
+router.put('/stores/:id', requirePermission('stock', 'adjust'), ctrl.updateStore);
 
 // ── Indents ────────────────────────────────────────────────────────────
 router.get('/indents', requirePermission('purchase_orders', 'view'), ctrl.getIndents);

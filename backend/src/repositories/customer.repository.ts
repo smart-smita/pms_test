@@ -17,6 +17,10 @@ export interface CustomerRow {
   nationality_id: number | null;
   nationality_name?: string | null;
   address: string | null;
+  gst_number?: string | null;
+  pan_number?: string | null;
+  billing_state?: string | null;
+  currency_id?: number | null;
   status: 'active' | 'inactive';
   project_count?: number;
   created_by: number | null;
@@ -107,20 +111,27 @@ export class CustomerRepository {
     community_id?: number | null;
     nationality_id?: number | null;
     address?: string | null;
+    gst_number?: string | null;
+    pan_number?: string | null;
+    billing_state?: string | null;
+    currency_id?: number | null;
     status?: 'active' | 'inactive';
     created_by?: number | null;
   }): Promise<number> {
     const [result] = await dbPool.query<ResultSetHeader>(
       `INSERT INTO customers
          (customer_code, customer_name, contact_person, contact_number, email,
-          country_id, state, city, community_id, nationality_id, address, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          country_id, state, city, community_id, nationality_id, address,
+          gst_number, pan_number, billing_state, currency_id, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.customer_code.trim(), data.customer_name.trim(),
         data.contact_person || null, data.contact_number || null,
         data.email || null, data.country_id || null, data.state || null,
         data.city || null, data.community_id || null, data.nationality_id || null,
-        data.address || null, data.status || 'active', data.created_by || null,
+        data.address || null,
+        data.gst_number || null, data.pan_number || null, data.billing_state || null,
+        data.currency_id || null, data.status || 'active', data.created_by || null,
       ]
     );
     return result.insertId;
@@ -131,7 +142,8 @@ export class CustomerRepository {
     const params: any[] = [];
     const editable = [
       'customer_name','contact_person','contact_number','email',
-      'country_id','state','city','community_id','nationality_id','address','status',
+      'country_id','state','city','community_id','nationality_id','address',
+      'gst_number','pan_number','billing_state','currency_id','status',
     ] as const;
 
     for (const key of editable) {

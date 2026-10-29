@@ -25,6 +25,9 @@ import planningRoutes from './planning.routes';
 import materialRoutes from './material.routes';
 import procurementRoutes from './procurement.routes';
 import settingRoutes from './setting.routes';
+import equipmentRoutes from './equipment.routes';
+import cashControlRoutes from './cashControl.routes';
+import vendorRoutes from './vendor.routes';
 
 const router = Router();
 router.use('/auth', authRoutes);
@@ -53,5 +56,8 @@ router.use('/materials', materialRoutes);
 router.use('/planning', planningRoutes);
 router.use('/procurement', procurementRoutes);
 router.use('/settings', settingRoutes);
+router.use('/equipment', equipmentRoutes);
+router.use('/cash-control', cashControlRoutes);
+router.use('/vendors', vendorRoutes);
 
 export default router;

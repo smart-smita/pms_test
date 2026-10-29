@@ -32,4 +32,16 @@ router.get('/project-summary', controller.getProjectSummaryReport);
 router.get('/project-profit-loss', controller.getProjectProfitLossReport);
 router.get('/planned-vs-actual', controller.getPlannedVsActualReport);
 
+// Unified Financial, Operational & Progress Reports
+router.get('/financial-summary', controller.getFinancialSummary);
+router.get('/portfolio-summary', controller.getPortfolioSummary);
+router.get('/wbs-budget-actual/:projectId', controller.getWbsBudgetVsActual);
+router.get('/collections-vs-spending', controller.getCollectionsVsSpending);
+router.get('/customer-financials', controller.getCustomerWiseFinancials);
+router.get('/invoice-aging', controller.getInvoiceRegisterAndAging);
+router.get('/equipment-utilization', controller.getEquipmentUtilization);
+router.get('/po-grn-reconciliation', controller.getPoGrnReconciliation);
+router.get('/material-stock-valuation', controller.getMaterialStockValuation);
+
 export default router;
+

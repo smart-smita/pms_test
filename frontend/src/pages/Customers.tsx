@@ -60,6 +60,10 @@ export const Customers: React.FC = () => {
     community_id: '',
     nationality_id: '',
     address: '',
+    gst_number: '',
+    pan_number: '',
+    billing_state: '',
+    currency_id: '',
     status: 'active' as 'active' | 'inactive',
   });
 
@@ -166,6 +170,10 @@ export const Customers: React.FC = () => {
       community_id: '',
       nationality_id: '',
       address: '',
+      gst_number: '',
+      pan_number: '',
+      billing_state: '',
+      currency_id: '',
       status: 'active',
     });
     setErrors({});
@@ -186,6 +194,10 @@ export const Customers: React.FC = () => {
       community_id: cust.community_id ? String(cust.community_id) : '',
       nationality_id: cust.nationality_id ? String(cust.nationality_id) : '',
       address: cust.address || '',
+      gst_number: cust.gst_number || '',
+      pan_number: cust.pan_number || '',
+      billing_state: cust.billing_state || '',
+      currency_id: cust.currency_id ? String(cust.currency_id) : '',
       status: cust.status || 'active',
     });
     setErrors({});
@@ -603,6 +615,24 @@ export const Customers: React.FC = () => {
                     ]}
                   />
                 </div>
+
+                <div>
+                  <FormInput
+                    label="GSTIN Number (Statutory)"
+                    placeholder="15-digit GSTIN (e.g. 27AAACH1234F1Z5)"
+                    value={formData.gst_number}
+                    onChange={(e) => handleFieldChange('gst_number', e.target.value.toUpperCase())}
+                  />
+                </div>
+
+                <div>
+                  <FormInput
+                    label="PAN Number"
+                    placeholder="10-digit PAN (e.g. AAACH1234F)"
+                    value={formData.pan_number}
+                    onChange={(e) => handleFieldChange('pan_number', e.target.value.toUpperCase())}
+                  />
+                </div>
               </div>
             </div>
 
@@ -727,9 +757,18 @@ export const Customers: React.FC = () => {
                 <div>
                   <FormInput
                     label="State / Province"
-                    placeholder="e.g. Dubai, Abu Dhabi, etc."
+                    placeholder="e.g. Maharashtra, Karnataka, etc."
                     value={formData.state}
                     onChange={(e) => handleFieldChange('state', e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <FormInput
+                    label="Billing State (GST Place of Supply)"
+                    placeholder="e.g. Maharashtra"
+                    value={formData.billing_state}
+                    onChange={(e) => handleFieldChange('billing_state', e.target.value)}
                   />
                 </div>
 

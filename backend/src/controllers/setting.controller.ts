@@ -59,4 +59,23 @@ export class SettingController {
       return sendError(res, e.message, [], 500);
     }
   };
+
+  getCompanyProfile = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const data = await this.svc.getCompanyProfile();
+      return sendSuccess(res, 'Company profile retrieved successfully', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 500);
+    }
+  };
+
+  updateCompanyProfile = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.employee_id || 1;
+      const data = await this.svc.updateCompanyProfile(req.body, userId);
+      return sendSuccess(res, 'Company profile updated successfully', data);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
 }

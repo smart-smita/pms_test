@@ -17,6 +17,12 @@ interface MaterialMaster {
   description: string | null;
   unit: string;
   brand_spec: string | null;
+  purchase_rate?: number;
+  billing_rate?: number;
+  tax_percentage?: number;
+  hsn_sac_code?: string | null;
+  reorder_level?: number;
+  vendor_id?: number | null;
   status: 'active' | 'inactive';
 }
 
@@ -38,6 +44,8 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
   // Master Materials State
   const [searchQuery, setSearchQuery] = useState('');
   const [materials, setMaterials] = useState<MaterialMaster[]>([]);
+  const [masterUnits, setMasterUnits] = useState<{ unit_code: string; unit_name: string }[]>([]);
+  const [materialVendors, setMaterialVendors] = useState<{ vendor_id: number; vendor_name: string }[]>([]);
   const [isLoadingMaster, setIsLoadingMaster] = useState(false);
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
   const [editingMaster, setEditingMaster] = useState<MaterialMaster | null>(null);
@@ -46,8 +54,14 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
     material_name: '',
     category: '',
     description: '',
-    unit: 'Nos',
+    unit: 'NOS',
     brand_spec: '',
+    purchase_rate: 0,
+    billing_rate: 0,
+    tax_percentage: 18,
+    hsn_sac_code: '',
+    reorder_level: 0,
+    vendor_id: '',
     status: 'active'
   });
   const [isSubmittingMaster, setIsSubmittingMaster] = useState(false);
@@ -102,7 +116,25 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
   useEffect(() => {
     fetchProjects();
     fetchMaterials();
+    fetchUnitsAndVendors();
   }, []);
+
+  const fetchUnitsAndVendors = async () => {
+    try {
+      const [unitsRes, vendorsRes] = await Promise.all([
+        apiRequest<{ unit_code: string; unit_name: string }[]>('/masters/units'),
+        apiRequest<{ vendor_id: number; vendor_name: string; vendor_type: string }[]>('/vendors')
+      ]);
+      if (unitsRes.success && unitsRes.data) {
+        setMasterUnits(unitsRes.data);
+      }
+      if (vendorsRes.success && vendorsRes.data) {
+        setMaterialVendors(vendorsRes.data.filter((v: any) => v.vendor_type === 'material' || v.vendor_type === 'contractor'));
+      }
+    } catch (err) {
+      console.error('Failed to load units or vendors', err);
+    }
+  };
 
   // When projects load, default select the first one
   const fetchProjects = async () => {
@@ -330,8 +362,14 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
       material_name: '',
       category: '',
       description: '',
-      unit: 'Nos',
+      unit: masterUnits.length > 0 ? masterUnits[0].unit_code : 'NOS',
       brand_spec: '',
+      purchase_rate: 0,
+      billing_rate: 0,
+      tax_percentage: 18,
+      hsn_sac_code: '',
+      reorder_level: 0,
+      vendor_id: '',
       status: 'active'
     });
     setIsMasterModalOpen(true);
@@ -344,8 +382,14 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
       material_name: mat.material_name,
       category: mat.category || '',
       description: mat.description || '',
-      unit: mat.unit || 'Nos',
+      unit: mat.unit || 'NOS',
       brand_spec: mat.brand_spec || '',
+      purchase_rate: mat.purchase_rate || 0,
+      billing_rate: mat.billing_rate || 0,
+      tax_percentage: mat.tax_percentage !== undefined ? mat.tax_percentage : 18,
+      hsn_sac_code: mat.hsn_sac_code || '',
+      reorder_level: mat.reorder_level || 0,
+      vendor_id: mat.vendor_id ? String(mat.vendor_id) : '',
       status: mat.status || 'active'
     });
     setIsMasterModalOpen(true);
@@ -992,38 +1036,110 @@ export const Materials: React.FC<MaterialsProps> = ({ projectId, isMasterOnly, o
       {/* MODAL 4: Material Master Create/Edit */}
       <Modal isOpen={isMasterModalOpen} onClose={() => setIsMasterModalOpen(false)} title={editingMaster ? 'Edit Master Material' : 'Add Master Material'}>
         <form onSubmit={handleSaveMaster} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormInput
+              label="Material Code (Auto if blank)"
+              value={masterFormData.material_code}
+              onChange={(e) => setMasterFormData({ ...masterFormData, material_code: e.target.value })}
+              disabled={!!editingMaster}
+            />
+            <FormInput
+              label="Material Name *"
+              value={masterFormData.material_name}
+              onChange={(e) => setMasterFormData({ ...masterFormData, material_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormInput
+              label="Category"
+              value={masterFormData.category}
+              onChange={(e) => setMasterFormData({ ...masterFormData, category: e.target.value })}
+              placeholder="e.g. Civil, Electrical, Plumbing"
+            />
+            {masterUnits.length > 0 ? (
+              <FormSelect
+                label="Unit of Measure *"
+                value={masterFormData.unit}
+                onChange={(e) => setMasterFormData({ ...masterFormData, unit: e.target.value })}
+                options={masterUnits.map((u) => ({ value: u.unit_code, label: `${u.unit_name} (${u.unit_code})` }))}
+              />
+            ) : (
+              <FormInput
+                label="Unit of Measure *"
+                value={masterFormData.unit}
+                onChange={(e) => setMasterFormData({ ...masterFormData, unit: e.target.value })}
+                required
+              />
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <FormInput
+              label="Purchase Rate (₹)"
+              type="number"
+              value={masterFormData.purchase_rate}
+              onChange={(e) => setMasterFormData({ ...masterFormData, purchase_rate: parseFloat(e.target.value) || 0 })}
+            />
+            <FormInput
+              label="Billing / Issue Rate (₹)"
+              type="number"
+              value={masterFormData.billing_rate}
+              onChange={(e) => setMasterFormData({ ...masterFormData, billing_rate: parseFloat(e.target.value) || 0 })}
+            />
+            <FormInput
+              label="Tax % (GST)"
+              type="number"
+              value={masterFormData.tax_percentage}
+              onChange={(e) => setMasterFormData({ ...masterFormData, tax_percentage: parseFloat(e.target.value) || 0 })}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormInput
+              label="HSN / SAC Code"
+              value={masterFormData.hsn_sac_code}
+              onChange={(e) => setMasterFormData({ ...masterFormData, hsn_sac_code: e.target.value })}
+              placeholder="e.g. 2523, 7214"
+            />
+            <FormInput
+              label="Reorder Alert Level"
+              type="number"
+              value={masterFormData.reorder_level}
+              onChange={(e) => setMasterFormData({ ...masterFormData, reorder_level: parseFloat(e.target.value) || 0 })}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <FormSelect
+              label="Preferred Vendor / Supplier"
+              value={masterFormData.vendor_id}
+              onChange={(e) => setMasterFormData({ ...masterFormData, vendor_id: e.target.value })}
+              options={[
+                { value: '', label: '-- None (Any Vendor) --' },
+                ...materialVendors.map((v) => ({ value: String(v.vendor_id), label: v.vendor_name }))
+              ]}
+            />
+            <FormSelect
+              label="Status"
+              value={masterFormData.status}
+              onChange={(e) => setMasterFormData({ ...masterFormData, status: e.target.value as 'active' | 'inactive' })}
+              options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
+            />
+          </div>
+
           <FormInput
-            label="Material Code (Leave blank for auto)"
-            value={masterFormData.material_code}
-            onChange={(e) => setMasterFormData({ ...masterFormData, material_code: e.target.value })}
-            disabled={!!editingMaster}
+            label="Brand / Specification"
+            value={masterFormData.brand_spec}
+            onChange={(e) => setMasterFormData({ ...masterFormData, brand_spec: e.target.value })}
+            placeholder="e.g. UltraTech 53 Grade, Tata Tiscon Fe500D"
           />
+
           <FormInput
-            label="Material Name *"
-            value={masterFormData.material_name}
-            onChange={(e) => setMasterFormData({ ...masterFormData, material_name: e.target.value })}
-            required
-          />
-          <FormInput
-            label="Category"
-            value={masterFormData.category}
-            onChange={(e) => setMasterFormData({ ...masterFormData, category: e.target.value })}
-          />
-          <FormInput
-            label="Unit of Measure"
-            value={masterFormData.unit}
-            onChange={(e) => setMasterFormData({ ...masterFormData, unit: e.target.value })}
-          />
-          <FormInput
-            label="Description"
+            label="Description / Technical Notes"
             value={masterFormData.description}
             onChange={(e) => setMasterFormData({ ...masterFormData, description: e.target.value })}
-          />
-          <FormSelect
-            label="Status"
-            value={masterFormData.status}
-            onChange={(e) => setMasterFormData({ ...masterFormData, status: e.target.value as 'active' | 'inactive' })}
-            options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
             <Button type="button" variant="secondary" onClick={() => setIsMasterModalOpen(false)}>Cancel</Button>

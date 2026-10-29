@@ -104,9 +104,9 @@ export class InvoiceController {
 
   generateInvoice = async (req: Request, res: Response) => {
     try {
-      const { schedule_id, items } = req.body;
-      if (!schedule_id || !items || !Array.isArray(items)) {
-        return sendError(res, 'Missing required fields (schedule_id, items array)', [], 400);
+      const { items } = req.body;
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return sendError(res, 'Missing required fields (items array must contain at least one line item)', [], 400);
       }
       const userId = (req as any).user?.employee_id || 1;
       const data = await this.svc.generateInvoice({ ...req.body, created_by: userId });
@@ -215,6 +215,27 @@ export class InvoiceController {
       return sendSuccess(res, 'Invoice item sources retrieved', data);
     } catch (e: any) {
       return sendError(res, e.message, [], 500);
+    }
+  };
+
+  sendEmail = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = (req as any).user?.employee_id || 1;
+      const ipAddress = req.ip;
+      const { recipient_email, include_survey_report, subject, message } = req.body;
+
+      const { EmailService } = await import('../services/email.service');
+      const result = await EmailService.sendInvoiceEmail(
+        id,
+        { recipient_email, include_survey_report, subject, message },
+        userId,
+        ipAddress
+      );
+
+      return sendSuccess(res, result.message, result);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
     }
   };
 }

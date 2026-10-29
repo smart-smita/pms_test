@@ -461,8 +461,9 @@ export class InvoiceService {
   async generateInvoice(data: {
     customer_id?: number;
     project_id?: number;
-    quotation_id?: number;
-    schedule_id: number;
+    quotation_id?: number | null;
+    schedule_id?: number | null;
+    completed_work_id?: number | null;
     survey_id?: number | null;
     currency_id?: number;
     tax_id?: number | null;
@@ -472,6 +473,8 @@ export class InvoiceService {
     sgst_amount?: number;
     igst_amount?: number;
     tax_amount?: number;
+    invoice_date?: string;
+    due_date?: string;
     invoice_type?: 'combined' | 'labour' | 'material';
     items: {
       discipline_id?: number | null;
@@ -487,15 +490,35 @@ export class InvoiceService {
     created_by: number;
     status?: InvoiceRow['status'];
   }): Promise<number> {
-    const schedule = await this.repo.getScheduleById(data.schedule_id);
-    if (!schedule) throw new Error("Schedule not found");
+    let schedule = data.schedule_id ? await this.repo.getScheduleById(data.schedule_id) : null;
+    const projectId = data.project_id || schedule?.project_id;
+    if (!projectId) {
+      throw new Error("Project ID is required to generate an invoice");
+    }
 
-    const projectId = data.project_id || schedule.project_id;
-    const quotationId = data.quotation_id || schedule.quotation_id;
-    const invoiceType = data.invoice_type || 'combined';
+    // If schedule_id was passed but not found, try to find any pending schedule for this project
+    if (data.schedule_id && !schedule) {
+      const projectSchedules = await this.repo.getSchedulesByProject(projectId);
+      schedule = projectSchedules.find(s => s.status !== 'invoiced' && s.status !== 'paid') || null;
+    }
 
     const project = await this.projectRepo.findById(projectId);
-    const currencyId = data.currency_id || (project as any)?.currency_id || 2;
+    let quotationId = data.quotation_id || schedule?.quotation_id || (project as any)?.source_quotation_id || null;
+    if (!quotationId) {
+      try {
+        const [qRows]: any = await dbPool.query(
+          `SELECT quotation_id FROM quotations WHERE project_id = ? ORDER BY (status = 'approved') DESC, quotation_id DESC LIMIT 1`,
+          [projectId]
+        );
+        if (qRows && qRows.length > 0) {
+          quotationId = qRows[0].quotation_id;
+        }
+      } catch (e) {
+        console.error('Failed to lookup fallback quotation:', e);
+      }
+    }
+    const invoiceType = data.invoice_type || 'combined';
+    const currencyId = data.currency_id || (project as any)?.currency_id || 1;
     let customerId = data.customer_id;
     if (!customerId) {
       if (project?.customer_id) {
@@ -510,7 +533,7 @@ export class InvoiceService {
 
     // Generate Invoice Number (e.g. INV-PRJ1-YYYYMM-01) - ensure no undefined
     const projectCode = (project?.project_code || `PRJ${projectId}`).replace(/[^a-zA-Z0-9_-]/g, '');
-    const monthPart = (schedule.billing_month ? String(schedule.billing_month) : new Date().toISOString().slice(0, 10)).replace(/-/g, '').slice(0, 6);
+    const monthPart = (schedule?.billing_month ? String(schedule.billing_month) : (data.invoice_date || new Date().toISOString().slice(0, 10))).replace(/-/g, '').slice(0, 6);
     const invoiceNumber = `INV-${projectCode}-${monthPart}-${Date.now().toString().slice(-4)}`;
 
     const subtotal = data.items.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -518,8 +541,8 @@ export class InvoiceService {
     const totalAmt = subtotal + taxAmt;
 
     const now = new Date();
-    const dueDate = new Date(now);
-    dueDate.setDate(now.getDate() + 30); // 30 days due
+    const defaultDueDate = new Date(now);
+    defaultDueDate.setDate(now.getDate() + 30); // 30 days due
 
     const initialStatus = data.status || 'pending_approval';
 
@@ -528,7 +551,7 @@ export class InvoiceService {
       customer_id: customerId,
       project_id: projectId,
       quotation_id: quotationId,
-      schedule_id: data.schedule_id,
+      schedule_id: schedule ? schedule.schedule_id : null,
       survey_id: data.survey_id || null,
       currency_id: currencyId,
       tax_id: data.tax_id || null,
@@ -536,8 +559,8 @@ export class InvoiceService {
       cgst_amount: data.cgst_amount || 0,
       sgst_amount: data.sgst_amount || 0,
       igst_amount: data.igst_amount || 0,
-      invoice_date: now.toISOString().split('T')[0],
-      due_date: dueDate.toISOString().split('T')[0],
+      invoice_date: data.invoice_date || now.toISOString().split('T')[0],
+      due_date: data.due_date || defaultDueDate.toISOString().split('T')[0],
       subtotal_amount: subtotal,
       tax_amount: taxAmt,
       total_amount: totalAmt,
@@ -563,13 +586,15 @@ export class InvoiceService {
 
     // If combined invoice, schedule is fully invoiced.
     // If separate, check if both labour and material now exist
-    if (invoiceType === 'combined') {
-      await this.repo.updateScheduleStatus(data.schedule_id, 'invoiced');
-    } else {
-      const otherType = invoiceType === 'labour' ? 'material' : 'labour';
-      const existingOther = await this.repo.findInvoiceByScheduleAndType(projectId, data.schedule_id, otherType);
-      if (existingOther) {
-        await this.repo.updateScheduleStatus(data.schedule_id, 'invoiced');
+    if (schedule) {
+      if (invoiceType === 'combined') {
+        await this.repo.updateScheduleStatus(schedule.schedule_id, 'invoiced');
+      } else {
+        const otherType = invoiceType === 'labour' ? 'material' : 'labour';
+        const existingOther = await this.repo.findInvoiceByScheduleAndType(projectId, schedule.schedule_id, otherType);
+        if (existingOther) {
+          await this.repo.updateScheduleStatus(schedule.schedule_id, 'invoiced');
+        }
       }
     }
 

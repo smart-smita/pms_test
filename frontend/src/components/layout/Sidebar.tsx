@@ -25,7 +25,11 @@ import {
   Briefcase,
   Coins,
   Percent,
-  Ruler
+  Ruler,
+  Truck,
+  Wallet,
+  Receipt,
+  Wrench
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -205,11 +209,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       isActive: currentPage === 'reports/attendance',
     },
     {
-      id: 'reports/cost',
-      label: 'Cost & Budget Report',
-      icon: Calculator,
+      id: 'reports/collections-spending',
+      label: 'Collections vs Spending',
+      icon: Wallet,
       isAllowed: !isEmployee && (hasPermission('reports', 'view') || isAdminOrManager),
-      isActive: currentPage === 'reports/cost',
+      isActive: currentPage === 'reports/collections-spending' || currentPage === 'reports/cost',
+    },
+    {
+      id: 'reports/invoice-aging',
+      label: 'Invoice Aging',
+      icon: Receipt,
+      isAllowed: !isEmployee && (hasPermission('reports', 'view') || isAdminOrManager),
+      isActive: currentPage === 'reports/invoice-aging',
+    },
+    {
+      id: 'reports/equipment',
+      label: 'Equipment Utilization',
+      icon: Wrench,
+      isAllowed: !isEmployee && (hasPermission('reports', 'view') || isAdminOrManager),
+      isActive: currentPage === 'reports/equipment',
     },
     {
       id: 'reports/procurement',
@@ -370,6 +388,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: isCollapsed ? 'center' : 'stretch' }}>
           {renderButton('dashboard', 'Dashboard', LayoutDashboard, currentPage === 'dashboard')}
           {renderButton('customers', 'Customer', Building2, currentPage === 'customers', !isEmployee)}
+          {renderButton('vendors', 'Suppliers & Contractors', Truck, currentPage === 'vendors', !isEmployee && (hasPermission('vendors', 'view') || isAdminOrManager))}
           {renderButton('quotations', 'Quotation', FileText, currentPage === 'quotations' || currentPage.startsWith('quotations/'), !isEmployee && (hasPermission('quotations', 'view') || isAdminOrManager))}
           {renderButton('planning/workspace', 'Planning', CalendarCheck, currentPage.startsWith('planning'), !isEmployee && (hasPermission('projects', 'view') || isAdminOrManager))}
           

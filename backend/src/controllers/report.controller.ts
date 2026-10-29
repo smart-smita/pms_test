@@ -217,4 +217,129 @@ export class ReportController {
       return sendError(res, error.message || 'Failed to generate planned vs actual report', [], 500);
     }
   };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // New Unified Financial, Operational & Progress Reports
+  // ─────────────────────────────────────────────────────────────────────────
+  getFinancialSummary = async (req: Request, res: Response) => {
+    try {
+      const { managerId } = this.getRoleIds(req);
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getExecutivePortfolioMetrics(managerId);
+      return sendSuccess(res, 'Project financial summary retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve financial summary', [], 500);
+    }
+  };
+
+  getPortfolioSummary = async (req: Request, res: Response) => {
+    try {
+      const { managerId } = this.getRoleIds(req);
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const customerId = req.query.customer_id ? parseInt(req.query.customer_id as string, 10) : undefined;
+      const status = req.query.status as string | undefined;
+      const search = req.query.search as string | undefined;
+      const data = await finSvc.getProjectPortfolioList({ manager_id: managerId, customer_id: customerId, status, search });
+      return sendSuccess(res, 'Project portfolio summary retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve portfolio summary', [], 500);
+    }
+  };
+
+  getWbsBudgetVsActual = async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.projectId, 10);
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getWbsBudgetVsActual(projectId);
+      return sendSuccess(res, 'WBS budget vs actual report retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve WBS budget vs actual', [], 500);
+    }
+  };
+
+  getCollectionsVsSpending = async (req: Request, res: Response) => {
+    try {
+      const projectId = req.query.project_id ? parseInt(req.query.project_id as string, 10) : undefined;
+      const startDate = req.query.start_date as string | undefined;
+      const endDate = req.query.end_date as string | undefined;
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getCustomerCollectionsVsSpending(projectId, startDate, endDate);
+      return sendSuccess(res, 'Collections vs spending comparison retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve collections vs spending', [], 500);
+    }
+  };
+
+  getCustomerWiseFinancials = async (req: Request, res: Response) => {
+    try {
+      const customerId = req.query.customer_id ? parseInt(req.query.customer_id as string, 10) : undefined;
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getCustomerWiseFinancials(customerId);
+      return sendSuccess(res, 'Customer-wise financial report retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve customer-wise financials', [], 500);
+    }
+  };
+
+  getInvoiceRegisterAndAging = async (req: Request, res: Response) => {
+    try {
+      const customerId = req.query.customer_id ? parseInt(req.query.customer_id as string, 10) : undefined;
+      const projectId = req.query.project_id ? parseInt(req.query.project_id as string, 10) : undefined;
+      const status = req.query.status as string | undefined;
+      const agingBucket = req.query.aging_bucket as string | undefined;
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getInvoiceRegisterAndAging({
+        customer_id: customerId,
+        project_id: projectId,
+        status,
+        aging_bucket: agingBucket
+      });
+      return sendSuccess(res, 'Invoice register & aging report retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve invoice aging report', [], 500);
+    }
+  };
+
+  getEquipmentUtilization = async (req: Request, res: Response) => {
+    try {
+      const ownershipType = req.query.ownership_type as 'own' | 'rented' | undefined;
+      const projectId = req.query.project_id ? parseInt(req.query.project_id as string, 10) : undefined;
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getEquipmentUtilizationReport(ownershipType, projectId);
+      return sendSuccess(res, 'Equipment utilization report retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve equipment utilization report', [], 500);
+    }
+  };
+
+  getPoGrnReconciliation = async (req: Request, res: Response) => {
+    try {
+      const projectId = req.query.project_id ? parseInt(req.query.project_id as string, 10) : undefined;
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getPoGrnReconciliationReport(projectId);
+      return sendSuccess(res, 'PO vs GRN vs Invoice reconciliation retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve PO reconciliation report', [], 500);
+    }
+  };
+
+  getMaterialStockValuation = async (req: Request, res: Response) => {
+    try {
+      const storeId = req.query.store_id ? parseInt(req.query.store_id as string, 10) : undefined;
+      const { ProjectFinancialService } = await import('../services/projectFinancial.service');
+      const finSvc = new ProjectFinancialService();
+      const data = await finSvc.getMaterialStockValuationReport(storeId);
+      return sendSuccess(res, 'Material stock valuation report retrieved successfully', data);
+    } catch (error: any) {
+      return sendError(res, error.message || 'Failed to retrieve material stock valuation', [], 500);
+    }
+  };
 }

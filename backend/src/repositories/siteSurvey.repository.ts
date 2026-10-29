@@ -5,11 +5,20 @@ import path from 'path';
 
 export interface CreateSiteSurveyDTO {
   survey_code?: string;
+  report_number?: string | null;
   project_id: number;
   customer_id?: number | null;
   discipline_id?: number | null;
   survey_date: string;
+  period_from?: string | null;
+  period_to?: string | null;
   conducted_by: number;
+  prepared_by_name?: string | null;
+  verified_by_name?: string | null;
+  endorsed_by_name?: string | null;
+  document_number?: string | null;
+  revision_number?: string | null;
+  cover_image_path?: string | null;
   entry_type?: 'system_entry' | 'report_attachment';
   location_details?: string | null;
   latitude?: number | null;
@@ -32,6 +41,7 @@ export interface SiteSurveyPhotoDTO {
   file_path?: string;
   file_base64?: string;
   caption?: string;
+  display_order?: number;
   discipline_ids?: number[];
 }
 
@@ -161,7 +171,7 @@ export class SiteSurveyRepository {
         ) as disciplines
       FROM site_survey_photos ssp 
       WHERE ssp.survey_id = ? 
-      ORDER BY ssp.photo_id ASC
+      ORDER BY ssp.display_order ASC, ssp.photo_id ASC
       `,
       [id]
     );
@@ -189,18 +199,28 @@ export class SiteSurveyRepository {
       const [result]: any = await connection.query(
         `
         INSERT INTO site_surveys (
-          survey_code, project_id, customer_id, discipline_id, survey_date,
-          conducted_by, entry_type, location_details, latitude, longitude,
+          survey_code, report_number, project_id, customer_id, discipline_id, survey_date,
+          period_from, period_to, conducted_by, prepared_by_name, verified_by_name, endorsed_by_name,
+          document_number, revision_number, cover_image_path, entry_type, location_details, latitude, longitude,
           comments, remarks, wbs_id, site_conditions, measurements, labour_requirements, material_requirements, observations, attached_report_path, status, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           code,
+          data.report_number || null,
           data.project_id,
           data.customer_id || null,
           data.discipline_id || null,
           data.survey_date,
+          data.period_from || null,
+          data.period_to || null,
           data.conducted_by,
+          data.prepared_by_name || null,
+          data.verified_by_name || null,
+          data.endorsed_by_name || null,
+          data.document_number || 'PLN-03-F04',
+          data.revision_number || 'R1',
+          data.cover_image_path || null,
           data.entry_type || 'system_entry',
           data.location_details || null,
           data.latitude || null,
@@ -228,6 +248,7 @@ export class SiteSurveyRepository {
           fs.mkdirSync(uploadsDir, { recursive: true });
         }
 
+        let photoIdx = 1;
         for (const p of photos) {
           let targetFilePath = p.file_path || '';
           if (p.file_base64) {
@@ -247,8 +268,8 @@ export class SiteSurveyRepository {
 
           if (targetFilePath) {
             const [photoResult]: any = await connection.query(
-              `INSERT INTO site_survey_photos (survey_id, photo_name, file_path, caption) VALUES (?, ?, ?, ?)`,
-              [surveyId, p.photo_name || 'Site Photo', targetFilePath, p.caption || null]
+              `INSERT INTO site_survey_photos (survey_id, photo_name, file_path, caption, display_order) VALUES (?, ?, ?, ?, ?)`,
+              [surveyId, p.photo_name || 'Site Photo', targetFilePath, p.caption || null, p.display_order || photoIdx]
             );
             const photoId = photoResult.insertId;
 
@@ -260,6 +281,7 @@ export class SiteSurveyRepository {
               );
             }
           }
+          photoIdx++;
         }
       }
 
@@ -291,9 +313,18 @@ export class SiteSurveyRepository {
       await connection.query(
         `
         UPDATE site_surveys SET
+          report_number = COALESCE(?, report_number),
           discipline_id = COALESCE(?, discipline_id),
           survey_date = COALESCE(?, survey_date),
+          period_from = COALESCE(?, period_from),
+          period_to = COALESCE(?, period_to),
           conducted_by = COALESCE(?, conducted_by),
+          prepared_by_name = COALESCE(?, prepared_by_name),
+          verified_by_name = COALESCE(?, verified_by_name),
+          endorsed_by_name = COALESCE(?, endorsed_by_name),
+          document_number = COALESCE(?, document_number),
+          revision_number = COALESCE(?, revision_number),
+          cover_image_path = COALESCE(?, cover_image_path),
           entry_type = COALESCE(?, entry_type),
           location_details = ?,
           comments = ?,
@@ -309,9 +340,18 @@ export class SiteSurveyRepository {
         WHERE survey_id = ?
       `,
         [
+          data.report_number !== undefined ? data.report_number : null,
           data.discipline_id !== undefined ? data.discipline_id : null,
           data.survey_date,
+          data.period_from !== undefined ? data.period_from : null,
+          data.period_to !== undefined ? data.period_to : null,
           data.conducted_by,
+          data.prepared_by_name !== undefined ? data.prepared_by_name : null,
+          data.verified_by_name !== undefined ? data.verified_by_name : null,
+          data.endorsed_by_name !== undefined ? data.endorsed_by_name : null,
+          data.document_number !== undefined ? data.document_number : null,
+          data.revision_number !== undefined ? data.revision_number : null,
+          data.cover_image_path !== undefined ? data.cover_image_path : null,
           data.entry_type,
           data.location_details !== undefined ? data.location_details : null,
           data.comments !== undefined ? data.comments : null,
@@ -334,6 +374,7 @@ export class SiteSurveyRepository {
           fs.mkdirSync(uploadsDir, { recursive: true });
         }
 
+        let photoIdx = 1;
         for (const p of photos) {
           let targetFilePath = p.file_path || '';
           if (p.file_base64) {
@@ -349,8 +390,8 @@ export class SiteSurveyRepository {
 
           if (targetFilePath) {
             const [photoResult]: any = await connection.query(
-              `INSERT INTO site_survey_photos (survey_id, photo_name, file_path, caption) VALUES (?, ?, ?, ?)`,
-              [id, p.photo_name || 'Site Photo', targetFilePath, p.caption || null]
+              `INSERT INTO site_survey_photos (survey_id, photo_name, file_path, caption, display_order) VALUES (?, ?, ?, ?, ?)`,
+              [id, p.photo_name || 'Site Photo', targetFilePath, p.caption || null, p.display_order || photoIdx]
             );
             const photoId = photoResult.insertId;
 
@@ -362,6 +403,7 @@ export class SiteSurveyRepository {
               );
             }
           }
+          photoIdx++;
         }
       }
 

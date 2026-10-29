@@ -7,7 +7,7 @@ import { FormInput } from '../components/forms/FormInput';
 import { FormSelect } from '../components/forms/FormSelect';
 import { apiRequest, API_BASE_URL } from '../services/api';
 import { SiteSurvey, Project, Discipline, Employee, Customer, SiteSurveyPhoto } from '../types';
-import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKanban, MapPin, Eye, Upload, Image, Layers, User, Download, ClipboardCheck, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Camera, FileText, CheckCircle2, Building2, FolderKanban, MapPin, Eye, Upload, Image, Layers, User, Download, ClipboardCheck, Package, Mail, Send } from 'lucide-react';
 import { ConfirmDeleteModal } from '../components/common/ConfirmDeleteModal';
 import { showSuccess, showError } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
@@ -72,11 +72,19 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
     labour_requirements: '',
     material_requirements: '',
     observations: '',
+    report_number: '',
+    period_from: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    period_to: new Date().toISOString().split('T')[0],
+    prepared_by_name: user?.name ? `${user.name} (Senior Engineer)` : 'Kishan Khatke (Senior Engineer)',
+    verified_by_name: 'Prashant Jadhav (Project Manager)',
+    endorsed_by_name: 'Sagar Patil (AGM/GM)',
+    document_number: 'PLN-03-F04',
+    revision_number: 'R1',
     status: 'completed' as 'draft' | 'completed' | 'verified' | 'rejected',
   });
 
   // Photo uploads (Option 1)
-  const [photosList, setPhotosList] = useState<{ file_base64: string; photo_name: string; caption: string }[]>([]);
+  const [photosList, setPhotosList] = useState<{ file_base64: string; photo_name: string; caption: string; display_order?: number }[]>([]);
 
   // Attached Report File (Option 2)
   const [reportFile, setReportFile] = useState<{ base64: string; name: string } | null>(null);
@@ -84,6 +92,14 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
   // Survey Detail / Photo Gallery Modal
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewingSurvey, setViewingSurvey] = useState<SiteSurvey | null>(null);
+
+  // Email Modal State (Standalone Report Dispatch)
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailingSurvey, setEmailingSurvey] = useState<SiteSurvey | null>(null);
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   // Delete Modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -146,11 +162,96 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
       labour_requirements: '',
       material_requirements: '',
       observations: '',
+      report_number: '',
+      period_from: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      period_to: new Date().toISOString().split('T')[0],
+      prepared_by_name: user?.name ? `${user.name} (Senior Engineer)` : 'Kishan Khatke (Senior Engineer)',
+      verified_by_name: 'Prashant Jadhav (Project Manager)',
+      endorsed_by_name: 'Sagar Patil (AGM/GM)',
+      document_number: 'PLN-03-F04',
+      revision_number: 'R1',
       status: 'completed',
     });
     setPhotosList([]);
     setReportFile(null);
     setIsModalOpen(true);
+  };
+
+  const openEditModal = (s: SiteSurvey) => {
+    setEditingSurvey(s);
+    setEntryMode(s.entry_type || 'system_entry');
+    setFormData({
+      survey_code: s.survey_code || '',
+      project_id: s.project_id ? String(s.project_id) : '',
+      customer_id: s.customer_id ? String(s.customer_id) : '',
+      discipline_id: s.discipline_id ? String(s.discipline_id) : '',
+      survey_date: s.survey_date ? s.survey_date.split('T')[0] : new Date().toISOString().split('T')[0],
+      conducted_by: s.conducted_by ? String(s.conducted_by) : (user ? String(user.employee_id) : ''),
+      location_details: s.location_details || '',
+      latitude: s.latitude ? String(s.latitude) : '',
+      longitude: s.longitude ? String(s.longitude) : '',
+      comments: s.comments || '',
+      remarks: s.remarks || '',
+      wbs_id: s.wbs_id ? String(s.wbs_id) : '',
+      site_conditions: s.site_conditions || '',
+      measurements: s.measurements || '',
+      labour_requirements: s.labour_requirements || '',
+      material_requirements: s.material_requirements || '',
+      observations: s.observations || '',
+      report_number: s.report_number || '',
+      period_from: s.period_from ? s.period_from.split('T')[0] : '',
+      period_to: s.period_to ? s.period_to.split('T')[0] : '',
+      prepared_by_name: s.prepared_by_name || '',
+      verified_by_name: s.verified_by_name || '',
+      endorsed_by_name: s.endorsed_by_name || '',
+      document_number: s.document_number || 'PLN-03-F04',
+      revision_number: s.revision_number || 'R1',
+      status: s.status || 'completed',
+    });
+    setPhotosList(s.photos?.map((p, idx) => ({
+      file_base64: p.file_path ? `${API_BASE_URL.replace('/api/v1', '')}${p.file_path}` : (p.file_base64 || ''),
+      photo_name: p.photo_name || '',
+      caption: p.caption || '',
+      display_order: p.display_order || (idx + 1),
+    })) || []);
+    setReportFile(null);
+    setIsModalOpen(true);
+  };
+
+  const openEmailModal = (s: SiteSurvey) => {
+    setEmailingSurvey(s);
+    const cust = customers.find(c => c.customer_id === s.customer_id);
+    const email = s.customer_email || cust?.email || (cust as any)?.contact_email || '';
+    setEmailRecipient(email);
+    const repNum = s.report_number || s.survey_code || `SRV-${s.survey_id}`;
+    setEmailSubject(`Photographic Progress Report: ${s.project_name || 'Project'} (${repNum})`);
+    setEmailMessage(`Dear ${s.customer_name || 'Valued Client'},\n\nPlease find attached the formal Site Photographic Progress Report (${s.document_number || 'PLN-03-F04'}) for ${s.project_name || 'the project'}.\n\nPeriod: ${s.period_from ? new Date(s.period_from).toLocaleDateString() : 'Recent'} to ${s.period_to ? new Date(s.period_to).toLocaleDateString() : new Date().toLocaleDateString()}\n\nBest regards,\nSite Project Management Team`);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailingSurvey) return;
+    if (!emailRecipient) {
+      showError('Please enter recipient email address.');
+      return;
+    }
+    setIsSendingEmail(true);
+    const res = await apiRequest<{ success: boolean; message: string }>(`/site-surveys/${emailingSurvey.survey_id}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify({
+        recipient_email: emailRecipient,
+        subject: emailSubject,
+        message: emailMessage,
+      }),
+    });
+    setIsSendingEmail(false);
+    if (res.success) {
+      showSuccess(`Photographic report successfully sent to ${emailRecipient}`);
+      setIsEmailModalOpen(false);
+    } else {
+      showError(res.message || 'Failed to dispatch photographic report email.');
+    }
   };
 
   const openViewModal = async (s: SiteSurvey) => {
@@ -166,7 +267,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
   const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      files.forEach((file) => {
+      files.forEach((file, fIdx) => {
         const reader = new FileReader();
         reader.onload = () => {
           setPhotosList((prev) => [
@@ -175,6 +276,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               file_base64: reader.result as string,
               photo_name: file.name.replace(/\.[^/.]+$/, ''),
               caption: '',
+              display_order: prev.length + fIdx + 1,
             },
           ]);
         };
@@ -413,6 +515,24 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               <Button variant="secondary" onClick={() => openViewModal(row)} style={{ padding: '0.35rem 0.65rem' }}>
                 <Eye size={14} /> View Details
               </Button>
+              <Button
+                variant="secondary"
+                onClick={() => openEmailModal(row)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  fontWeight: 600,
+                  fontSize: '0.8rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                }}
+                title="Send photographic report directly to client email"
+              >
+                <Mail size={14} /> Email Report
+              </Button>
               {row.entry_type === 'system_entry' ? (
                 <a
                   href={`${apiUrl}/site-surveys/${row.survey_id}/pdf?token=${encodeURIComponent(getAuthToken())}`}
@@ -438,7 +558,7 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
                     gap: '0.3rem',
                   }}
                 >
-                  <Download size={14} /> PDF Report
+                  <Download size={14} /> Formal PDF
                 </a>
               ) : row.attached_report_path ? (
                 <a
@@ -462,13 +582,24 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
                 </a>
               ) : null}
               {isAdminOrManager && (
-                <Button
-                  variant="secondary"
-                  onClick={() => handleDelete(row.survey_id, row.survey_code)}
-                  style={{ padding: '0.35rem 0.65rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
-                >
-                  <Trash2 size={14} />
-                </Button>
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => openEditModal(row)}
+                    style={{ padding: '0.35rem 0.55rem', color: '#6366f1' }}
+                    title="Edit survey and metadata"
+                  >
+                    <Edit size={14} />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleDelete(row.survey_id, row.survey_code)}
+                    style={{ padding: '0.35rem 0.55rem', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                    title="Delete survey"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </>
               )}
             </div>
           )}
@@ -614,21 +745,26 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
                 </div>
 
                 {photosList.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
                     {photosList.map((p, idx) => (
                       <div key={idx} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                        <img src={p.file_base64} alt={p.photo_name} style={{ width: '100%', height: '80px', objectFit: 'cover' }} />
-                        <div style={{ padding: '0.3rem' }}>
-                          <FormInput
-                            label=""
-                            placeholder="Caption..."
+                        <img src={p.file_base64} alt={p.photo_name} style={{ width: '100%', height: '85px', objectFit: 'cover' }} />
+                        <div style={{ padding: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Caption (e.g. Beam work)..."
                             value={p.caption}
                             onChange={(e) => {
                               const updated = [...photosList];
                               updated[idx].caption = e.target.value;
                               setPhotosList(updated);
                             }}
+                            style={{ width: '100%', padding: '0.25rem 0.4rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                           />
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            <span>Order #{idx + 1}</span>
+                            <span style={{ fontSize: '0.68rem', color: '#6366f1', fontWeight: 600 }}>Box {idx + 1}</span>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -672,6 +808,69 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               )}
             </div>
           )}
+
+          {/* Formal Photographic Report (PLN-03-F04) Metadata */}
+          <div style={{ marginTop: '1.25rem', background: 'rgba(99, 102, 241, 0.04)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4f46e5', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <FileText size={16} /> Formal Photographic Report Metadata (PLN-03-F04 Reference)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+              <FormInput
+                label="Report Number"
+                placeholder="e.g. PL1348PR55"
+                value={formData.report_number}
+                onChange={(e) => setFormData({ ...formData, report_number: e.target.value })}
+              />
+              <FormInput
+                label="Document Control No"
+                placeholder="PLN-03-F04"
+                value={formData.document_number}
+                onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
+              />
+              <FormInput
+                label="Revision Number"
+                placeholder="R1"
+                value={formData.revision_number}
+                onChange={(e) => setFormData({ ...formData, revision_number: e.target.value })}
+              />
+              <FormInput
+                label="Period From"
+                type="date"
+                value={formData.period_from}
+                onChange={(e) => setFormData({ ...formData, period_from: e.target.value })}
+              />
+              <FormInput
+                label="Period To"
+                type="date"
+                value={formData.period_to}
+                onChange={(e) => setFormData({ ...formData, period_to: e.target.value })}
+              />
+            </div>
+
+            <div style={{ marginTop: '0.75rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Signatories (3-Tier Governance Box)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.35rem' }}>
+              <FormInput
+                label="Prepared By (Senior Engineer)"
+                placeholder="e.g. Kishan Khatke (Senior Engineer)"
+                value={formData.prepared_by_name}
+                onChange={(e) => setFormData({ ...formData, prepared_by_name: e.target.value })}
+              />
+              <FormInput
+                label="Checked By (Project Manager)"
+                placeholder="e.g. Prashant Jadhav (Project Manager)"
+                value={formData.verified_by_name}
+                onChange={(e) => setFormData({ ...formData, verified_by_name: e.target.value })}
+              />
+              <FormInput
+                label="Approved By (AGM / GM)"
+                placeholder="e.g. Sagar Patil (AGM/GM)"
+                value={formData.endorsed_by_name}
+                onChange={(e) => setFormData({ ...formData, endorsed_by_name: e.target.value })}
+              />
+            </div>
+          </div>
 
           {/* New Survey Fields */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
@@ -786,12 +985,128 @@ export const SiteSurveys: React.FC<SiteSurveysProps> = ({ initialTab = 'inspecti
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+            {/* PLN-03-F04 Report Governance Summary */}
+            <div style={{ marginTop: '1.25rem', padding: '0.85rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <FileText size={15} /> Formal Photographic Report Details (PLN-03-F04)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', fontSize: '0.8rem' }}>
+                <div><strong>Report No:</strong> {viewingSurvey.report_number || viewingSurvey.survey_code}</div>
+                <div><strong>Document Ref:</strong> {viewingSurvey.document_number || 'PLN-03-F04'} (Rev {viewingSurvey.revision_number || 'R1'})</div>
+                <div><strong>Period:</strong> {viewingSurvey.period_from ? new Date(viewingSurvey.period_from).toLocaleDateString() : 'N/A'} - {viewingSurvey.period_to ? new Date(viewingSurvey.period_to).toLocaleDateString() : 'N/A'}</div>
+                <div><strong>Prepared By:</strong> {viewingSurvey.prepared_by_name || 'Senior Engineer'}</div>
+                <div><strong>Checked By:</strong> {viewingSurvey.verified_by_name || 'Project Manager'}</div>
+                <div><strong>Approved By:</strong> {viewingSurvey.endorsed_by_name || 'AGM/GM'}</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button
+                  variant="primary"
+                  onClick={() => openEmailModal(viewingSurvey)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Mail size={15} /> Send Report via Email
+                </Button>
+                <a
+                  href={`${apiUrl}/site-surveys/${viewingSurvey.survey_id}/pdf?token=${encodeURIComponent(getAuthToken())}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => {
+                    const token = getAuthToken();
+                    if (!token) {
+                      e.preventDefault();
+                      showError('Authentication token missing. Please log in again.');
+                    }
+                  }}
+                  style={{
+                    padding: '0.45rem 0.85rem',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    color: '#0284c7',
+                    border: '1px solid rgba(2, 132, 199, 0.3)',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <Download size={15} /> Download Formal PDF (PLN-03-F04)
+                </a>
+              </div>
               <Button variant="secondary" onClick={() => setIsViewModalOpen(false)}>
                 Close
               </Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Standalone Photographic Report Email Dispatch Modal */}
+      {isEmailModalOpen && emailingSurvey && (
+        <Modal
+          isOpen={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          title={`Email Photographic Report: ${emailingSurvey.report_number || emailingSurvey.survey_code}`}
+        >
+          <form onSubmit={handleSendEmail} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ padding: '0.75rem', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)', fontSize: '0.85rem' }}>
+              <div><strong>Project:</strong> {emailingSurvey.project_name} ({emailingSurvey.project_code})</div>
+              <div><strong>Client:</strong> {emailingSurvey.customer_name || 'N/A'}</div>
+              <div><strong>Attached File:</strong> Photographic-Report-{emailingSurvey.report_number || emailingSurvey.survey_code}.pdf (Cover Page + {emailingSurvey.photos?.length || 0} Photos)</div>
+            </div>
+
+            <FormInput
+              label="Recipient Email Address *"
+              type="email"
+              placeholder="e.g. client@24wallstreet.com"
+              value={emailRecipient}
+              onChange={(e) => setEmailRecipient(e.target.value)}
+              required
+            />
+
+            <FormInput
+              label="Email Subject *"
+              placeholder="Email subject..."
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+              required
+            />
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Cover Message / Progress Notes
+              </label>
+              <textarea
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                rows={5}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.5',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <Button type="button" variant="secondary" onClick={() => setIsEmailModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={isSendingEmail} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Send size={15} /> {isSendingEmail ? 'Dispatching Email...' : 'Send Report via Email'}
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
 

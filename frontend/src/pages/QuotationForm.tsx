@@ -38,6 +38,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Truck,
 } from 'lucide-react';
 import { showSuccess, showError, showWarning } from '../utils/toast';
 import { useAuth } from '../context/AuthContext';
@@ -138,6 +139,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
   const [currenciesList, setCurrenciesList] = useState<CurrencyMaster[]>([]);
   const [laboursList, setLaboursList] = useState<any[]>([]);
   const [materialsList, setMaterialsList] = useState<any[]>([]);
+  const [equipmentList, setEquipmentList] = useState<any[]>([]);
   const { isMaterialEnabled, isLabourEnabled } = useWorkCategory();
   const [taxesList, setTaxesList] = useState<TaxMaster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -214,6 +216,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
           taxRes,
           labRes,
           matRes,
+          eqRes,
         ] = await Promise.all([
           apiRequest<Customer[]>('/customers'),
           apiRequest<Project[]>('/projects'),
@@ -224,6 +227,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
           apiRequest<TaxMaster[]>('/masters/taxes'),
           apiRequest<any[]>('/labours'),
           apiRequest<any[]>('/materials/master'),
+          apiRequest<any[]>('/equipment'),
         ]);
 
         if (custRes.success && custRes.data) setCustomers(custRes.data);
@@ -241,6 +245,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
         if (taxRes.success && taxRes.data) setTaxesList(taxRes.data);
         if (labRes.success && labRes.data) setLaboursList(labRes.data);
         if (matRes.success && matRes.data) setMaterialsList(matRes.data);
+        if (eqRes?.success && eqRes.data) setEquipmentList(eqRes.data);
 
         // If Edit Mode, fetch quotation details
         if (quotationId) {
@@ -444,7 +449,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
 
 
   const labourOptions: SearchableOption[] = useMemo(() => laboursList.map(l => ({ value: String(l.labour_id), label: l.name, subLabel: l.labour_type })), [laboursList]);
-  const materialOptions: SearchableOption[] = useMemo(() => materialsList.map(m => ({ value: String(m.material_id || m.id), label: m.material_name, subLabel: m.material_code })), [materialsList]);
+  const materialOptions: SearchableOption[] = useMemo(() => {
+    const matOpts = materialsList.map(m => ({
+      value: `mat_${m.material_id || m.id}`,
+      label: m.material_name,
+      subLabel: `Material (${m.material_code || m.category || 'General'}) - Rate: ₹${m.billing_rate || m.rate || 0}`
+    }));
+
+    const eqOpts = equipmentList.map(eq => ({
+      value: `eq_${eq.equipment_id}`,
+      label: `🚜 [Equipment Rent] ${eq.equipment_name} (${eq.equipment_code})`,
+      subLabel: `${eq.ownership_type === 'rented' ? 'Rented' : 'Owned'} Equipment | Rate: ₹${Number(eq.rental_rate || eq.internal_hourly_rate || 0)} / ${eq.rental_rate_unit || 'hr'}`
+    }));
+
+    return [...matOpts, ...eqOpts];
+  }, [materialsList, equipmentList]);
 
   // Project Select Options
   const projectOptions: SearchableOption[] = useMemo(() => {
@@ -651,6 +670,34 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
     setWbsItems((prev) => prev.map((item) => {
       if (item.id !== wbsId) return item;
       return { ...item, materials: [...item.materials, { id: `m_${Date.now()}`, material_name: '', quantity: 0, unit: 'Nos', rate: 0, amount: 0 }] };
+    }));
+  };
+
+  const handleAddEquipment = (wbsId: string, eqItem?: any) => {
+    const defaultEq = eqItem || equipmentList.find(e => e.ownership_type === 'rented') || equipmentList[0];
+    const unit = defaultEq?.rental_rate_unit ? (defaultEq.rental_rate_unit.charAt(0).toUpperCase() + defaultEq.rental_rate_unit.slice(1)) : 'Hours';
+    const rate = defaultEq ? (Number(defaultEq.rental_rate) || Number(defaultEq.internal_hourly_rate) || 0) : 0;
+    const name = defaultEq ? `[Equipment Rent] ${defaultEq.equipment_name} (${defaultEq.equipment_code})` : '[Equipment Rent]';
+
+    setWbsItems((prev) => prev.map((item) => {
+      if (item.id !== wbsId) return item;
+      return {
+        ...item,
+        materials: [
+          ...item.materials,
+          {
+            id: `m_${Date.now()}`,
+            material_id: null,
+            material_name: name,
+            quantity: 1,
+            unit: unit,
+            rate: rate,
+            amount: rate * 1,
+            start_date: item.start_date || undefined,
+            end_date: item.end_date || undefined,
+          }
+        ]
+      };
     }));
   };
 
@@ -1756,17 +1803,38 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
 
                       {/* Material Section */}
                       <div style={{ paddingTop: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--info)' }}>
-                            <Package size={16} /> MATERIAL DETAILS
+                            <Package size={16} /> MATERIAL & EQUIPMENT DETAILS
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAddMaterial(item.id)}
-                            style={{ fontSize: '0.75rem', color: 'var(--info)', background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed rgba(6, 182, 212, 0.3)', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', }}
-                          >
-                            <Plus size={12} /> Add Material
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleAddEquipment(item.id)}
+                              style={{
+                                fontSize: '0.75rem',
+                                color: '#b45309',
+                                background: 'rgba(245, 158, 11, 0.1)',
+                                border: '1px dashed rgba(245, 158, 11, 0.4)',
+                                padding: '0.25rem 0.6rem',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                fontWeight: 600,
+                              }}
+                            >
+                              <Truck size={12} /> + Add Equipment on Rent
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAddMaterial(item.id)}
+                              style={{ fontSize: '0.75rem', color: 'var(--info)', background: 'rgba(6, 182, 212, 0.08)', border: '1px dashed rgba(6, 182, 212, 0.3)', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.2rem', }}
+                            >
+                              <Plus size={12} /> Add Material
+                            </button>
+                          </div>
                         </div>
 
                         {item.materials.length > 0 ? (
@@ -1777,7 +1845,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                 style={{
                                   background: 'var(--bg-card)',
                                   border: '1px solid var(--border-color)',
-                                  borderLeft: '4px solid #06b6d4',
+                                  borderLeft: m.material_name?.toLowerCase().includes('equipment') ? '4px solid #f59e0b' : '4px solid #06b6d4',
                                   borderRadius: '10px',
                                   padding: '1rem',
                                   display: 'flex',
@@ -1790,11 +1858,17 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                 {/* Card Header with Item #, Cost badge, and Remove button */}
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingBottom: '0.65rem', borderBottom: '1px solid var(--border-color)' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(6, 182, 212, 0.15)', color: '#0891b2', letterSpacing: '0.3px' }}>
-                                      MATERIAL #{idx + 1}
-                                    </span>
+                                    {m.material_name?.toLowerCase().includes('equipment') ? (
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#b45309', letterSpacing: '0.3px', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <Truck size={11} /> EQUIPMENT #{idx + 1}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(6, 182, 212, 0.15)', color: '#0891b2', letterSpacing: '0.3px' }}>
+                                        MATERIAL #{idx + 1}
+                                      </span>
+                                    )}
                                     <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                      {m.material_name || 'Select material'}
+                                      {m.material_name || 'Select material or equipment'}
                                     </span>
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1820,7 +1894,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                         cursor: 'pointer',
                                         transition: 'all 0.15s ease',
                                       }}
-                                      title="Remove Material item"
+                                      title="Remove item"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -1836,21 +1910,44 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ quotationId, onBac
                                   }}
                                 >
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Material Name</label>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Material / Equipment</label>
                                     <SearchableSelect
                                       options={materialOptions}
-                                      value={m.material_id ? String(m.material_id) : m.material_name || ''}
+                                      value={
+                                        m.material_id
+                                          ? `mat_${m.material_id}`
+                                          : (equipmentList.find(eq => m.material_name?.includes(eq.equipment_name)) ? `eq_${equipmentList.find(eq => m.material_name?.includes(eq.equipment_name))?.equipment_id}` : m.material_name || '')
+                                      }
                                       onChange={(val) => {
-                                        const found = materialsList.find(x => String(x.material_id || x.id) === val);
+                                        const strVal = String(val || '');
+                                        if (strVal.startsWith('eq_')) {
+                                          const eqId = Number(strVal.replace('eq_', ''));
+                                          const eq = equipmentList.find(x => x.equipment_id === eqId);
+                                          if (eq) {
+                                            const rentalUnit = eq.rental_rate_unit ? (eq.rental_rate_unit.charAt(0).toUpperCase() + eq.rental_rate_unit.slice(1)) : 'Hours';
+                                            const rentalRate = Number(eq.rental_rate || eq.internal_hourly_rate || 0);
+                                            handleUpdateMaterial(item.id, m.id, 'material_id', null);
+                                            handleUpdateMaterial(item.id, m.id, 'material_name', `[Equipment Rent] ${eq.equipment_name} (${eq.equipment_code})`);
+                                            handleUpdateMaterial(item.id, m.id, 'unit', rentalUnit);
+                                            handleUpdateMaterial(item.id, m.id, 'rate', rentalRate);
+                                            return;
+                                          }
+                                        }
+
+                                        const rawId = strVal.startsWith('mat_') ? strVal.replace('mat_', '') : strVal;
+                                        const found = materialsList.find(x => String(x.material_id || x.id) === rawId);
                                         if (found) {
                                           handleUpdateMaterial(item.id, m.id, 'material_id', found.material_id || found.id);
                                           handleUpdateMaterial(item.id, m.id, 'material_name', found.material_name);
+                                          if (found.unit) handleUpdateMaterial(item.id, m.id, 'unit', found.unit);
+                                          const r = Number(found.billing_rate || found.rate || found.purchase_rate || 0);
+                                          if (r > 0) handleUpdateMaterial(item.id, m.id, 'rate', r);
                                         } else {
                                           handleUpdateMaterial(item.id, m.id, 'material_id', null);
-                                          handleUpdateMaterial(item.id, m.id, 'material_name', val || '');
+                                          handleUpdateMaterial(item.id, m.id, 'material_name', strVal);
                                         }
                                       }}
-                                      placeholder="Select or type material..."
+                                      placeholder="Select material or equipment on rent..."
                                     />
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '80px' }}>

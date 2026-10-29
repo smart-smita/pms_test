@@ -103,6 +103,32 @@ export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) =
     setEditingMaterialIndex(null);
   };
 
+  const handleMaterialSelect = (val: string) => {
+    const matched = materialsMaster.find(
+      (m: any) => m.material_name.toLowerCase() === val.trim().toLowerCase() || String(m.material_id) === val
+    );
+    if (matched) {
+      setMaterialForm(prev => ({
+        ...prev,
+        material_name: matched.material_name,
+        material_id: String(matched.material_id),
+        unit: matched.unit || prev.unit || 'Nos',
+        rate: String(matched.billing_rate ?? matched.rate ?? matched.purchase_rate ?? prev.rate ?? ''),
+      }));
+    } else {
+      setMaterialForm(prev => ({
+        ...prev,
+        material_name: val,
+        material_id: '',
+      }));
+    }
+  };
+
+  const selectedMasterMaterial = materialsMaster.find(
+    (m: any) => (materialForm.material_id && String(m.material_id) === String(materialForm.material_id)) ||
+                (materialForm.material_name && m.material_name.toLowerCase() === materialForm.material_name.trim().toLowerCase())
+  );
+
   // Auto-calculate Worker Count based on allocated labour workers count
   useEffect(() => {
     if (isModalOpen) {
@@ -305,7 +331,8 @@ export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) =
     }
     
     setAllocations([]);
-    setUsedMaterials((t as any).used_materials || []);
+    const initialUsedMaterials = (t as any).used_materials || (t as any).materials || [];
+    setUsedMaterials(Array.isArray(initialUsedMaterials) ? initialUsedMaterials : []);
     resetMaterialForm();
 
     // Fetch fresh complete task details from backend to ensure all assignments and materials are up to date
@@ -315,8 +342,9 @@ export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) =
         if (fresh.assigned_employees && Array.isArray(fresh.assigned_employees)) {
           setAssignedEmployeeIds(fresh.assigned_employees.map((e: any) => String(e.employee_id)));
         }
-        if (fresh.used_materials && Array.isArray(fresh.used_materials)) {
-          setUsedMaterials(fresh.used_materials);
+        const freshMats = fresh.used_materials || fresh.materials;
+        if (Array.isArray(freshMats)) {
+          setUsedMaterials(freshMats);
         }
         if (fresh.allocations && Array.isArray(fresh.allocations) && fresh.allocations.length > 0) {
           setAllocations(fresh.allocations.map((a: any) => ({
@@ -519,6 +547,19 @@ export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) =
     if (qty <= 0) {
       showError('Please enter a valid material quantity greater than 0.');
       return;
+    }
+
+    // Material availability validation
+    if (selectedMasterMaterial) {
+      const availStock = Number(selectedMasterMaterial.available_stock || 0);
+      if (availStock <= 0) {
+        showError(`Material "${selectedMasterMaterial.material_name}" is currently out of stock (Available: 0 ${selectedMasterMaterial.unit || 'Nos'}). Cannot add to task.`);
+        return;
+      }
+      if (qty > availStock) {
+        showError(`Requested quantity (${qty}) exceeds available stock (${availStock} ${selectedMasterMaterial.unit || 'Nos'}).`);
+        return;
+      }
     }
 
     // Material used date validation against task start & target dates
@@ -1871,7 +1912,7 @@ export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) =
                         className="form-input" 
                         placeholder="Search material or type new..." 
                         value={materialForm.material_name} 
-                        onChange={(e) => setMaterialForm({ ...materialForm, material_name: e.target.value })} 
+                        onChange={(e) => handleMaterialSelect(e.target.value)} 
                         style={{ width: "100%", paddingRight: "2rem", padding: '0.45rem 0.65rem', fontSize: '0.85rem' }}
                       />
                       <div style={{ position: "absolute", right: "0.5rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--text-muted)" }}>
@@ -1880,9 +1921,25 @@ export const Tasks: React.FC<{ projectId?: number; onNavigate?: (page: string) =
                     </div>
                     <datalist id="materialsMasterOptions">
                       {materialsMaster.map((m: any) => (
-                        <option key={m.material_id} value={m.material_name} />
+                        <option key={m.material_id} value={m.material_name}>
+                          Available: {m.available_stock ?? 0} {m.unit || 'Nos'} | Rate: ₹{m.billing_rate || m.rate || 0}
+                        </option>
                       ))}
                     </datalist>
+
+                    {selectedMasterMaterial && (
+                      <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        {Number(selectedMasterMaterial.available_stock || 0) > 0 ? (
+                          <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Package size={13} /> Available Stock: {Number(selectedMasterMaterial.available_stock)} {selectedMasterMaterial.unit || 'Nos'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <AlertTriangle size={13} /> Out of Stock (0 {selectedMasterMaterial.unit || 'Nos'} available)
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>

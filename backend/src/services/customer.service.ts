@@ -27,6 +27,10 @@ export class CustomerService {
       community_id?: number | null;
       nationality_id?: number | null;
       address?: string | null;
+      gst_number?: string | null;
+      pan_number?: string | null;
+      billing_state?: string | null;
+      currency_id?: number | null;
       status?: 'active' | 'inactive';
     },
     createdBy?: number,

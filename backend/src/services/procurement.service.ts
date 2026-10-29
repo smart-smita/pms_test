@@ -9,8 +9,8 @@ export class ProcurementService {
   private stockService = new StockService();
 
   // ── Stores ─────────────────────────────────────────────────────────────
-  async getStores(projectId?: number) {
-    return this.repo.getStores(projectId);
+  async getStores(projectId?: number, all?: boolean) {
+    return this.repo.getStores(projectId, all);
   }
 
   async createStore(data: any) {
@@ -18,6 +18,10 @@ export class ProcurementService {
       throw new Error('store_code and store_name are required');
     }
     return this.repo.createStore(data);
+  }
+
+  async updateStore(id: number, data: any) {
+    return this.repo.updateStore(id, data);
   }
 
   // ── Indents ────────────────────────────────────────────────────────────

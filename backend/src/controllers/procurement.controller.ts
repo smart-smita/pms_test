@@ -11,7 +11,8 @@ export class ProcurementController {
   getStores = async (req: Request, res: Response) => {
     try {
       const pId = req.query.project_id ? Number(req.query.project_id) : undefined;
-      const data = await this.svc.getStores(pId);
+      const all = req.query.all === 'true';
+      const data = await this.svc.getStores(pId, all);
       return sendSuccess(res, 'Stores retrieved', data);
     } catch (e: any) {
       return sendError(res, e.message, [], 500);
@@ -22,6 +23,17 @@ export class ProcurementController {
     try {
       const id = await this.svc.createStore(req.body);
       return sendSuccess(res, 'Store created', { store_id: id }, 201);
+    } catch (e: any) {
+      return sendError(res, e.message, [], 400);
+    }
+  };
+
+  updateStore = async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const success = await this.svc.updateStore(id, req.body);
+      if (!success) return sendError(res, 'Store not found or no changes made', [], 404);
+      return sendSuccess(res, 'Store updated successfully', { store_id: id });
     } catch (e: any) {
       return sendError(res, e.message, [], 400);
     }

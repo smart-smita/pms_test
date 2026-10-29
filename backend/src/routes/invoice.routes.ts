@@ -37,8 +37,18 @@ router.patch('/:id/approve', requirePermission('invoices', 'approve'), ctrl.appr
 router.patch('/:id/status', requirePermission('invoices', 'approve'), ctrl.approveInvoice);
 router.get('/:id/payments', requirePermission('invoices', 'view'), ctrl.getPayments);
 router.post('/:id/payments', requirePermission('invoices', 'update'), ctrl.addPayment);
+
+// Customer Receipt Vouchers (Towards-AV, GST split, Cheque/UTR, Bank, Words)
+import { CustomerBillingController } from '../controllers/customerBilling.controller';
+const customerBillingCtrl = new CustomerBillingController();
+router.get('/:invoiceId/receipt-vouchers', requirePermission('invoices', 'view'), customerBillingCtrl.getReceiptsByInvoice);
+router.post('/:invoiceId/receipt-vouchers', requirePermission('invoices', 'update'), customerBillingCtrl.createReceiptVoucher);
+router.get('/receipt-vouchers/:id', requirePermission('invoices', 'view'), customerBillingCtrl.getReceiptById);
+router.post('/tds-credits', requirePermission('invoices', 'update'), customerBillingCtrl.addTdsCredit);
+
 router.get('/project-costs/:projectId', requirePermission('invoices', 'view'), ctrl.getProjectCosts);
 router.get('/:id/pdf', requirePermission('invoices', 'view'), ctrl.downloadInvoicePDF);
+router.post('/:id/send-email', requirePermission('invoices', 'view'), ctrl.sendEmail);
 router.get('/:id', requirePermission('invoices', 'view'), ctrl.getInvoiceDetail);
 
 export default router;

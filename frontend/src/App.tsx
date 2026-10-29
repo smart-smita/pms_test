@@ -20,6 +20,7 @@ import { Tasks } from './pages/Tasks';
 import { Attendance } from './pages/Attendance';
 import { Payments } from './pages/Payments';
 import { Reports } from './pages/Reports';
+import { ReportsHub } from './pages/ReportsHub';
 import { Labours } from './pages/Labours';
 import { ProjectWorkReport } from './pages/ProjectWorkReport';
 import { ProjectProfitLossReport } from './pages/ProjectProfitLossReport';
@@ -40,6 +41,7 @@ import { PlannedVsActualReport } from './pages/PlannedVsActualReport';
 import { Materials } from './pages/Materials';
 import { MaterialQuotations } from './pages/MaterialQuotations';
 import { ProcurementHub } from './pages/ProcurementHub';
+import { Vendors } from './pages/Vendors';
 
 import { WbsTemplates } from './pages/WbsTemplates';
 import { LoadingSpinner } from './components/common/LoadingSpinner';
@@ -344,6 +346,8 @@ const AppContent: React.FC = () => {
 
       case 'customers':
         return <RequirePermission module="customers" action="view" fallback={fallback}><Customers /></RequirePermission>;
+      case 'vendors':
+        return <RequirePermission module="vendors" action="view" fallback={fallback}><Vendors /></RequirePermission>;
       case 'quotations':
         return <RequirePermission module="quotations" action="view" fallback={fallback}><Quotations onNavigate={nav} /></RequirePermission>;
       case 'quotations/create':
@@ -353,29 +357,35 @@ const AppContent: React.FC = () => {
       case 'payments': 
         return <RequirePermission module="payments" action="view" fallback={fallback}><Payments /></RequirePermission>;
       
-      // Reports
+      // Reports Hub & Individual Report Pages
       case 'reports': 
-        return <RequirePermission module="reports" action="view" fallback={fallback}><Reports /></RequirePermission>;
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub onNavigate={nav} /></RequirePermission>;
       case 'reports/project-work':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><ProjectWorkReport /></RequirePermission>;
-      case 'reports/quotation':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><Reports initialReport="quotation" /></RequirePermission>;
-      case 'reports/wbs':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><Reports initialReport="wbs" /></RequirePermission>;
-      case 'reports/labour-employee':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><Reports initialReport="labour-employee" /></RequirePermission>;
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="project-work" onNavigate={nav} /></RequirePermission>;
+      case 'reports/project-profit-loss':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="profit-loss" onNavigate={nav} /></RequirePermission>;
+      case 'reports/planned-vs-actual':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="planned-vs-actual" onNavigate={nav} /></RequirePermission>;
+      case 'reports/collections-spending':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="collections-spending" onNavigate={nav} /></RequirePermission>;
+      case 'reports/cost':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="collections-spending" onNavigate={nav} /></RequirePermission>;
+      case 'reports/invoice-aging':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="invoice-aging" onNavigate={nav} /></RequirePermission>;
+      case 'reports/equipment':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="equipment" onNavigate={nav} /></RequirePermission>;
       case 'reports/attendance':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><Reports initialReport="attendance" /></RequirePermission>;
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="attendance" initialReport="emp-attendance-1" onNavigate={nav} /></RequirePermission>;
+      case 'reports/quotation':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="attendance" initialReport="quotation" onNavigate={nav} /></RequirePermission>;
+      case 'reports/wbs':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="attendance" initialReport="wbs" onNavigate={nav} /></RequirePermission>;
+      case 'reports/labour-employee':
+        return <RequirePermission module="reports" action="view" fallback={fallback}><ReportsHub initialTab="attendance" initialReport="labour-employee" onNavigate={nav} /></RequirePermission>;
       case 'reports/material':
         return <RequirePermission module="site_surveys" action="view" fallback={fallback}><SiteSurveys initialTab="material" /></RequirePermission>;
-      case 'reports/cost':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><Reports initialReport="cost" /></RequirePermission>;
       case 'reports/invoice':
         return <RequirePermission module="invoices" action="view" fallback={fallback}><Invoices /></RequirePermission>;
-      case 'reports/project-profit-loss':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><ProjectProfitLossReport /></RequirePermission>;
-      case 'reports/planned-vs-actual':
-        return <RequirePermission module="reports" action="view" fallback={fallback}><PlannedVsActualReport /></RequirePermission>;
       
       // Masters & Procurement
       case 'procurement':

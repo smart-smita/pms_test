@@ -10,7 +10,8 @@ import { Badge } from '../components/common/Badge';
 import {
   LucideIcon, Plus, Edit, Eye, Trash2, Power, Sparkles, Loader2, FileText,
   CheckCircle, AlertCircle, FolderKanban, Layers, Package, Users,
-  Briefcase, Ruler, Building2, Coins, Percent, CalendarCheck, Sliders
+  Briefcase, Ruler, Building2, Coins, Percent, CalendarCheck, Sliders,
+  Wrench, Warehouse
 } from 'lucide-react';
 import { showSuccess, showError, showWarning } from '../utils/toast';
 import { WbsTemplates } from './WbsTemplates';
@@ -23,6 +24,8 @@ export type MasterTab =
   | 'wbs_templates'
   | 'terms_templates'
   | 'materials'
+  | 'equipment'
+  | 'stores'
   | 'employees'
   | 'labour_types'
   | 'units'
@@ -43,6 +46,8 @@ export const masterTabDefinitions: MasterTabDef[] = [
   { key: 'wbs_templates', label: 'WBS Templates', icon: Layers, slug: 'wbs-templates' },
   { key: 'terms_templates', label: 'Terms & Conditions', icon: FileText, slug: 'terms' },
   { key: 'materials', label: 'Materials', icon: Package, slug: 'materials' },
+  { key: 'equipment', label: 'Equipment & Plant', icon: Wrench, slug: 'equipment' },
+  { key: 'stores', label: 'Stores & Warehouses', icon: Warehouse, slug: 'stores' },
   { key: 'employees', label: 'Employee Master', icon: Users, slug: 'employees' },
   { key: 'labour_types', label: 'Labour / Contractor', icon: Briefcase, slug: 'labour' },
   { key: 'units', label: 'Units & Disciplines', icon: Ruler, slug: 'units' },
@@ -58,6 +63,8 @@ export function parseMasterTab(tabStr?: string): MasterTab {
   if (clean === 'wbs-templates' || clean === 'wbs' || clean === 'wbs-template') return 'wbs_templates';
   if (clean === 'terms' || clean === 'terms-templates' || clean === 'terms_templates' || clean === 'terms-and-conditions') return 'terms_templates';
   if (clean === 'materials' || clean === 'material') return 'materials';
+  if (clean === 'equipment' || clean === 'machinery' || clean === 'plant') return 'equipment';
+  if (clean === 'stores' || clean === 'store' || clean === 'warehouses' || clean === 'warehouse') return 'stores';
   if (clean === 'employees' || clean === 'employee') return 'employees';
   if (clean === 'labour' || clean === 'labours' || clean === 'contractor' || clean === 'contractors' || clean === 'labour-types' || clean === 'labour_types') return 'labour_types';
   if (clean === 'units' || clean === 'unit' || clean === 'disciplines' || clean === 'discipline') return 'units';
@@ -140,6 +147,10 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewingItem, setViewingItem] = useState<any>(null);
 
+  // State for dropdown options
+  const [vendorsList, setVendorsList] = useState<{ vendor_id: number; vendor_name: string; vendor_type: string }[]>([]);
+  const [projectsList, setProjectsList] = useState<{ project_id: number; project_name: string; project_code: string }[]>([]);
+
   useEffect(() => {
     fetchData();
   }, [activeTab]);
@@ -158,6 +169,22 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
     if (activeTab === 'taxes') endpoint = '/masters/taxes?all=true';
     if (activeTab === 'units') endpoint = '/masters/disciplines?all=true';
     if (activeTab === 'calendars') endpoint = '/masters/calendars';
+    if (activeTab === 'equipment') {
+      endpoint = '/equipment';
+      if (vendorsList.length === 0) {
+        apiRequest<any[]>('/vendors').then((res) => {
+          if (res.success && res.data) setVendorsList(res.data);
+        });
+      }
+    }
+    if (activeTab === 'stores') {
+      endpoint = '/procurement/stores?all=true';
+      if (projectsList.length === 0) {
+        apiRequest<any[]>('/projects').then((res) => {
+          if (res.success && res.data) setProjectsList(res.data);
+        });
+      }
+    }
 
     const res = await apiRequest<any[]>(endpoint);
     if (res.success && res.data) {
@@ -195,6 +222,25 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
       setFormData(item ? { ...item } : { community_name: '', state: '' });
     } else if (activeTab === 'calendars') {
       setFormData(item ? { ...item } : { calendar_name: '', working_days_json: '[1,2,3,4,5,6]', working_hours_per_day: 10, status: 1 });
+    } else if (activeTab === 'equipment') {
+      setFormData(item ? { ...item } : {
+        equipment_code: '',
+        equipment_name: '',
+        ownership_type: 'own',
+        vendor_id: '',
+        internal_hourly_rate: 0,
+        rental_rate: 0,
+        rental_rate_unit: 'hour',
+        status: 'available'
+      });
+    } else if (activeTab === 'stores') {
+      setFormData(item ? { ...item } : {
+        store_code: '',
+        store_name: '',
+        project_id: '',
+        location: '',
+        is_active: 1
+      });
     } else {
       setFormData(item || {});
     }
@@ -250,11 +296,23 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
         method: 'PUT',
         body: JSON.stringify({ status: newStatus }),
       });
+    } else if (activeTab === 'equipment') {
+      const newEqStatus = item.status === 'available' ? 'off_hired' : 'available';
+      res = await apiRequest(`/equipment/${item.equipment_id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newEqStatus }),
+      });
+    } else if (activeTab === 'stores') {
+      const newActive = item.is_active === 1 ? 0 : 1;
+      res = await apiRequest(`/procurement/stores/${item.store_id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_active: newActive }),
+      });
     }
 
     setTogglingId(null);
     if (res?.success) {
-      showSuccess(`Status changed to ${newStatus === 1 ? 'Active' : 'Inactive'}`);
+      showSuccess(`Status updated successfully`);
       fetchData();
     } else {
       showError(res?.message || 'Failed to update status');
@@ -413,6 +471,14 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
       endpoint = '/masters/calendars';
       isEdit = !!formData.id;
       itemId = formData.id;
+    } else if (activeTab === 'equipment') {
+      endpoint = '/equipment';
+      isEdit = !!formData.equipment_id;
+      itemId = formData.equipment_id;
+    } else if (activeTab === 'stores') {
+      endpoint = '/procurement/stores';
+      isEdit = !!formData.store_id;
+      itemId = formData.store_id;
     }
 
     const method = isEdit ? 'PUT' : 'POST';
@@ -572,6 +638,84 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
         },
       ];
     }
+    if (activeTab === 'equipment') {
+      return [
+        {
+          header: 'Code',
+          accessor: (r) => (
+            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#06b6d4', background: 'rgba(6,182,212,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+              {r.equipment_code}
+            </span>
+          ),
+          sortKey: 'equipment_code'
+        },
+        { header: 'Equipment Name', accessor: 'equipment_name', sortKey: 'equipment_name' },
+        {
+          header: 'Ownership',
+          accessor: (r) => (
+            <Badge variant={r.ownership_type === 'own' ? 'success' : 'info'}>
+              {r.ownership_type === 'own' ? 'Company Owned' : 'Rented'}
+            </Badge>
+          ),
+          sortKey: 'ownership_type'
+        },
+        {
+          header: 'Rates',
+          accessor: (r) => (
+            <div style={{ fontSize: '0.82rem' }}>
+              {r.ownership_type === 'own' ? (
+                <span>₹{Number(r.internal_hourly_rate || 0).toFixed(2)} / hr</span>
+              ) : (
+                <span>₹{Number(r.rental_rate || 0).toFixed(2)} / {r.rental_rate_unit || 'hr'}</span>
+              )}
+            </div>
+          )
+        },
+        { header: 'Supplier / Owner', accessor: (r) => r.vendor_name || 'In-House' },
+        {
+          header: 'Status',
+          accessor: (r) => {
+            const variantMap: any = { available: 'success', deployed: 'info', breakdown: 'danger', off_hired: 'secondary' };
+            return (
+              <Badge variant={variantMap[r.status] || 'secondary'}>
+                {String(r.status || 'available').toUpperCase()}
+              </Badge>
+            );
+          }
+        }
+      ];
+    }
+    if (activeTab === 'stores') {
+      return [
+        {
+          header: 'Store Code',
+          accessor: (r) => (
+            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', background: 'rgba(249,115,22,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+              {r.store_code}
+            </span>
+          ),
+          sortKey: 'store_code'
+        },
+        { header: 'Store / Warehouse Name', accessor: 'store_name', sortKey: 'store_name' },
+        { header: 'Location / Address', accessor: (r) => r.location || '—' },
+        {
+          header: 'Scope',
+          accessor: (r) => (
+            <span style={{ fontWeight: 600, color: r.project_id ? '#818cf8' : '#10b981' }}>
+              {r.project_name ? `Project: ${r.project_name}` : '🏢 Central Warehouse'}
+            </span>
+          )
+        },
+        {
+          header: 'Status',
+          accessor: (r) => (
+            <Badge variant={r.is_active === 1 ? 'success' : 'secondary'}>
+              {r.is_active === 1 ? 'Active' : 'Inactive'}
+            </Badge>
+          )
+        }
+      ];
+    }
     // Terms & Conditions Templates
     return [
       {
@@ -616,7 +760,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
             Centralized master repository for project types, WBS hierarchies, terms & conditions, workforce masters, materials, and enterprise reference configurations.
           </p>
         </div>
-        {(activeTab === 'project_types' || activeTab === 'terms_templates' || activeTab === 'units' || activeTab === 'communities' || activeTab === 'currencies' || activeTab === 'taxes' || activeTab === 'calendars') && (
+        {(activeTab === 'project_types' || activeTab === 'terms_templates' || activeTab === 'units' || activeTab === 'communities' || activeTab === 'currencies' || activeTab === 'taxes' || activeTab === 'calendars' || activeTab === 'equipment' || activeTab === 'stores') && (
           <Button variant="primary" onClick={() => handleOpenModal()}>
             <Plus size={16} /> Add New
           </Button>
@@ -693,7 +837,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
       )}
 
       {/* Native Master Modules DataTable */}
-      {(activeTab === 'project_types' || activeTab === 'terms_templates' || activeTab === 'units' || activeTab === 'communities' || activeTab === 'currencies' || activeTab === 'taxes' || activeTab === 'calendars') && (
+      {(activeTab === 'project_types' || activeTab === 'terms_templates' || activeTab === 'units' || activeTab === 'communities' || activeTab === 'currencies' || activeTab === 'taxes' || activeTab === 'calendars' || activeTab === 'equipment' || activeTab === 'stores') && (
         <div className="glass-card">
           {isLoading ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
@@ -707,7 +851,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
               searchPlaceholder={`Search ${activeTab.replace('_', ' ')}...`}
               isLoading={false}
               actions={(row) => {
-                const rowId = row.template_id || row.type_id || row.currency_id || row.tax_id || row.discipline_id;
+                const rowId = row.template_id || row.type_id || row.currency_id || row.tax_id || row.discipline_id || row.equipment_id || row.store_id;
                 const isTogglingThis = togglingId === rowId;
 
                 return (
@@ -733,7 +877,7 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                     </Button>
 
                     {/* Status Toggle Button */}
-                    {(activeTab === 'terms_templates' || activeTab === 'currencies' || activeTab === 'taxes' || activeTab === 'project_types' || activeTab === 'units' || activeTab === 'calendars') && (
+                    {(activeTab === 'terms_templates' || activeTab === 'currencies' || activeTab === 'taxes' || activeTab === 'project_types' || activeTab === 'units' || activeTab === 'calendars' || activeTab === 'equipment' || activeTab === 'stores') && (
                       <Button
                         variant="secondary"
                         onClick={() => handleToggleStatus(row)}
@@ -741,12 +885,12 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                         style={{
                           padding: '0.3rem 0.55rem',
                           fontSize: '0.78rem',
-                          color: row.status === 1 ? '#10b981' : '#64748b',
+                          color: (row.status === 1 || row.is_active === 1 || row.status === 'available') ? '#10b981' : '#64748b',
                         }}
-                        title={row.status === 1 ? 'Deactivate' : 'Activate'}
+                        title="Toggle Status"
                       >
                         {isTogglingThis ? <Loader2 size={13} className="spin" /> : <Power size={13} />}
-                        {row.status === 1 ? 'Active' : 'Inactive'}
+                        {activeTab === 'equipment' ? (row.status === 'available' ? 'Available' : 'Off-Hired') : (row.is_active !== undefined ? (row.is_active === 1 ? 'Active' : 'Inactive') : (row.status === 1 ? 'Active' : 'Inactive'))}
                       </Button>
                     )}
 
@@ -906,6 +1050,28 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'equipment' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Equipment Code:</span> <div><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#06b6d4' }}>{viewingItem.equipment_code}</span></div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Equipment Name:</span> <div style={{ fontWeight: 600 }}>{viewingItem.equipment_name}</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Ownership:</span> <div><Badge variant={viewingItem.ownership_type === 'own' ? 'success' : 'info'}>{viewingItem.ownership_type === 'own' ? 'Company Owned' : 'Rented'}</Badge></div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Supplier / Vendor:</span> <div>{viewingItem.vendor_name || 'In-House'}</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Internal Rate:</span> <div style={{ fontWeight: 600 }}>₹{Number(viewingItem.internal_hourly_rate || 0).toFixed(2)} / hr</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Rental Rate:</span> <div style={{ fontWeight: 600 }}>₹{Number(viewingItem.rental_rate || 0).toFixed(2)} / {viewingItem.rental_rate_unit || 'hr'}</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Status:</span> <div><Badge variant="info">{String(viewingItem.status || 'available').toUpperCase()}</Badge></div></div>
+              </div>
+            )}
+
+            {activeTab === 'stores' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Store Code:</span> <div><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316' }}>{viewingItem.store_code}</span></div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Store Name:</span> <div style={{ fontWeight: 600 }}>{viewingItem.store_name}</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Location / Address:</span> <div>{viewingItem.location || '—'}</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Scope:</span> <div>{viewingItem.project_name ? `Project: ${viewingItem.project_name}` : '🏢 Central Warehouse'}</div></div>
+                <div><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Status:</span> <div><Badge variant={viewingItem.is_active === 1 ? 'success' : 'secondary'}>{viewingItem.is_active === 1 ? 'Active' : 'Inactive'}</Badge></div></div>
               </div>
             )}
 
@@ -1461,6 +1627,136 @@ export const Masters: React.FC<MastersProps> = ({ initialTab, initialAction, onN
                   )}
                 </div>
               </div>
+            </>
+          )}
+
+          {activeTab === 'equipment' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <FormInput
+                  label="Equipment Code (Auto if blank)"
+                  value={formData.equipment_code || ''}
+                  onChange={(e) => setFormData({ ...formData, equipment_code: e.target.value.toUpperCase() })}
+                  required
+                />
+                <FormInput
+                  label="Equipment / Plant Name *"
+                  value={formData.equipment_name || ''}
+                  onChange={(e) => setFormData({ ...formData, equipment_name: e.target.value })}
+                  placeholder="e.g. JCB 3DX Backhoe Loader, 50T Mobile Crane"
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <FormSelect
+                  label="Ownership Type *"
+                  value={formData.ownership_type || 'own'}
+                  onChange={(e) => setFormData({ ...formData, ownership_type: e.target.value })}
+                  options={[
+                    { value: 'own', label: 'Company Owned (Internal Plant)' },
+                    { value: 'rented', label: 'Rented / Hired from Vendor' }
+                  ]}
+                />
+                <FormSelect
+                  label="Equipment Status"
+                  value={formData.status || 'available'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  options={[
+                    { value: 'available', label: 'Available / Active' },
+                    { value: 'deployed', label: 'Deployed on Site' },
+                    { value: 'breakdown', label: 'Breakdown / Maintenance' },
+                    { value: 'off_hired', label: 'Off-Hired / Inactive' }
+                  ]}
+                />
+              </div>
+
+              {formData.ownership_type === 'own' ? (
+                <FormInput
+                  label="Internal Hourly Charging Rate (₹ / hr)"
+                  type="number"
+                  value={formData.internal_hourly_rate || 0}
+                  onChange={(e) => setFormData({ ...formData, internal_hourly_rate: parseFloat(e.target.value) || 0 })}
+                  placeholder="e.g. 1200"
+                />
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <FormSelect
+                    label="Rental Supplier / Vendor"
+                    value={formData.vendor_id || ''}
+                    onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value ? Number(e.target.value) : null })}
+                    options={[
+                      { value: '', label: '-- Select Vendor --' },
+                      ...vendorsList.map((v) => ({ value: String(v.vendor_id), label: `${v.vendor_name} (${v.vendor_type})` }))
+                    ]}
+                  />
+                  <FormInput
+                    label="Rental Rate (₹)"
+                    type="number"
+                    value={formData.rental_rate || 0}
+                    onChange={(e) => setFormData({ ...formData, rental_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                  <FormSelect
+                    label="Rate Unit"
+                    value={formData.rental_rate_unit || 'hour'}
+                    onChange={(e) => setFormData({ ...formData, rental_rate_unit: e.target.value })}
+                    options={[
+                      { value: 'hour', label: 'Per Hour' },
+                      { value: 'day', label: 'Per Day' },
+                      { value: 'month', label: 'Per Month' }
+                    ]}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'stores' && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <FormInput
+                  label="Store Code (Auto if blank)"
+                  value={formData.store_code || ''}
+                  onChange={(e) => setFormData({ ...formData, store_code: e.target.value.toUpperCase() })}
+                  placeholder="e.g. STR-MAIN, STR-SITE-01"
+                  required
+                />
+                <FormInput
+                  label="Store / Warehouse Name *"
+                  value={formData.store_name || ''}
+                  onChange={(e) => setFormData({ ...formData, store_name: e.target.value })}
+                  placeholder="e.g. Central Warehouse, Azure Site Store"
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <FormSelect
+                  label="Associated Scope / Project"
+                  value={formData.project_id ? String(formData.project_id) : ''}
+                  onChange={(e) => setFormData({ ...formData, project_id: e.target.value ? Number(e.target.value) : null })}
+                  options={[
+                    { value: '', label: '🏢 Central Warehouse (Universal / All Projects)' },
+                    ...projectsList.map((p) => ({ value: String(p.project_id), label: `${p.project_code} - ${p.project_name}` }))
+                  ]}
+                />
+                <FormSelect
+                  label="Status"
+                  value={formData.is_active !== undefined ? String(formData.is_active) : '1'}
+                  onChange={(e) => setFormData({ ...formData, is_active: Number(e.target.value) })}
+                  options={[
+                    { value: '1', label: 'Active' },
+                    { value: '0', label: 'Inactive' }
+                  ]}
+                />
+              </div>
+
+              <FormInput
+                label="Physical Location / Site Address"
+                value={formData.location || ''}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                placeholder="e.g. Plot 42, Sector 18, Industrial Area"
+              />
             </>
           )}
 

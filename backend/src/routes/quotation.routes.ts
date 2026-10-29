@@ -21,4 +21,10 @@ router.delete('/:id', requirePermission('quotations', 'delete'), QuotationContro
 router.post('/:id/create-project', requirePermission('projects', 'create'), QuotationController.createProjectFromQuotation);
 router.post('/:id/send-email', requirePermission('quotations', 'view'), QuotationController.sendEmail);
 
+// Statutory Construction Cost Sheet (Basic Value, Dev Charges, AV, Stamp Duty, Reg, GST)
+import { QuotationCostSheetController } from '../controllers/quotationCostSheet.controller';
+const costSheetCtrl = new QuotationCostSheetController();
+router.get('/:quotationId/cost-sheet', requirePermission('quotations', 'view'), costSheetCtrl.getCostSheet);
+router.post('/:quotationId/cost-sheet', requirePermission('quotations', 'update'), costSheetCtrl.saveCostSheet);
+
 export default router;

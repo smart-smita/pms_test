@@ -40,14 +40,14 @@ import { ProcurementReportsTab } from '../components/procurement/ProcurementRepo
 import { DataTable, Column } from '../components/common/DataTable';
 
 export interface ProcurementHubProps {
-  initialTab?: 'stock' | 'grn' | 'po' | 'indents' | 'issues' | 'reports';
+  initialTab?: 'stock' | 'po' | 'grn' | 'issues' | 'reports';
 }
 
 export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'stock' }) => {
   const { hasPermission, user } = useAuth();
 
   // Active tab state
-  const [activeTab, setActiveTab] = useState<'stock' | 'grn' | 'po' | 'indents' | 'issues' | 'reports'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'stock' | 'po' | 'grn' | 'issues' | 'reports'>(initialTab);
 
   useEffect(() => {
     if (initialTab) {
@@ -162,24 +162,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
     ],
   });
 
-  // ── Tab 4: Indents State ───────────────────────────────────────────────
-  const [indents, setIndents] = useState<any[]>([]);
-  const [isLoadingIndents, setIsLoadingIndents] = useState<boolean>(false);
-  const [isIndentModalOpen, setIsIndentModalOpen] = useState<boolean>(false);
-  const [indentForm, setIndentForm] = useState({
-    project_id: '',
-    wbs_id: '',
-    required_date: new Date().toISOString().split('T')[0],
-    priority: 'medium',
-    remarks: '',
-    items: [
-      {
-        material_id: '',
-        required_quantity: 10,
-        estimated_rate: 0,
-      },
-    ],
-  });
 
   // ── Tab 5: Material Issues State ───────────────────────────────────────
   const [issues, setIssues] = useState<any[]>([]);
@@ -221,7 +203,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
     fetchPos();
     fetchIssues();
     fetchGrns();
-    fetchIndents();
   }, []);
 
   // Re-fetch tab data when activeTab or store filter changes
@@ -232,7 +213,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
       fetchPos();
     }
     if (activeTab === 'po') fetchPos();
-    if (activeTab === 'indents') fetchIndents();
     if (activeTab === 'issues') fetchIssues();
   }, [activeTab, selectedStoreId]);
 
@@ -242,7 +222,7 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
         apiRequest<any[]>('/procurement/stores'),
         apiRequest<any[]>('/materials/master'),
         apiRequest<any[]>('/projects'),
-        apiRequest<any[]>('/masters/vendors').catch(() => ({ data: [] })),
+        apiRequest<any[]>('/vendors').catch(() => ({ data: [] })),
       ]);
       setStores(storesRes.data || []);
       setMaterials(matRes.data || []);
@@ -297,17 +277,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
     }
   };
 
-  const fetchIndents = async () => {
-    setIsLoadingIndents(true);
-    try {
-      const res = await apiRequest<any[]>('/procurement/indents');
-      setIndents(res.data || []);
-    } catch (e: any) {
-      showError(e.message || 'Failed to fetch Indents');
-    } finally {
-      setIsLoadingIndents(false);
-    }
-  };
 
   const fetchIssues = async () => {
     setIsLoadingIssues(true);
@@ -908,53 +877,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
     },
   ];
 
-  // Tab 4: Indents Columns
-  const indentColumns: Column<any>[] = [
-    {
-      header: 'Indent #',
-      accessor: 'indent_number',
-      sortable: true,
-      render: (ind) => <strong style={{ color: 'var(--text-primary)' }}>{ind.indent_number}</strong>,
-    },
-    { header: 'Project', accessor: (ind) => ind.project_name || '-', sortable: true },
-    {
-      header: 'Priority',
-      accessor: 'priority',
-      sortable: true,
-      render: (ind) => (
-        <Badge
-          variant={
-            ind.priority === 'urgent'
-              ? 'danger'
-              : ind.priority === 'high'
-              ? 'warning'
-              : 'neutral'
-          }
-        >
-          {String(ind.priority).toUpperCase()}
-        </Badge>
-      ),
-    },
-    { header: 'Required Date', accessor: 'required_date', sortable: true },
-    {
-      header: 'Status',
-      accessor: 'status',
-      sortable: true,
-      render: (ind) => (
-        <Badge
-          variant={
-            ind.status === 'approved'
-              ? 'success'
-              : ind.status === 'rejected'
-              ? 'danger'
-              : 'warning'
-          }
-        >
-          {String(ind.status).toUpperCase()}
-        </Badge>
-      ),
-    },
-  ];
 
   // Tab 5: Material Issues Columns
   const issueColumns: Column<any>[] = [
@@ -1076,7 +998,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
               if (activeTab === 'stock') fetchStockData();
               if (activeTab === 'grn') fetchGrns();
               if (activeTab === 'po') fetchPos();
-              if (activeTab === 'indents') fetchIndents();
               if (activeTab === 'issues') fetchIssues();
               showSuccess('Inventory data refreshed');
             }}
@@ -1140,8 +1061,20 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
         >
           <Layers size={17} /> Store Inventory & Ledger
           {balances.length > 0 && (
-            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'stock' ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-primary)', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'stock' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-primary)', fontWeight: 700 }}>
               {balances.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          className={`procurement-tab-btn ${activeTab === 'po' ? 'active' : ''}`}
+          onClick={() => setActiveTab('po')}
+        >
+          <FileText size={17} /> Purchase Orders
+          {pos.length > 0 && (
+            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'po' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-primary)', fontWeight: 700 }}>
+              {pos.length}
             </span>
           )}
         </button>
@@ -1152,7 +1085,7 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
         >
           <Truck size={17} /> Goods Receipt Notes (GRN)
           {grns.length > 0 && (
-            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'grn' ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-primary)', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'grn' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-primary)', fontWeight: 700 }}>
               {grns.length}
             </span>
           )}
@@ -1164,32 +1097,8 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
         >
           <RotateCcw size={17} /> Material Issues & Returns
           {issues.length > 0 && (
-            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'issues' ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-primary)', fontWeight: 700 }}>
+            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'issues' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-primary)', fontWeight: 700 }}>
               {issues.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          className={`procurement-tab-btn ${activeTab === 'po' ? 'active' : ''}`}
-          onClick={() => setActiveTab('po')}
-        >
-          <FileText size={17} /> Purchase Orders
-          {pos.length > 0 && (
-            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'po' ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-primary)', fontWeight: 700 }}>
-              {pos.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          className={`procurement-tab-btn ${activeTab === 'indents' ? 'active' : ''}`}
-          onClick={() => setActiveTab('indents')}
-        >
-          <Package size={17} /> Material Indents
-          {indents.length > 0 && (
-            <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'indents' ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-primary)', fontWeight: 700 }}>
-              {indents.length}
             </span>
           )}
         </button>
@@ -1199,7 +1108,7 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
           onClick={() => setActiveTab('reports')}
         >
           <FileBarChart size={17} /> Reports & Analytics
-          <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'reports' ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg-primary)', fontWeight: 700 }}>
+          <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: activeTab === 'reports' ? 'rgba(255, 255, 255, 0.25)' : 'var(--bg-primary)', fontWeight: 700 }}>
             7
           </span>
         </button>
@@ -1661,38 +1570,6 @@ export const ProcurementHub: React.FC<ProcurementHubProps> = ({ initialTab = 'st
         </div>
       )}
 
-      {/* ─────────────────────────────────────────────────────────────────
-          TAB 4: Material Indents
-      ─────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'indents' && (
-        <div className="procurement-table-card" style={{ padding: '1.25rem' }}>
-          <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                Material Indents
-              </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Field store requisition slips and site requests
-              </div>
-            </div>
-          </div>
-          <DataTable
-            columns={indentColumns}
-            data={indents}
-            exportFilename="material_indents.csv"
-            searchPlaceholder="Search indent #, project, priority..."
-            isLoading={isLoadingIndents}
-            toolbarActions={
-              hasPermission('materials', 'create') && (
-                <Button variant="primary" onClick={() => setIsIndentModalOpen(true)} style={{ height: '36px' }}>
-                  <Plus size={16} style={{ marginRight: '0.4rem' }} /> Create Indent
-                </Button>
-              )
-            }
-            keyExtractor={(ind) => String(ind.indent_id)}
-          />
-        </div>
-      )}
 
       {/* ─────────────────────────────────────────────────────────────────
           TAB 6: Procurement & Stock Reports (Phase 7)
